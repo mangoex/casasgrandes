@@ -268,12 +268,19 @@ async function loadDashboardData() {
       </svg>
     `;
     
+    // Toggle Advisor column header in recent orders table based on role
+    const thAsesor = document.getElementById('th-asesor');
+    if (thAsesor) {
+      thAsesor.style.display = user.nivel_rol === 'Asesor' ? 'none' : '';
+    }
+
     // Load recent orders table
     const ordersTbody = document.getElementById('recent-orders-tbody');
     ordersTbody.innerHTML = '';
     
     if (quotes.length === 0) {
-      ordersTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-light);">No hay cotizaciones registradas.</td></tr>`;
+      const colspan = user.nivel_rol === 'Asesor' ? 4 : 5;
+      ordersTbody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center; color: var(--text-light);">No hay cotizaciones registradas.</td></tr>`;
     } else {
       quotes.slice(0, 8).forEach(q => {
         let badgeClass = 'badge-info';
@@ -286,7 +293,7 @@ async function loadDashboardData() {
           <tr>
             <td><strong>${q.folio_cotizacion}</strong></td>
             <td>${q.cliente_nombre}</td>
-            <td>${q.asesor_nombre}</td>
+            ${user.nivel_rol !== 'Asesor' ? `<td>${q.asesor_nombre}</td>` : ''}
             <td>$${q.total_mxn.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
             <td><span class="badge ${badgeClass}">${q.estatus}</span></td>
           </tr>
