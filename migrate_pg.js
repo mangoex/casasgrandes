@@ -248,6 +248,41 @@ async function runMigration() {
       }
     }
 
+    // Read SQLite database if it exists to preserve custom usernames and passwords
+    const sqlitePath = path.join(__dirname, 'database.sqlite');
+    const customUserCredentials = {}; // Map of email/name -> { usuario, password_hash }
+    
+    if (fs.existsSync(sqlitePath)) {
+      console.log('Found local database.sqlite. Reading custom user credentials to preserve passwords and usernames...');
+      try {
+        const sqlite3 = require('sqlite3').verbose();
+        const sqliteDb = new sqlite3.Database(sqlitePath);
+        
+        const sqliteRows = await new Promise((resolve, reject) => {
+          sqliteDb.all("SELECT nombre, usuario, email, password_hash FROM asesores", [], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+          });
+        });
+        
+        for (const row of sqliteRows) {
+          const emailKey = row.email ? row.email.trim().toLowerCase() : '';
+          const nameKey = row.nombre ? row.nombre.trim().toLowerCase() : '';
+          
+          if (emailKey) {
+            customUserCredentials[emailKey] = { usuario: row.usuario, password_hash: row.password_hash };
+          } else if (nameKey) {
+            customUserCredentials[nameKey] = { usuario: row.usuario, password_hash: row.password_hash };
+          }
+        }
+        
+        sqliteDb.close();
+        console.log(`Loaded custom credentials for ${Object.keys(customUserCredentials).length} advisors.`);
+      } catch (err) {
+        console.error('Failed to read custom credentials from SQLite (will fall back to CSV defaults):', err.message);
+      }
+    }
+
     // 4. Populate Asesores
     console.log('Seeding Asesores...');
     const asesoresRows = parseCsvFile('Asesores.csv');
@@ -255,26 +290,41 @@ async function runMigration() {
     for (const row of asesoresRows) {
       if (row.length >= 5) {
         const nombre = row[0].trim();
-        const usuario = row[1].trim();
+        const usuarioVal = row[1].trim();
         const nivel = row[2].trim();
         const telefono = row[3].trim();
         let email = row[4] ? row[4].trim() : "";
         const cumpleanos = row[5] ? row[5].trim() : "";
 
         // If email is empty but usuario looks like an email, use it as email
-        if (!email && usuario.includes('@')) {
-          email = usuario;
+        if (!email && usuarioVal.includes('@')) {
+          email = usuarioVal;
         }
         // Fallback to dummy email to satisfy UNIQUE constraint if both are empty
         if (!email) {
           email = `temp_email_${nombre.replace(/\s+/g, '_').toLowerCase()}@casasgrandes.mx`;
         }
 
+        const emailKey = email.trim().toLowerCase();
+        const nameKey = nombre.trim().toLowerCase();
+        
+        // Use custom credentials if found in SQLite, otherwise use default
+        let finalUsuario = usuarioVal;
+        let finalPasswordHash = defaultPasswordHash;
+        
+        if (customUserCredentials[emailKey]) {
+          finalUsuario = customUserCredentials[emailKey].usuario;
+          finalPasswordHash = customUserCredentials[emailKey].password_hash;
+        } else if (customUserCredentials[nameKey]) {
+          finalUsuario = customUserCredentials[nameKey].usuario;
+          finalPasswordHash = customUserCredentials[nameKey].password_hash;
+        }
+
         await db.run(`
           INSERT INTO asesores (nombre, usuario, nivel_rol, email, telefono, cumpleanos, password_hash)
           VALUES (?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT (email) DO NOTHING
-        `, [nombre, usuario, nivel, email, telefono, cumpleanos, defaultPasswordHash]);
+        `, [nombre, finalUsuario, nivel, email, telefono, cumpleanos, finalPasswordHash]);
       }
     }
 
