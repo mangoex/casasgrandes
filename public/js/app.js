@@ -2341,10 +2341,14 @@ async function loadAdminMetas() {
   
   try {
     const res = await fetch(`${API_URL}/api/metas`, { headers: getHeaders() });
-    allAdminMetas = await res.json();
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to fetch metas');
+    }
+    allAdminMetas = data;
     
     tbody.innerHTML = '';
-    if (allAdminMetas.length === 0) {
+    if (!Array.isArray(allAdminMetas) || allAdminMetas.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No hay metas comerciales configuradas.</td></tr>';
       return;
     }

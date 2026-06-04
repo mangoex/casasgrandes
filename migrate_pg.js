@@ -49,6 +49,8 @@ async function runMigration() {
   try {
     // 1. Drop existing tables to start fresh
     console.log('Dropping existing tables if any...');
+    await db.run('DROP TABLE IF EXISTS planificacion_semanal CASCADE');
+    await db.run('DROP TABLE IF EXISTS metas_ventas CASCADE');
     await db.run('DROP TABLE IF EXISTS crm_visitas CASCADE');
     await db.run('DROP TABLE IF EXISTS almacen_movimientos CASCADE');
     await db.run('DROP TABLE IF EXISTS cotizacion_detalles CASCADE');
@@ -197,6 +199,37 @@ async function runMigration() {
         proxima_cita TEXT,
         FOREIGN KEY (cliente_id) REFERENCES clientes(id),
         FOREIGN KEY (asesor_id) REFERENCES asesores(id)
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE metas_ventas (
+        id SERIAL PRIMARY KEY,
+        asesor_id INTEGER,
+        ciclo_agricola VARCHAR(30) NOT NULL,
+        monto_objetivo_mxn REAL DEFAULT 0.0,
+        bolsas_objetivo INTEGER DEFAULT 0,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        activo INTEGER DEFAULT 1,
+        FOREIGN KEY (asesor_id) REFERENCES asesores(id)
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE planificacion_semanal (
+        id SERIAL PRIMARY KEY,
+        asesor_id INTEGER NOT NULL,
+        cliente_id INTEGER NOT NULL,
+        fecha_programada DATE NOT NULL,
+        objetivo_visita TEXT,
+        pronostico_bolsas INTEGER DEFAULT 0,
+        pronostico_monto_mxn REAL DEFAULT 0.0,
+        realizada INTEGER DEFAULT 0,
+        visita_id INTEGER,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asesor_id) REFERENCES asesores(id),
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+        FOREIGN KEY (visita_id) REFERENCES crm_visitas(id)
       )
     `);
 
