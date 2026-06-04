@@ -225,8 +225,18 @@ async function runMigration() {
         const usuario = row[1].trim();
         const nivel = row[2].trim();
         const telefono = row[3].trim();
-        const email = row[4].trim();
+        let email = row[4] ? row[4].trim() : "";
         const cumpleanos = row[5] ? row[5].trim() : "";
+
+        // If email is empty but usuario looks like an email, use it as email
+        if (!email && usuario.includes('@')) {
+          email = usuario;
+        }
+        // Fallback to dummy email to satisfy UNIQUE constraint if both are empty
+        if (!email) {
+          email = `temp_email_${nombre.replace(/\s+/g, '_').toLowerCase()}@casasgrandes.mx`;
+        }
+
         await db.run(`
           INSERT INTO asesores (nombre, usuario, nivel_rol, email, telefono, cumpleanos, password_hash)
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -254,7 +264,8 @@ async function runMigration() {
     };
 
     function resolveAsesorId(nameStr) {
-      if (!nameStr) return asesoresLookup["casas grandes"];
+      const defaultId = asesoresLookup["casas grandes"] || Object.values(asesoresLookup)[0];
+      if (!nameStr) return defaultId;
       const nameLower = nameStr.toLowerCase().trim();
       if (asesoresLookup[nameLower]) return asesoresLookup[nameLower];
       for (const [k, v] of Object.entries(asesoresHomologation)) {
@@ -263,7 +274,7 @@ async function runMigration() {
       for (const [k, v] of Object.entries(asesoresLookup)) {
         if (nameLower.includes(k) || k.includes(nameLower)) return v;
       }
-      return asesoresLookup["casas grandes"];
+      return defaultId;
     }
 
     const dbCuentasClave = await db.all("SELECT id, tier_name FROM cuentas_clave");
