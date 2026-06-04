@@ -1,6 +1,9 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const dotenv = require('dotenv');
 dotenv.config();
+
+// Force PostgreSQL DATE columns (OID 1082) to be returned as simple strings (YYYY-MM-DD)
+types.setTypeParser(1082, (val) => val);
 
 const connectionString = process.env.DATABASE_URL;
 
