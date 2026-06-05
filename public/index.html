@@ -53,6 +53,11 @@
             <span class="icon">🔄</span> Canal de Ventas
           </a>
         </li>
+        <li class="nav-item" data-target="clientes-view">
+          <a href="#">
+            <span class="icon">👥</span> Agricultores
+          </a>
+        </li>
         <li class="nav-item" data-target="planeacion-view">
           <a href="#">
             <span class="icon">📅</span> Planificación
@@ -410,6 +415,44 @@
                 <button id="btn-whatsapp-quote" type="button" class="btn btn-secondary" style="border-color: #22c55e; color: #16a34a;">💬 Compartir WhatsApp</button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLIENTS & AGRICULTORES CATALOG VIEW -->
+      <div id="clientes-view" class="view-section">
+        <div class="card">
+          <div class="flex-header" style="margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+            <h2>Catálogo de Clientes / Agricultores</h2>
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+              <input type="text" id="catalog-client-search" class="form-input" placeholder="Buscar por nombre o ubicación..." style="width: 280px; margin: 0;">
+              <select id="catalog-client-advisor-filter" class="form-input admin-or-coordinator-only" style="width: 220px; margin: 0; display: none;">
+                <option value="ALL">Todos los Asesores</option>
+              </select>
+              <button id="btn-catalog-open-client-modal" class="btn btn-primary" style="width: auto; padding: 8px 16px; margin: 0;">👤 Registrar Cliente</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th id="th-catalog-asesor">Asesor</th>
+                  <th>Cuenta Clave</th>
+                  <th>Contacto</th>
+                  <th>Teléfono</th>
+                  <th>Ubicación</th>
+                  <th>Superficie</th>
+                  <th>Estatus</th>
+                  <th style="text-align: center;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="catalog-clientes-tbody">
+                <tr>
+                  <td colspan="9" style="text-align: center; color: var(--text-light);">Cargando...</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -849,11 +892,12 @@
   <div id="add-client-modal" class="modal-overlay">
     <div class="modal-card" style="max-width: 550px;">
       <div class="modal-header">
-        <h2>Registrar Nuevo Cliente</h2>
+        <h2 id="client-modal-title">Registrar Nuevo Cliente</h2>
         <button class="modal-close" onclick="closeModal('add-client-modal')">&times;</button>
       </div>
       <div class="modal-body">
         <form id="add-client-form">
+          <input type="hidden" id="client-form-id">
           <div class="form-group">
             <label for="client-name">Nombre / Razón Social del Agricultor</label>
             <input type="text" id="client-name" class="form-input" placeholder="Nombre completo" required>
@@ -888,7 +932,7 @@
               <input type="text" id="client-superficie" class="form-input" placeholder="Ej. 50 has">
             </div>
           </div>
-          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Registrar Cliente</button>
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;" id="client-submit-btn">Registrar Cliente</button>
         </form>
       </div>
     </div>

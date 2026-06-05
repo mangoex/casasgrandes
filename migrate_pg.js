@@ -4,33 +4,55 @@ const db = require('./db');
 
 const defaultPasswordHash = "$2b$10$Ly0wcxrAZmfzIOSLPRzwdO3YxJQ2dPT6osFpn0j0hlAT9uK7ojTKm"; // Default: password123
 
-// Safely parse a CSV line, handling commas inside quotes
-function parseCsvLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
 function parseCsvFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8');
-  const lines = content.split(/\r?\n/);
   const rows = [];
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    rows.push(parseCsvLine(line));
+  let row = [];
+  let insideQuote = false;
+  let entry = '';
+  
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+    
+    if (insideQuote) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          entry += '"';
+          i++; // Skip next quote
+        } else {
+          insideQuote = false;
+        }
+      } else {
+        entry += char;
+      }
+    } else {
+      if (char === '"') {
+        insideQuote = true;
+      } else if (char === ',') {
+        row.push(entry.trim());
+        entry = '';
+      } else if (char === '\n' || char === '\r') {
+        if (char === '\r' && nextChar === '\n') {
+          i++; // Skip \n
+        }
+        row.push(entry.trim());
+        // Only push if there's actually some data in the row (e.g. not just empty fields on an empty line)
+        if (row.some(val => val !== '')) {
+          rows.push(row);
+        }
+        row = [];
+        entry = '';
+      } else {
+        entry += char;
+      }
+    }
+  }
+  if (row.length > 0 || entry !== '') {
+    row.push(entry.trim());
+    if (row.some(val => val !== '')) {
+      rows.push(row);
+    }
   }
   return rows;
 }

@@ -125,6 +125,8 @@ function switchView(viewId, title) {
     loadDashboardData();
   } else if (viewId === 'crm-view') {
     loadCRMBoardData();
+  } else if (viewId === 'clientes-view') {
+    loadClientesCatalog();
   } else if (viewId === 'cotizador-view') {
     loadCotizadorConfig();
   } else if (viewId === 'catalog-view') {
@@ -504,11 +506,27 @@ window.closeModal = function(modalId) {
 
 // Bind Open Add Client Modal
 document.getElementById('btn-open-client-modal').addEventListener('click', () => {
+  document.getElementById('client-modal-title').textContent = 'Registrar Nuevo Cliente';
+  document.getElementById('client-form-id').value = '';
+  document.getElementById('client-submit-btn').textContent = 'Registrar Cliente';
+  document.getElementById('add-client-form').reset();
   loadCRMClientFormConfig();
   openModal('add-client-modal');
 });
 
-async function loadCRMClientFormConfig() {
+// Bind Catalog View Registrar Cliente Button
+if (document.getElementById('btn-catalog-open-client-modal')) {
+  document.getElementById('btn-catalog-open-client-modal').addEventListener('click', () => {
+    document.getElementById('client-modal-title').textContent = 'Registrar Nuevo Cliente';
+    document.getElementById('client-form-id').value = '';
+    document.getElementById('client-submit-btn').textContent = 'Registrar Cliente';
+    document.getElementById('add-client-form').reset();
+    loadCRMClientFormConfig();
+    openModal('add-client-modal');
+  });
+}
+
+async function loadCRMClientFormConfig(selectedCCId = null) {
   try {
     const ccRes = await fetch(`${API_URL}/api/cuentas-clave`, { headers: getHeaders() });
     const tiers = await ccRes.json();
@@ -518,15 +536,20 @@ async function loadCRMClientFormConfig() {
     tiers.forEach(t => {
       ccSelect.innerHTML += `<option value="${t.id}">${t.tier_name}</option>`;
     });
+    
+    if (selectedCCId) {
+      ccSelect.value = selectedCCId;
+    }
   } catch (err) {
     console.error(err);
   }
 }
 
-// Add Client Submit handler
+// Add/Edit Client Submit handler
 document.getElementById('add-client-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   
+  const clientId = document.getElementById('client-form-id').value;
   const payload = {
     nombre: document.getElementById('client-name').value.trim(),
     contacto: document.getElementById('client-contacto').value.trim(),
@@ -537,22 +560,33 @@ document.getElementById('add-client-form').addEventListener('submit', async (e) 
     superficie_text: document.getElementById('client-superficie').value.trim()
   };
   
+  const url = clientId ? `${API_URL}/api/clientes/${clientId}` : `${API_URL}/api/clientes`;
+  const method = clientId ? 'PUT' : 'POST';
+  
   try {
-    const res = await fetch(`${API_URL}/api/clientes`, {
-      method: 'POST',
+    const res = await fetch(url, {
+      method: method,
       headers: getHeaders(),
       body: JSON.stringify(payload)
     });
     
     if (!res.ok) {
       const data = await res.json();
-      throw new Error(data.error || 'Failed to create client');
+      throw new Error(data.error || 'Failed to save client');
     }
     
     closeModal('add-client-modal');
     document.getElementById('add-client-form').reset();
-    await loadCRMBoardData();
-    alert('Cliente registrado con éxito');
+    
+    // Refresh the active view
+    const activeView = document.querySelector('.view-section.active');
+    if (activeView && activeView.id === 'clientes-view') {
+      await loadClientesCatalog();
+    } else {
+      await loadCRMBoardData();
+    }
+    
+    alert(clientId ? 'Cliente actualizado con éxito' : 'Cliente registrado con éxito');
   } catch (err) {
     alert(err.message);
   }
@@ -2449,4 +2483,150 @@ document.getElementById('add-meta-form').addEventListener('submit', async (e) =>
     alert(err.message);
   }
 });
+
+// -------------------------------------------------------------
+// CLIENTS & AGRICULTORES CATALOG LOGIC
+// -------------------------------------------------------------
+let allCatalogClients = [];
+let catalogAdvisorsLoaded = false;
+let catalogEventsBound = false;
+
+function bindCatalogClientEvents() {
+  if (catalogEventsBound) return;
+  
+  const searchInput = document.getElementById('catalog-client-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      renderCatalogClientes();
+    });
+  }
+  
+  const advisorFilter = document.getElementById('catalog-client-advisor-filter');
+  if (advisorFilter) {
+    advisorFilter.addEventListener('change', () => {
+      renderCatalogClientes();
+    });
+  }
+  
+  catalogEventsBound = true;
+}
+
+async function loadCatalogClientAdvisorOptions() {
+  const filterSelect = document.getElementById('catalog-client-advisor-filter');
+  if (!filterSelect || catalogAdvisorsLoaded) return;
+  
+  try {
+    const res = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
+    const advisers = await res.json();
+    
+    filterSelect.innerHTML = '<option value="ALL">Todos los Asesores</option>';
+    advisers.forEach(a => {
+      if (a.activo === 1) {
+        filterSelect.innerHTML += `<option value="${a.id}">${a.nombre}</option>`;
+      }
+    });
+    catalogAdvisorsLoaded = true;
+  } catch (err) {
+    console.error('Failed to load advisor options for client catalog:', err);
+  }
+}
+
+window.loadClientesCatalog = async function() {
+  const tbody = document.getElementById('catalog-clientes-tbody');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">Cargando agricultores...</td></tr>';
+  }
+  
+  const thCatalogAsesor = document.getElementById('th-catalog-asesor');
+  if (thCatalogAsesor) {
+    thCatalogAsesor.style.display = user.nivel_rol === 'Asesor' ? 'none' : '';
+  }
+  
+  try {
+    bindCatalogClientEvents();
+    
+    if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') {
+      await loadCatalogClientAdvisorOptions();
+    }
+    
+    const res = await fetch(`${API_URL}/api/clientes`, { headers: getHeaders() });
+    allCatalogClients = await res.json();
+    
+    renderCatalogClientes();
+  } catch (err) {
+    console.error('Failed to load client catalog:', err);
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--danger);">Error al cargar: ${err.message}</td></tr>`;
+    }
+  }
+};
+
+window.renderCatalogClientes = function() {
+  const tbody = document.getElementById('catalog-clientes-tbody');
+  if (!tbody) return;
+  
+  const searchTerm = document.getElementById('catalog-client-search').value.toLowerCase().trim();
+  const advisorFilter = document.getElementById('catalog-client-advisor-filter').value;
+  
+  tbody.innerHTML = '';
+  
+  let filtered = allCatalogClients;
+  
+  if (searchTerm) {
+    filtered = filtered.filter(c => 
+      c.nombre.toLowerCase().includes(searchTerm) || 
+      (c.ubicacion && c.ubicacion.toLowerCase().includes(searchTerm)) ||
+      (c.contacto && c.contacto.toLowerCase().includes(searchTerm))
+    );
+  }
+  
+  if (user.nivel_rol !== 'Asesor' && advisorFilter !== 'ALL') {
+    filtered = filtered.filter(c => c.asesor_id === Number(advisorFilter));
+  }
+  
+  if (filtered.length === 0) {
+    const cols = user.nivel_rol === 'Asesor' ? 8 : 9;
+    tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align: center; color: var(--text-light);">No se encontraron agricultores.</td></tr>`;
+    return;
+  }
+  
+  filtered.forEach(c => {
+    let badgeClass = c.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
+    
+    tbody.innerHTML += `
+      <tr>
+        <td><strong>${c.nombre}</strong></td>
+        ${user.nivel_rol !== 'Asesor' ? `<td>${c.asesor_nombre || 'Sin Asesor'}</td>` : ''}
+        <td>${c.cuenta_clave_nombre || '-'}</td>
+        <td>${c.contacto || '-'}</td>
+        <td>${c.telefono || '-'}</td>
+        <td>${c.ubicacion || '-'}</td>
+        <td>${c.superficie_text || '-'}</td>
+        <td><span class="badge ${badgeClass}">${c.estado_status}</span></td>
+        <td style="text-align: center;">
+          <button class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 11px;" onclick="editCatalogClient(${c.id})">✏️ Editar</button>
+        </td>
+      </tr>
+    `;
+  });
+};
+
+window.editCatalogClient = async function(clientId) {
+  const c = allCatalogClients.find(x => x.id === clientId);
+  if (!c) return;
+  
+  document.getElementById('client-modal-title').textContent = 'Editar Agricultor';
+  document.getElementById('client-form-id').value = c.id;
+  document.getElementById('client-name').value = c.nombre;
+  document.getElementById('client-contacto').value = c.contacto || '';
+  document.getElementById('client-telefono').value = c.telefono || '';
+  document.getElementById('client-correo').value = c.correo || '';
+  document.getElementById('client-ubicacion').value = c.ubicacion || '';
+  document.getElementById('client-superficie').value = c.superficie_text || '';
+  document.getElementById('client-submit-btn').textContent = 'Guardar Cambios';
+  
+  await loadCRMClientFormConfig(c.cuenta_clave_id);
+  openModal('add-client-modal');
+};
+
 
