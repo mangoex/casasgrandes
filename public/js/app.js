@@ -803,6 +803,20 @@ function renderKanbanBoard(quotesList) {
     // Build items summary label
     const itemsSummary = q.items.map(i => `${i.producto_nombre.split(' ')[0]} (x${i.cantidad})`).join(', ') || 'Sin productos';
     
+    const prevLabels = {
+      'Autorizada': 'Prospecto',
+      'Vendido': 'Cotizado',
+      'Entregado': 'Cobrado'
+    };
+    const nextLabels = {
+      'Borrador': 'Cotizado',
+      'Autorizada': 'Cobrado',
+      'Vendido': 'Entregado'
+    };
+    
+    const prevLabel = prevLabels[status] || '';
+    const nextLabel = nextLabels[status] || '';
+    
     card.innerHTML = `
       <div class="kanban-card-title">
         <span>${q.cliente_nombre}</span>
@@ -815,8 +829,8 @@ function renderKanbanBoard(quotesList) {
         <span class="kanban-card-price">$${q.total_mxn.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>
       </div>
       <div class="kanban-card-mobile-arrows">
-        ${status !== 'Borrador' ? `<button class="kanban-arrow-btn prev-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'up', event)">▲ Anterior</button>` : ''}
-        ${status !== 'Entregado' ? `<button class="kanban-arrow-btn next-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'down', event)">▼ Siguiente</button>` : ''}
+        ${status !== 'Borrador' ? `<button class="kanban-arrow-btn prev-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'up', event)">▲ ${prevLabel}</button>` : ''}
+        ${status !== 'Entregado' ? `<button class="kanban-arrow-btn next-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'down', event)">▼ ${nextLabel}</button>` : ''}
       </div>
     `;
     
