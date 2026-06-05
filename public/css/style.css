@@ -1787,4 +1787,22 @@ tr:hover td {
   .kanban-arrow-btn.next-stage:active {
     background-color: #f0fdf4;
   }
+
+  /* Mobile-only section-colored cards for easy identification */
+  #cards-prospecto .kanban-card {
+    background-color: rgba(100, 116, 139, 0.05) !important;
+    border-left: 4px solid var(--text-light) !important;
+  }
+  #cards-cotizado .kanban-card {
+    background-color: rgba(59, 130, 246, 0.05) !important;
+    border-left: 4px solid var(--info) !important;
+  }
+  #cards-cobrado .kanban-card {
+    background-color: rgba(217, 119, 6, 0.05) !important;
+    border-left: 4px solid var(--accent) !important;
+  }
+  #cards-entregado .kanban-card {
+    background-color: rgba(16, 185, 129, 0.05) !important;
+    border-left: 4px solid var(--success) !important;
+  }
 }
