@@ -526,7 +526,7 @@ if (document.getElementById('btn-catalog-open-client-modal')) {
   });
 }
 
-async function loadCRMClientFormConfig(selectedCCId = null) {
+async function loadCRMClientFormConfig(selectedCCId = null, selectedAsesorId = null) {
   try {
     const ccRes = await fetch(`${API_URL}/api/cuentas-clave`, { headers: getHeaders() });
     const tiers = await ccRes.json();
@@ -540,6 +540,27 @@ async function loadCRMClientFormConfig(selectedCCId = null) {
     if (selectedCCId) {
       ccSelect.value = selectedCCId;
     }
+
+    const aRes = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
+    const advisers = await aRes.json();
+    
+    const aSelect = document.getElementById('client-asesor');
+    if (aSelect) {
+      aSelect.innerHTML = '<option value="">-- Sin Asesor --</option>';
+      advisers.forEach(a => {
+        if (a.activo === 1) {
+          aSelect.innerHTML += `<option value="${a.id}">${a.nombre}</option>`;
+        }
+      });
+      
+      if (selectedAsesorId !== null && selectedAsesorId !== undefined) {
+        aSelect.value = selectedAsesorId;
+      } else if (user && user.nivel_rol === 'Asesor') {
+        aSelect.value = user.id;
+      } else {
+        aSelect.value = '';
+      }
+    }
   } catch (err) {
     console.error(err);
   }
@@ -550,6 +571,7 @@ document.getElementById('add-client-form').addEventListener('submit', async (e) 
   e.preventDefault();
   
   const clientId = document.getElementById('client-form-id').value;
+  const asesorVal = document.getElementById('client-asesor') ? document.getElementById('client-asesor').value : '';
   const payload = {
     nombre: document.getElementById('client-name').value.trim(),
     contacto: document.getElementById('client-contacto').value.trim(),
@@ -557,7 +579,8 @@ document.getElementById('add-client-form').addEventListener('submit', async (e) 
     correo: document.getElementById('client-correo').value.trim(),
     cuenta_clave_id: Number(document.getElementById('client-cc').value),
     ubicacion: document.getElementById('client-ubicacion').value.trim(),
-    superficie_text: document.getElementById('client-superficie').value.trim()
+    superficie_text: document.getElementById('client-superficie').value.trim(),
+    asesor_id: asesorVal ? Number(asesorVal) : null
   };
   
   const url = clientId ? `${API_URL}/api/clientes/${clientId}` : `${API_URL}/api/clientes`;
@@ -2642,7 +2665,7 @@ window.editCatalogClient = async function(clientId) {
   document.getElementById('client-superficie').value = c.superficie_text || '';
   document.getElementById('client-submit-btn').textContent = 'Guardar Cambios';
   
-  await loadCRMClientFormConfig(c.cuenta_clave_id);
+  await loadCRMClientFormConfig(c.cuenta_clave_id, c.asesor_id);
   openModal('add-client-modal');
 };
 

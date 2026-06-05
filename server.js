@@ -121,7 +121,7 @@ app.post('/api/clientes', authenticateToken, async (req, res) => {
     const existing = await db.get('SELECT id FROM clientes WHERE nombre = ?', [nombre.trim()]);
     if (existing) return res.status(400).json({ error: 'A client with this name already exists' });
     
-    const assignedAsesor = asesor_id || req.user.id;
+    const assignedAsesor = (asesor_id === null || asesor_id === '') ? null : (asesor_id || req.user.id);
     const ccId = cuenta_clave_id || 1; // Default: General / None
     
     const result = await db.run(`
@@ -155,7 +155,7 @@ app.put('/api/clientes/:id', authenticateToken, async (req, res) => {
       WHERE id = ?
     `, [
       nombre || client.nombre,
-      asesor_id || client.asesor_id,
+      asesor_id !== undefined ? (asesor_id === '' ? null : asesor_id) : client.asesor_id,
       cuenta_clave_id || client.cuenta_clave_id,
       contacto !== undefined ? contacto : client.contacto,
       telefono !== undefined ? telefono : client.telefono,
