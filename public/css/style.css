@@ -1531,3 +1531,260 @@ tr:hover td {
 .db-timeline-status {
   align-self: center;
 }
+
+/* -------------------------------------------------------------
+   MOBILE RESPONSIVENESS OVERRIDES (MAX-WIDTH: 600PX)
+   ------------------------------------------------------------- */
+.mobile-only-btn {
+  display: none;
+}
+.mobile-bottom-nav {
+  display: none;
+}
+.sidebar-backdrop {
+  display: none;
+}
+.kanban-card-mobile-arrows {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  /* Hamburger button show */
+  .mobile-only-btn {
+    display: block !important;
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text);
+    cursor: pointer;
+    padding: 6px 12px;
+    margin-right: 8px;
+  }
+  
+  /* Top header responsive alignment */
+  header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 12px 16px !important;
+    background-color: var(--surface) !important;
+    border-bottom: 1px solid var(--border) !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 90 !important;
+    margin-bottom: 15px !important;
+  }
+  
+  #view-title {
+    font-size: 20px !important;
+    margin: 0 !important;
+    flex-grow: 1 !important;
+  }
+  
+  #header-user-badge {
+    margin-left: auto !important;
+  }
+  
+  /* Slide-in sidebar drawer */
+  aside {
+    position: fixed !important;
+    top: 0 !important;
+    left: -280px !important; /* Hidden from view */
+    width: 280px !important;
+    height: 100vh !important;
+    z-index: 1000 !important;
+    transition: left 0.3s ease !important;
+    box-shadow: 5px 0 15px rgba(0, 0, 0, 0.2) !important;
+    background-color: #042f1a !important; /* Elegant dark agricultural green */
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    padding: 24px !important;
+    border-right: none !important;
+  }
+  
+  aside.active {
+    left: 0 !important; /* Slide in */
+  }
+  
+  /* Semi-transparent backdrop overlay */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+  
+  .sidebar-backdrop.active {
+    display: block;
+  }
+  
+  /* Main Content adjustment for mobile */
+  main {
+    padding: 12px !important;
+    padding-bottom: 80px !important; /* Prevent bottom nav from covering content */
+    overflow-y: auto !important;
+  }
+  
+  /* Bottom navigation bar */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 60px !important;
+    background-color: var(--surface) !important;
+    border-top: 1px solid var(--border) !important;
+    z-index: 95 !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08) !important;
+  }
+  
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 100%;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  
+  .mobile-nav-icon {
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+  
+  .mobile-nav-label {
+    font-size: 11px;
+    font-weight: 600;
+  }
+  
+  .mobile-nav-item.active {
+    color: var(--primary) !important;
+  }
+  
+  /* Force sidebar links to list vertically inside drawer */
+  .nav-links {
+    flex-direction: column !important;
+    overflow-x: visible !important;
+    white-space: normal !important;
+    gap: 4px !important;
+    width: 100% !important;
+    margin-top: 20px !important;
+    margin-bottom: 0 !important;
+  }
+  
+  .nav-item {
+    width: 100% !important;
+  }
+  
+  .nav-item a {
+    display: flex !important;
+    padding: 12px 16px !important;
+    font-size: 15px !important;
+    border-radius: var(--radius) !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+  }
+  
+  .nav-item.active a {
+    background-color: var(--primary) !important;
+    color: white !important;
+  }
+  
+  .user-profile {
+    margin-top: auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    padding-top: 16px !important;
+    width: 100% !important;
+  }
+  
+  .user-profile h4 {
+    display: block !important;
+    color: white !important;
+    font-size: 14px !important;
+    margin-bottom: 4px !important;
+  }
+  
+  .user-profile p {
+    display: block !important;
+    color: rgba(255,255,255,0.5) !important;
+    font-size: 11.5px !important;
+    margin-bottom: 12px !important;
+  }
+  
+  .btn-logout {
+    display: block !important;
+    text-align: center !important;
+    padding: 8px 12px !important;
+    border-radius: var(--radius) !important;
+    background-color: rgba(239, 68, 68, 0.15) !important;
+    color: #f87171 !important;
+    font-size: 13.5px !important;
+    font-weight: 600 !important;
+  }
+  
+  /* Vertical stacking for Kanban board */
+  .kanban-board {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+    min-height: auto !important;
+  }
+  
+  .kanban-column {
+    max-height: none !important;
+    overflow-y: visible !important;
+    padding: 16px 12px !important;
+  }
+  
+  /* Mobile-only arrow buttons inside card */
+  .kanban-card-mobile-arrows {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 12px;
+    border-top: 1px dashed var(--border);
+    padding-top: 8px;
+  }
+  
+  .kanban-arrow-btn {
+    flex: 1;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: var(--transition);
+  }
+  
+  .kanban-arrow-btn:active {
+    background-color: #e2e8f0;
+  }
+  
+  .kanban-arrow-btn.next-stage {
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--primary);
+  }
+  
+  .kanban-arrow-btn.next-stage:active {
+    background-color: #f0fdf4;
+  }
+}

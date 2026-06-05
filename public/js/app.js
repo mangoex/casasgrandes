@@ -103,9 +103,83 @@ function showAppView() {
       
       const target = item.getAttribute('data-target');
       const title = item.innerText.trim().replace(/^[^\s]+\s+/, '');
+      
+      // Sync with mobile bottom nav if it's one of the tabs
+      const mobileNavItems = document.querySelectorAll('.mobile-bottom-nav .mobile-nav-item');
+      mobileNavItems.forEach(mn => {
+        mn.classList.remove('active');
+        if (mn.getAttribute('data-target') === target) {
+          mn.classList.add('active');
+        }
+      });
+      
       switchView(target, title);
     });
   });
+
+  // Bind Mobile Bottom Nav Links
+  const mobileNavItems = document.querySelectorAll('.mobile-bottom-nav .mobile-nav-item');
+  mobileNavItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = item.getAttribute('data-target');
+      
+      // Update sidebar nav state
+      navItems.forEach(i => {
+        i.classList.remove('active');
+        if (i.getAttribute('data-target') === target) {
+          i.classList.add('active');
+        }
+      });
+      
+      // Update bottom nav state
+      mobileNavItems.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      
+      // Map targets to titles
+      const titles = {
+        'dashboard-view': 'Tablero General',
+        'crm-view': 'Canal de Ventas',
+        'cotizador-view': 'Cotizador',
+        'catalog-view': 'Catálogo de Productos'
+      };
+      
+      switchView(target, titles[target] || 'AgriSales Pro');
+    });
+  });
+
+  // Mobile drawer controls
+  const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+  const sidebar = document.querySelector('aside');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  
+  if (mobileMenuBtn && sidebar && backdrop) {
+    // Clone nodes to clear previous listener binds
+    const newMobileMenuBtn = mobileMenuBtn.cloneNode(true);
+    mobileMenuBtn.parentNode.replaceChild(newMobileMenuBtn, mobileMenuBtn);
+    
+    const newBackdrop = backdrop.cloneNode(true);
+    backdrop.parentNode.replaceChild(newBackdrop, backdrop);
+    
+    const toggleSidebar = () => {
+      sidebar.classList.toggle('active');
+      newBackdrop.classList.toggle('active');
+    };
+    
+    newMobileMenuBtn.addEventListener('click', toggleSidebar);
+    newBackdrop.addEventListener('click', toggleSidebar);
+    
+    // Also, when a sidebar link is clicked on mobile, close the sidebar drawer
+    const sidebarLinks = document.querySelectorAll('.nav-links .nav-item a');
+    sidebarLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        if (window.innerWidth <= 600) {
+          sidebar.classList.remove('active');
+          newBackdrop.classList.remove('active');
+        }
+      });
+    });
+  }
   
   // Load Default Dashboard View
   switchView('dashboard-view', 'Tablero General');
@@ -495,6 +569,40 @@ window.drop = async function(ev, targetStatus) {
   }
 };
 
+window.moveQuoteStatus = async function(quoteId, currentStatus, direction, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  
+  const statuses = ['Borrador', 'Autorizada', 'Vendido', 'Entregado'];
+  const currentIndex = statuses.indexOf(currentStatus);
+  if (currentIndex === -1) return;
+  
+  let newIndex = currentIndex + (direction === 'down' ? 1 : -1);
+  if (newIndex < 0 || newIndex >= statuses.length) return;
+  
+  const targetStatus = statuses[newIndex];
+  
+  try {
+    const res = await fetch(`${API_URL}/api/cotizaciones/${quoteId}/status`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ estatus: targetStatus })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to update quote status');
+    }
+    
+    // Reload board
+    await loadCRMBoardData();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+};
+
 // Modal helpers
 window.openModal = function(modalId) {
   document.getElementById(modalId).classList.add('active');
@@ -705,6 +813,10 @@ function renderKanbanBoard(quotesList) {
       <div class="kanban-card-meta">
         <span style="font-size: 11px; color: var(--text-light);">👤 ${q.asesor_nombre.split(' ')[0]}</span>
         <span class="kanban-card-price">$${q.total_mxn.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>
+      </div>
+      <div class="kanban-card-mobile-arrows">
+        ${status !== 'Borrador' ? `<button class="kanban-arrow-btn prev-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'up', event)">▲ Anterior</button>` : ''}
+        ${status !== 'Entregado' ? `<button class="kanban-arrow-btn next-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'down', event)">▼ Siguiente</button>` : ''}
       </div>
     `;
     

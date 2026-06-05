@@ -97,6 +97,7 @@
     <!-- Main Content Frame -->
     <main>
       <header>
+        <button id="mobile-menu-btn" class="mobile-only-btn">☰</button>
         <h1 id="view-title">Tablero General</h1>
         <div id="header-user-badge" class="badge badge-info">Conectado</div>
       </header>
@@ -830,6 +831,29 @@
         </div>
       </div>
     </main>
+
+    <!-- Bottom Navigation Bar for Mobile -->
+    <div class="mobile-bottom-nav">
+      <div class="mobile-nav-item active" data-target="dashboard-view">
+        <span class="mobile-nav-icon">📊</span>
+        <span class="mobile-nav-label">Tablero</span>
+      </div>
+      <div class="mobile-nav-item" data-target="crm-view">
+        <span class="mobile-nav-icon">🔄</span>
+        <span class="mobile-nav-label">Canal</span>
+      </div>
+      <div class="mobile-nav-item" data-target="cotizador-view">
+        <span class="mobile-nav-icon">📝</span>
+        <span class="mobile-nav-label">Cotizar</span>
+      </div>
+      <div class="mobile-nav-item" data-target="catalog-view">
+        <span class="mobile-nav-icon">🌾</span>
+        <span class="mobile-nav-label">Productos</span>
+      </div>
+    </div>
+
+    <!-- Sidebar backdrop for mobile -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
   </section>
 
   <!-- =========================================================
