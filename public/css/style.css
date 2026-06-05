@@ -1631,6 +1631,16 @@ tr:hover td {
     overflow-y: auto !important;
   }
   
+  /* Hide secondary dashboard table on mobile */
+  .dashboard-tables-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+  
+  .dashboard-tables-grid > div:last-child {
+    display: none !important;
+  }
+  
   /* Bottom navigation bar */
   .mobile-bottom-nav {
     display: flex !important;
@@ -1660,17 +1670,17 @@ tr:hover td {
   }
   
   .mobile-nav-icon {
-    font-size: 20px;
-    margin-bottom: 2px;
-  }
-  
-  .mobile-nav-label {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 28px !important;
+    margin-bottom: 0 !important;
+    transition: transform 0.2s ease;
   }
   
   .mobile-nav-item.active {
     color: var(--primary) !important;
+  }
+  
+  .mobile-nav-item.active .mobile-nav-icon {
+    transform: scale(1.15) !important;
   }
   
   /* Force sidebar links to list vertically inside drawer */

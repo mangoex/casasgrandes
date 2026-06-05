@@ -140,6 +140,7 @@ function showAppView() {
       const titles = {
         'dashboard-view': 'Tablero General',
         'crm-view': 'Canal de Ventas',
+        'planeacion-view': 'Planificación',
         'cotizador-view': 'Cotizador',
         'catalog-view': 'Catálogo de Productos'
       };
