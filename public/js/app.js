@@ -2550,8 +2550,20 @@ window.loadClientesCatalog = async function() {
     }
     
     const res = await fetch(`${API_URL}/api/clientes`, { headers: getHeaders() });
-    allCatalogClients = await res.json();
+    const data = await res.json();
     
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Sesión vencida. Por favor, cierra sesión e inicia sesión de nuevo.');
+      }
+      throw new Error(data.error || 'Failed to fetch clients');
+    }
+    
+    if (!Array.isArray(data)) {
+      throw new Error('La respuesta del servidor no tiene el formato esperado.');
+    }
+    
+    allCatalogClients = data;
     renderCatalogClientes();
   } catch (err) {
     console.error('Failed to load client catalog:', err);
@@ -2564,6 +2576,11 @@ window.loadClientesCatalog = async function() {
 window.renderCatalogClientes = function() {
   const tbody = document.getElementById('catalog-clientes-tbody');
   if (!tbody) return;
+  
+  if (!Array.isArray(allCatalogClients)) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--danger);">Error: Datos inválidos o sesión vencida.</td></tr>';
+    return;
+  }
   
   const searchTerm = document.getElementById('catalog-client-search').value.toLowerCase().trim();
   const advisorFilter = document.getElementById('catalog-client-advisor-filter').value;
