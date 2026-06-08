@@ -4,6 +4,33 @@ const API_URL = ''; // Relative path since served on same host
 // State Variables
 let token = localStorage.getItem('token');
 let user = JSON.parse(localStorage.getItem('user'));
+
+// Global fetch interceptor for handling session expiration (401/403)
+const originalFetch = window.fetch;
+window.fetch = async function(resource, options) {
+  try {
+    const response = await originalFetch(resource, options);
+    if (response.status === 401 || response.status === 403) {
+      const urlStr = typeof resource === 'string' ? resource : (resource.url || '');
+      if (!urlStr.includes('/api/auth/login')) {
+        console.warn('Session expired or unauthorized. Redirecting to login...', urlStr);
+        token = null;
+        user = null;
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        showLoginView();
+        throw new Error('Session expired or unauthorized');
+      }
+    }
+    return response;
+  } catch (error) {
+    if (error.message === 'Session expired or unauthorized') {
+      throw error;
+    }
+    throw error;
+  }
+};
+
 let activeClientId = null;
 let quoteItemsCount = 0;
 let allQuotes = [];
@@ -294,7 +321,14 @@ async function loadDashboardData() {
     
     quotes.forEach(q => {
       if (q.estatus === 'Vendido' || q.estatus === 'Entregado') {
-        const monthIndex = new Date(q.fecha_creacion).getMonth();
+        let dateObj = new Date(q.fecha_creacion);
+        if (isNaN(dateObj.getTime()) && typeof q.fecha_creacion === 'string') {
+          const parts = q.fecha_creacion.split('/');
+          if (parts.length === 3) {
+            dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+          }
+        }
+        const monthIndex = dateObj.getMonth();
         if (monthIndex >= 0 && monthIndex < 12) {
           monthlySales[monthIndex] += q.total_mxn;
         }
