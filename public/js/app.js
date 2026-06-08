@@ -3027,6 +3027,32 @@ window.loadAsignacionView = async function() {
       searchAdvisorInput.addEventListener('input', onSearchInput);
     }
     
+    // Bind Biddable Pool Card Drag & Drop
+    const biddableCard = document.getElementById('assign-biddable-card');
+    if (biddableCard && !biddableCard.dataset.listenersBound) {
+      biddableCard.dataset.listenersBound = 'true';
+      biddableCard.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        biddableCard.style.borderColor = 'var(--warning)';
+        biddableCard.style.background = 'rgba(241, 196, 15, 0.05)';
+      });
+      biddableCard.addEventListener('dragleave', () => {
+        biddableCard.style.borderColor = 'var(--border)';
+        biddableCard.style.background = 'var(--bg-hover)';
+      });
+      biddableCard.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        biddableCard.style.borderColor = 'var(--border)';
+        biddableCard.style.background = 'var(--bg-hover)';
+        
+        const dragData = e.dataTransfer.getData('text/plain');
+        if (dragData && dragData.startsWith('client:')) {
+          const clientId = Number(dragData.split(':')[1]);
+          await toggleClientBiddable(clientId, true);
+        }
+      });
+    }
+    
     // Render
     renderAsignacionBoard(advisors.filter(a => a.activo === 1 && a.nivel_rol === 'Asesor'));
   } catch (err) {
@@ -3304,10 +3330,26 @@ window.showAISuggestion = function(clientId, clientName) {
     
     if (clientPurchase > 1000000) {
       matchScore = Math.round((salesScore * 0.6) + (complRate * 0.4));
-      reasoning = 'Asesor con excelente volumen de venta y cumplimiento, ideal para proteger y fidelizar cuentas grandes.';
+      
+      const salesDesc = a.total_sales_mxn > 0 ? `$${(a.total_sales_mxn/1000000).toFixed(2)}M MXN` : 'sin ventas';
+      if (salesScore >= 80 && complRate >= 80) {
+        reasoning = `Excelente recomendación: Líder en ventas comerciales con ${salesDesc} y altísimo nivel de cumplimiento de visitas programadas (${Math.round(complRate)}%), idóneo para retener y desarrollar esta cuenta clave.`;
+      } else if (salesScore >= 40) {
+        reasoning = `Sólido perfil comercial con ${salesDesc} de facturación y efectividad del ${Math.round(complRate)}% en su agenda semanal. Adecuado para un servicio continuo y de calidad.`;
+      } else {
+        reasoning = `Mantiene un volumen moderado de ventas (${salesDesc}) y cumplimiento de agenda del ${Math.round(complRate)}%. Opción secundaria viable.`;
+      }
     } else {
       matchScore = Math.round((availabilityScore * 0.6) + (complRate * 0.4));
-      reasoning = 'Asesor con amplia disponibilidad de agenda actual para brindar atención dedicada y desarrollar la cuenta.';
+      
+      const pendingDesc = a.pending_visits === 0 ? 'agenda totalmente libre (0 visitas pendientes)' : `${a.pending_visits} visitas pendientes en su agenda`;
+      if (availabilityScore >= 80 && complRate >= 80) {
+        reasoning = `Excelente recomendación: Tiene ${pendingDesc} y un cumplimiento sobresaliente de visitas del ${Math.round(complRate)}%, asegurando atención inmediata y constante.`;
+      } else if (availabilityScore >= 40) {
+        reasoning = `Disponibilidad de agenda favorable (${pendingDesc}) y un nivel de efectividad del ${Math.round(complRate)}% para dar un seguimiento oportuno.`;
+      } else {
+        reasoning = `Agenda activa (${pendingDesc}) y efectividad del ${Math.round(complRate)}%. Conveniente si se requiere cercanía local o cobertura específica.`;
+      }
     }
     
     return {
@@ -3323,7 +3365,18 @@ window.showAISuggestion = function(clientId, clientName) {
     };
   });
   
-  scores.sort((a, b) => b.score - a.score);
+  // Sort with logical tie-breaker
+  scores.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    // Tie-breakers
+    if (clientPurchase > 1000000) {
+      return b.stats.sales - a.stats.sales; // Higher sales volume breaks tie
+    } else {
+      return a.stats.pending - b.stats.pending; // Lower workload (fewer pending visits) breaks tie
+    }
+  });
   
   let html = `
     <div style="background: var(--bg-hover); padding: 12px; border-radius: var(--radius); margin-bottom: 16px;">
@@ -3349,7 +3402,7 @@ window.showAISuggestion = function(clientId, clientName) {
         </div>
         <p style="margin: 0; font-size: 12px; color: var(--text-dark); line-height: 1.4; font-style: italic;">"${s.reasoning}"</p>
         <div style="font-size: 11px; color: var(--text-light); display: flex; gap: 12px; border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 2px;">
-          <span>Ventas: $${(s.stats.sales / 1000000).toFixed(1)}M</span>
+          <span>Ventas: $${(s.stats.sales / 1000000).toFixed(2)}M</span>
           <span>Visitas: ${Math.round(s.stats.visits)}%</span>
           <span>Pendientes: ${s.stats.pending}</span>
         </div>

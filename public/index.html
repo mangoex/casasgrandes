@@ -785,7 +785,7 @@
           </div>
         </div>
 
-        <div class="assign-grid" style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 24px; min-height: 500px;">
+        <div class="assign-grid" style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 24px; min-height: 500px;">
           <!-- Column 1: Unassigned Clients -->
           <div class="card" style="padding: 16px; display: flex; flex-direction: column;">
             <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
@@ -797,18 +797,7 @@
             </div>
           </div>
 
-          <!-- Column 2: Biddable pool -->
-          <div class="card" style="padding: 16px; display: flex; flex-direction: column; background: var(--bg-hover);">
-            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-              <h4 style="margin: 0; font-weight: 700;">Pool "Disponible" (Pujas)</h4>
-              <span class="badge badge-warning" id="assign-biddable-count">0</span>
-            </div>
-            <div id="assign-biddable-list" style="flex: 1; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 16px; padding: 4px;">
-              <div style="text-align: center; color: var(--text-light); padding: 20px;">No hay clientes en el pool de puja.</div>
-            </div>
-          </div>
-
-          <!-- Column 3: Active Advisors (Drop Zones) -->
+          <!-- Column 2: Active Advisors (Drop Zones) -->
           <div class="card" style="padding: 16px; display: flex; flex-direction: column;">
             <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
               <h4 style="margin: 0; font-weight: 700;">Asesores (Arrastra aquí)</h4>
@@ -816,6 +805,17 @@
             </div>
             <div id="assign-advisors-list" style="flex: 1; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 12px; padding: 4px;">
               <div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando...</div>
+            </div>
+          </div>
+
+          <!-- Column 3: Biddable pool (Drop Zone) -->
+          <div class="card" id="assign-biddable-card" style="padding: 16px; display: flex; flex-direction: column; background: var(--bg-hover); border: 2px dashed var(--border); transition: all 0.2s ease;">
+            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <h4 style="margin: 0; font-weight: 700;">Pool "Disponible" (Pujas)</h4>
+              <span class="badge badge-warning" id="assign-biddable-count">0</span>
+            </div>
+            <div id="assign-biddable-list" style="flex: 1; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 16px; padding: 4px;">
+              <div style="text-align: center; color: var(--text-light); padding: 20px;">No hay clientes en el pool de puja.</div>
             </div>
           </div>
         </div>
