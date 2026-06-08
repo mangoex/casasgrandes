@@ -3666,6 +3666,5 @@ window.clearNotifications = async function() {
     console.error(err);
   }
 };
-};
 
 
