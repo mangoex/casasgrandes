@@ -870,26 +870,26 @@
       </div>
 
       <!-- AI Suggestion Modal -->
-      <div id="ai-suggestion-modal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
+      <div id="ai-suggestion-modal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 500px;">
           <div class="modal-header">
-            <h3 id="ai-modal-title">Recomendación de la IA</h3>
-            <span class="close-modal-btn" onclick="closeModal('ai-suggestion-modal')">&times;</span>
+            <h3 id="ai-modal-title" style="margin: 0; font-size: 18px; font-weight: 700;">Recomendación de la IA</h3>
+            <button class="modal-close" onclick="closeModal('ai-suggestion-modal')">&times;</button>
           </div>
-          <div id="ai-suggestion-body" style="padding: 16px 0;">
+          <div class="modal-body" id="ai-suggestion-body" style="padding: 16px 0;">
             <!-- Content populated dynamically -->
           </div>
         </div>
       </div>
 
       <!-- Admin Decision Modal (Bidding Candidates) -->
-      <div id="admin-decision-modal" class="modal">
-        <div class="modal-content" style="max-width: 650px;">
+      <div id="admin-decision-modal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 650px;">
           <div class="modal-header">
-            <h3 id="decision-modal-title">Propuestas de Asesores</h3>
-            <span class="close-modal-btn" onclick="closeModal('admin-decision-modal')">&times;</span>
+            <h3 id="decision-modal-title" style="margin: 0; font-size: 18px; font-weight: 700;">Propuestas de Asesores</h3>
+            <button class="modal-close" onclick="closeModal('admin-decision-modal')">&times;</button>
           </div>
-          <div style="padding: 16px 0;">
+          <div class="modal-body" style="padding: 16px 0;">
             <div id="decision-modal-client-info" style="background: var(--bg-hover); padding: 12px; border-radius: var(--radius); margin-bottom: 20px;">
               <!-- Client name and stats -->
             </div>

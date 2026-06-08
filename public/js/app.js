@@ -308,6 +308,9 @@ document.getElementById('logout-btn').addEventListener('click', (e) => {
   e.preventDefault();
   token = null;
   user = null;
+  allMatchingMetrics = null;
+  allUnassignedClients = [];
+  allActiveBids = [];
   localStorage.removeItem('token');
   localStorage.removeItem('user');
   showLoginView();
@@ -3307,6 +3310,9 @@ window.assignClientDirectly = async function(clientId, advisorId, advisorName) {
 
 // AI Matching Suggester
 window.showAISuggestion = function(clientId, clientName) {
+  if (!user || (user.nivel_rol !== 'Administrador' && user.nivel_rol !== 'Coordinador')) {
+    return;
+  }
   const modalBody = document.getElementById('ai-suggestion-body');
   if (!modalBody || !allMatchingMetrics) return;
   
@@ -3418,6 +3424,9 @@ window.showAISuggestion = function(clientId, clientName) {
 
 // Admin Decision Modal Candidate list renderer
 window.openAdminDecisionModal = function(clientId, clientName, clientPurchase) {
+  if (!user || user.nivel_rol !== 'Administrador') {
+    return;
+  }
   const modalInfo = document.getElementById('decision-modal-client-info');
   const candidatesList = document.getElementById('decision-modal-candidates-list');
   if (!modalInfo || !candidatesList || !allActiveBids || !allMatchingMetrics) return;
