@@ -983,11 +983,32 @@ app.put('/api/asignacion/clientes/:id/asesor', authenticateToken, async (req, re
     const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
     
+    const oldAsesorId = client.asesor_id;
     await db.run('UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?', [asesor_id || null, id]);
     
-    // Reject any pending bids
-    if (asesor_id) {
-      await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND estatus = 'Pendiente'", [id]);
+    // Create notifications for changes
+    if (asesor_id && Number(oldAsesorId) !== Number(asesor_id)) {
+      await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+        [asesor_id, `Se te ha asignado al agricultor: ${client.nombre}`]);
+    }
+    
+    if (oldAsesorId && Number(oldAsesorId) !== Number(asesor_id)) {
+      await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+        [oldAsesorId, `Se te ha retirado del agricultor: ${client.nombre}`]);
+    }
+    
+    // Reject any pending bids and notify those advisors
+    const pendingBids = await db.all("SELECT id, asesor_id FROM crm_pujas WHERE cliente_id = ? AND estatus = 'Pendiente'", [id]);
+    for (const b of pendingBids) {
+      if (asesor_id && Number(b.asesor_id) === Number(asesor_id)) {
+        await db.run("UPDATE crm_pujas SET estatus = 'Aprobada' WHERE id = ?", [b.id]);
+        await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+          [b.asesor_id, `Tu propuesta para el agricultor ${client.nombre} fue Aprobada y se te ha asignado.`]);
+      } else {
+        await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [b.id]);
+        await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+          [b.asesor_id, `Tu propuesta para el agricultor ${client.nombre} fue rechazada (asignado a otro asesor).`]);
+      }
     }
     
     res.json({ message: 'Client advisor assigned successfully' });
@@ -1134,13 +1155,38 @@ app.post('/api/asignacion/pujas/:id/decision', authenticateToken, async (req, re
         return res.status(400).json({ error: 'Client already has an advisor assigned' });
       }
       
+      const oldAsesorId = client.asesor_id;
       await db.run('UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?', [bid.asesor_id, bid.cliente_id]);
       await db.run("UPDATE crm_pujas SET estatus = 'Aprobada' WHERE id = ?", [id]);
-      await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND id != ? AND estatus = 'Pendiente'", [bid.cliente_id, id]);
+      
+      // Notify approved advisor
+      await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+        [bid.asesor_id, `Tu propuesta para el agricultor ${client.nombre} fue Aprobada. Se te ha asignado el cliente.`]);
+        
+      if (oldAsesorId && Number(oldAsesorId) !== Number(bid.asesor_id)) {
+        await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+          [oldAsesorId, `Se te ha retirado del agricultor: ${client.nombre}`]);
+      }
+      
+      // Reject and notify other pending candidates
+      const otherBids = await db.all("SELECT id, asesor_id FROM crm_pujas WHERE cliente_id = ? AND id != ? AND estatus = 'Pendiente'", [bid.cliente_id, id]);
+      for (const ob of otherBids) {
+        await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [ob.id]);
+        await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+          [ob.asesor_id, `Tu propuesta para el agricultor ${client.nombre} fue rechazada (asignado a otro asesor).`]);
+      }
       
       res.json({ message: 'Bid approved and client assigned successfully' });
     } else {
       await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [id]);
+      
+      const client = await db.get('SELECT nombre FROM clientes WHERE id = ?', [bid.cliente_id]);
+      const clientName = client ? client.nombre : 'desconocido';
+      
+      // Notify rejected advisor
+      await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+        [bid.asesor_id, `Tu propuesta para el agricultor ${clientName} fue rechazada.`]);
+        
       res.json({ message: 'Bid rejected successfully' });
     }
   } catch (err) {
@@ -1492,6 +1538,30 @@ app.get('/api/dashboard/proyecciones', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch proyecciones' });
+  }
+});
+
+// -------------------------------------------------------------
+// NOTIFICATIONS ENDPOINTS
+// -------------------------------------------------------------
+app.get('/api/notificaciones', authenticateToken, async (req, res) => {
+  try {
+    const query = 'SELECT * FROM crm_notificaciones WHERE asesor_id = ? ORDER BY creado_en DESC LIMIT 20';
+    const rows = await db.all(query, [req.user.id]);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+app.post('/api/notificaciones/leido', authenticateToken, async (req, res) => {
+  try {
+    await db.run('UPDATE crm_notificaciones SET leido = 1 WHERE asesor_id = ?', [req.user.id]);
+    res.json({ message: 'Notifications marked as read' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to clear notifications' });
   }
 });
 

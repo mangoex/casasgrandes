@@ -40,6 +40,16 @@ async function initSchema() {
         FOREIGN KEY (asesor_id) REFERENCES asesores(id) ON DELETE CASCADE
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_notificaciones (
+        id SERIAL PRIMARY KEY,
+        asesor_id INTEGER NOT NULL,
+        mensaje TEXT NOT NULL,
+        leido INTEGER DEFAULT 0,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asesor_id) REFERENCES asesores(id) ON DELETE CASCADE
+      )
+    `);
     console.log('PostgreSQL schema auto-updates checked/applied successfully.');
   } catch (err) {
     console.error('Error checking/applying PostgreSQL schema updates:', err.message);

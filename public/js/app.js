@@ -89,6 +89,12 @@ function showAppView() {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   }
 
+  // Handle Admin or Advisor Sidebar Visibility
+  const isAdminOrAdvisor = ['Administrador', 'Asesor'].includes(user.nivel_rol);
+  document.querySelectorAll('.admin-or-advisor-only').forEach(el => {
+    el.style.display = isAdminOrAdvisor ? 'block' : 'none';
+  });
+
   // Handle Admin or Coordinator Visibility
   if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') {
     document.querySelectorAll('.admin-or-coordinator-only').forEach(el => {
@@ -216,12 +222,18 @@ function showAppView() {
 
 // Navigation Router
 function switchView(viewId, title) {
+  if (viewId === 'asignacion-view' && user && user.nivel_rol === 'Asesor') {
+    viewId = 'asignacion-asesor-view';
+    title = 'Asignación de Agricultores';
+  }
+  
   document.getElementById('view-title').textContent = title;
   
   const sections = document.querySelectorAll('.view-section');
   sections.forEach(sec => sec.classList.remove('active'));
   
-  document.getElementById(viewId).classList.add('active');
+  const targetEl = document.getElementById(viewId);
+  if (targetEl) targetEl.classList.add('active');
   
   // Refresh specific views data
   if (viewId === 'dashboard-view') {
@@ -242,6 +254,8 @@ function switchView(viewId, title) {
     loadPlaneacionView();
   } else if (viewId === 'asignacion-view') {
     loadAsignacionView();
+  } else if (viewId === 'asignacion-asesor-view') {
+    loadAdvisorAssignmentView();
   }
 }
 
@@ -3144,31 +3158,12 @@ window.renderAsignacionBoard = function(advisors) {
       const purchaseVol = cMetric ? cMetric.total_purchase_mxn : 0;
       
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'kanban-card';
       card.style.padding = '12px';
       card.style.borderLeft = '4px solid var(--warning)';
       card.style.marginBottom = '12px';
       
-      let bidsHtml = '';
-      if (clientBids.length === 0) {
-        bidsHtml = '<div style="font-size: 11px; color: var(--text-light); text-align: center; padding: 8px; border: 1px dashed var(--border); border-radius: 4px;">Sin propuestas recibidas aún.</div>';
-      } else {
-        clientBids.forEach(b => {
-          bidsHtml += `
-            <div style="background: var(--bg-hover); padding: 8px; border-radius: var(--radius); border-left: 3px solid var(--primary); display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <strong>👤 ${b.asesor_nombre}</strong>
-                <div style="display: flex; gap: 6px;">
-                  <button class="btn btn-primary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; background: var(--success); border-color: var(--success); line-height: 1;" onclick="processBidDecision(${b.id}, 'Aprobada')" title="Aceptar propuesta">✓ Aceptar</button>
-                  <button class="btn btn-primary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; background: var(--danger); border-color: var(--danger); line-height: 1;" onclick="processBidDecision(${b.id}, 'Rechazada')" title="Rechazar propuesta">✗</button>
-                </div>
-              </div>
-              <p style="margin: 0; font-style: italic; color: var(--text-dark);">"${b.justificacion}"</p>
-            </div>
-          `;
-        });
-      }
-      
+      const hasBids = clientBids.length > 0;
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
           <strong style="font-size: 13px; color: var(--text-dark);">${c.nombre}</strong>
@@ -3176,9 +3171,12 @@ window.renderAsignacionBoard = function(advisors) {
         </div>
         <div style="font-size: 11px; color: var(--text-light); margin-bottom: 8px;">📍 ${c.ubicacion || 'Sin ubicación'} | $${purchaseVol.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
         
-        <div style="font-size: 12px; font-weight: 600; color: var(--text-dark); margin: 8px 0 6px 0;">Propuestas de Asesores (${clientBids.length}):</div>
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
-          ${bidsHtml}
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 8px;">
+          <span class="badge ${hasBids ? 'badge-warning' : 'badge-secondary'}" style="font-size: 10px; padding: 4px 8px;">${clientBids.length} prop.</span>
+          <button class="btn btn-primary" style="width: auto; padding: 4px 8px; font-size: 11px; margin: 0; ${hasBids ? '' : 'opacity: 0.5; pointer-events: none;'}" 
+            onclick="openAdminDecisionModal(${c.id}, '${c.nombre.replace(/'/g, "\\'")}', ${purchaseVol})">
+            👁️ Propuestas
+          </button>
         </div>
       `;
       biddableList.appendChild(card);
@@ -3416,6 +3414,258 @@ window.showAISuggestion = function(clientId, clientName) {
   html += `</div>`;
   modalBody.innerHTML = html;
   openModal('ai-suggestion-modal');
+};
+
+// Admin Decision Modal Candidate list renderer
+window.openAdminDecisionModal = function(clientId, clientName, clientPurchase) {
+  const modalInfo = document.getElementById('decision-modal-client-info');
+  const candidatesList = document.getElementById('decision-modal-candidates-list');
+  if (!modalInfo || !candidatesList || !allActiveBids || !allMatchingMetrics) return;
+  
+  modalInfo.innerHTML = `
+    <div style="font-weight: 600; font-size: 12px; color: var(--text-light); text-transform: uppercase;">Agricultor</div>
+    <div style="font-size: 16px; font-weight: bold; color: var(--text-dark);">${clientName}</div>
+    <div style="font-size: 13px; color: var(--primary); font-weight: 500; margin-top: 4px;">Compras Históricas: $${clientPurchase.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
+  `;
+  
+  const clientBids = allActiveBids.filter(b => b.cliente_id === clientId && b.estatus === 'Pendiente');
+  
+  candidatesList.innerHTML = '';
+  if (clientBids.length === 0) {
+    candidatesList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 20px;">No hay propuestas de asesores para este agricultor.</div>';
+  } else {
+    clientBids.forEach(b => {
+      // Calculate AI score for this candidate advisor
+      const aMetric = allMatchingMetrics.advisors.find(am => am.asesor_id === b.asesor_id);
+      const salesVol = aMetric ? Number(aMetric.total_sales_mxn) : 0;
+      const complVisits = aMetric ? Number(aMetric.completed_visits) : 0;
+      const totalVisits = aMetric ? Number(aMetric.total_visits) : 0;
+      const pendingVisits = aMetric ? Number(aMetric.pending_visits) : 0;
+      const complRate = totalVisits > 0 ? (complVisits / totalVisits) * 100 : 70;
+      
+      const maxSales = Math.max(...allMatchingMetrics.advisors.map(ad => ad.total_sales_mxn), 1);
+      const salesScore = (salesVol / maxSales) * 100;
+      const maxPending = Math.max(...allMatchingMetrics.advisors.map(ad => ad.pending_visits), 1);
+      const availabilityScore = ((maxPending - pendingVisits) / maxPending) * 100;
+      
+      let matchScore = 0;
+      if (clientPurchase > 1000000) {
+        matchScore = Math.round((salesScore * 0.5) + (complRate * 0.3) + (availabilityScore * 0.2));
+      } else {
+        matchScore = Math.round((availabilityScore * 0.5) + (complRate * 0.3) + (salesScore * 0.2));
+      }
+      matchScore = Math.max(matchScore, 10);
+      
+      const card = document.createElement('div');
+      card.style.border = '1px solid var(--border)';
+      card.style.borderRadius = 'var(--radius)';
+      card.style.padding = '16px';
+      card.style.background = 'var(--bg-card)';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '8px';
+      
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="font-size: 14px; color: var(--text-dark);">👤 ${b.asesor_nombre}</strong>
+          <span class="badge ${matchScore > 80 ? 'badge-success' : 'badge-info'}" style="font-size: 12px; padding: 4px 10px; font-weight: 700;">${matchScore}% Match IA</span>
+        </div>
+        <div style="background: var(--bg-hover); padding: 10px; border-left: 3px solid var(--primary); border-radius: var(--radius); font-style: italic; font-size: 12px; color: var(--text-dark);">
+          "${b.justificacion}"
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;">
+          <div style="font-size: 11px; color: var(--text-light); display: flex; gap: 12px;">
+            <span>Ventas: $${(salesVol / 1000000).toFixed(2)}M</span>
+            <span>Visitas: ${Math.round(complRate)}%</span>
+            <span>Pendientes: ${pendingVisits}</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0; background: var(--success); border-color: var(--success);" 
+              onclick="closeModal('admin-decision-modal'); processBidDecision(${b.id}, 'Aprobada')">
+              ✓ Aceptar
+            </button>
+            <button class="btn btn-primary" style="width: auto; padding: 4px 8px; font-size: 11px; margin: 0; background: var(--danger); border-color: var(--danger);" 
+              onclick="closeModal('admin-decision-modal'); processBidDecision(${b.id}, 'Rechazada')">
+              ✗ Rechazar
+            </button>
+          </div>
+        </div>
+      `;
+      candidatesList.appendChild(card);
+    });
+  }
+  
+  openModal('admin-decision-modal');
+};
+
+// Advisor Assignment view loader
+window.loadAdvisorAssignmentView = async function() {
+  const grid = document.getElementById('assign-advisor-biddable-grid');
+  const searchInput = document.getElementById('assign-advisor-search-client');
+  const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+  
+  if (!grid) return;
+  
+  try {
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-light); padding: 40px;">Cargando agricultores disponibles...</div>';
+    
+    // Fetch biddable clients
+    const clientsRes = await fetch(`${API_URL}/api/asignacion/sin-asesor`, { headers: getHeaders() });
+    const allClients = await clientsRes.json();
+    const biddableClients = allClients.filter(c => c.disponible_para_puja === 1);
+    
+    // Fetch my bids
+    const bidsRes = await fetch(`${API_URL}/api/asignacion/pujas`, { headers: getHeaders() });
+    const myBids = await bidsRes.json();
+    
+    // Fetch historical purchase metrics by querying cotizaciones
+    const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
+    const quotes = await quotesRes.json();
+    
+    // Filter by search term
+    let filtered = biddableClients;
+    if (searchTerm) {
+      filtered = filtered.filter(c => 
+        c.nombre.toLowerCase().includes(searchTerm) ||
+        (c.contacto && c.contacto.toLowerCase().includes(searchTerm)) ||
+        (c.ubicacion && c.ubicacion.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    grid.innerHTML = '';
+    
+    if (filtered.length === 0) {
+      grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-light); padding: 40px;">No hay agricultores disponibles en este momento.</div>';
+    } else {
+      filtered.forEach(c => {
+        const totalPurchases = quotes
+          .filter(q => q.cliente_id === c.id && (q.estatus === 'Vendido' || q.estatus === 'Entregado'))
+          .reduce((sum, q) => sum + q.total_mxn, 0);
+          
+        const bid = myBids.find(b => b.cliente_id === c.id && b.asesor_id === user.id);
+        
+        let badgeHtml = '<span class="badge badge-secondary">Disponible</span>';
+        let actionBtn = `<button class="btn btn-primary" style="width: 100%; margin-top: 12px;" onclick="openBidForm(${c.id}, '${c.nombre.replace(/'/g, "\\'")}', '')">✏️ Postularse</button>`;
+        
+        if (bid) {
+          if (bid.estatus === 'Pendiente') {
+            badgeHtml = '<span class="badge badge-warning">Propuesta Pendiente</span>';
+            actionBtn = `<button class="btn btn-primary" style="width: 100%; margin-top: 12px; background: var(--secondary); border-color: var(--secondary);" onclick="openBidForm(${c.id}, '${c.nombre.replace(/'/g, "\\'")}', '${bid.justificacion.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">✏️ Editar Postulación</button>`;
+          } else if (bid.estatus === 'Aprobada') {
+            badgeHtml = '<span class="badge badge-success">¡Aprobado y Asignado!</span>';
+            actionBtn = `<button class="btn btn-primary" style="width: 100%; margin-top: 12px; opacity: 0.5; pointer-events: none;" disabled>✓ Asignado</button>`;
+          } else {
+            badgeHtml = '<span class="badge badge-danger">Postulación Rechazada</span>';
+            actionBtn = `<button class="btn btn-primary" style="width: 100%; margin-top: 12px; opacity: 0.5; pointer-events: none;" disabled>✗ Rechazado</button>`;
+          }
+        }
+        
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.padding = '16px';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.justifyContent = 'space-between';
+        card.style.borderLeft = bid?.estatus === 'Aprobada' ? '4px solid var(--success)' : '4px solid var(--primary)';
+        
+        card.innerHTML = `
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
+              <strong style="font-size: 14px; color: var(--text-dark);">${c.nombre}</strong>
+              ${badgeHtml}
+            </div>
+            <div style="font-size: 12px; color: var(--text-light); margin-bottom: 6px;">📍 ${c.ubicacion || 'Sin ubicación'} | 📐 ${c.superficie_text || '-'}</div>
+            <div style="font-size: 12px; color: var(--text-dark); font-weight: 500;">Historial Compras: $${totalPurchases.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
+            ${bid && bid.justificacion ? `<div style="font-size: 11px; color: var(--text-light); font-style: italic; margin-top: 8px; background: var(--bg-hover); padding: 6px; border-radius: var(--radius);">Tu justificación: "${bid.justificacion}"</div>` : ''}
+          </div>
+          <div>
+            ${actionBtn}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+    
+    // Also load notifications
+    await loadNotificationsFeed();
+    
+    // Bind search key input
+    if (searchInput && !searchInput.dataset.listenerBound) {
+      searchInput.dataset.listenerBound = 'true';
+      searchInput.addEventListener('input', () => {
+        loadAdvisorAssignmentView();
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load advisor assignment view:', err);
+    grid.innerHTML = `<div style="grid-column: 1/-1; color: var(--danger); text-align: center; padding: 40px;">Error: ${err.message}</div>`;
+  }
+};
+
+// Load Advisor Notifications feed
+window.loadNotificationsFeed = async function() {
+  const container = document.getElementById('notif-feed-container');
+  const countBadge = document.getElementById('notif-unread-count');
+  if (!container) return;
+  
+  try {
+    const res = await fetch(`${API_URL}/api/notificaciones`, { headers: getHeaders() });
+    const notifs = await res.json();
+    
+    const unread = notifs.filter(n => n.leido === 0).length;
+    if (countBadge) {
+      if (unread > 0) {
+        countBadge.textContent = unread;
+        countBadge.style.display = 'inline-block';
+      } else {
+        countBadge.style.display = 'none';
+      }
+    }
+    
+    container.innerHTML = '';
+    if (notifs.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 20px;">Sin notificaciones recientes.</div>';
+      return;
+    }
+    
+    notifs.forEach(n => {
+      const card = document.createElement('div');
+      card.style.background = n.leido === 0 ? 'rgba(230, 126, 34, 0.08)' : 'var(--bg-hover)';
+      card.style.borderLeft = n.leido === 0 ? '3px solid var(--warning)' : '3px solid var(--border)';
+      card.style.padding = '8px 12px';
+      card.style.borderRadius = 'var(--radius)';
+      card.style.fontSize = '12px';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '4px';
+      
+      const time = new Date(n.creado_en).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+      
+      card.innerHTML = `
+        <div style="color: var(--text-dark);">${n.mensaje}</div>
+        <div style="font-size: 10px; color: var(--text-light); text-align: right;">${time}</div>
+      `;
+      container.appendChild(card);
+    });
+  } catch (err) {
+    console.error('Failed to load notifications:', err);
+    container.innerHTML = '<div style="color: var(--danger); text-align: center;">Error al cargar notificaciones.</div>';
+  }
+};
+
+// Clear Advisor Notifications
+window.clearNotifications = async function() {
+  try {
+    const res = await fetch(`${API_URL}/api/notificaciones/leido`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to mark read');
+    loadNotificationsFeed();
+  } catch (err) {
+    console.error(err);
+  }
+};
 };
 
 

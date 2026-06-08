@@ -72,6 +72,7 @@ async function runMigration() {
     // 1. Drop existing tables to start fresh
     console.log('Dropping existing tables if any...');
     await db.run('DROP TABLE IF EXISTS crm_pujas CASCADE');
+    await db.run('DROP TABLE IF EXISTS crm_notificaciones CASCADE');
     await db.run('DROP TABLE IF EXISTS planificacion_semanal CASCADE');
     await db.run('DROP TABLE IF EXISTS metas_ventas CASCADE');
     await db.run('DROP TABLE IF EXISTS crm_visitas CASCADE');
@@ -266,6 +267,17 @@ async function runMigration() {
         estatus TEXT DEFAULT 'Pendiente',
         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE,
+        FOREIGN KEY (asesor_id) REFERENCES asesores(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE crm_notificaciones (
+        id SERIAL PRIMARY KEY,
+        asesor_id INTEGER NOT NULL,
+        mensaje TEXT NOT NULL,
+        leido INTEGER DEFAULT 0,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (asesor_id) REFERENCES asesores(id) ON DELETE CASCADE
       )
     `);
