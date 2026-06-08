@@ -7,10 +7,11 @@ let user = JSON.parse(localStorage.getItem('user'));
 
 // Global fetch interceptor for handling session expiration (401/403)
 const originalFetch = window.fetch;
-window.fetch = async function(resource, options) {
+window.fetch = async function(...args) {
   try {
-    const response = await originalFetch(resource, options);
+    const response = await originalFetch.apply(window, args);
     if (response.status === 401 || response.status === 403) {
+      const resource = args[0];
       const urlStr = typeof resource === 'string' ? resource : (resource.url || '');
       if (!urlStr.includes('/api/auth/login')) {
         console.warn('Session expired or unauthorized. Redirecting to login...', urlStr);
