@@ -1060,20 +1060,137 @@ tr:hover td {
 
 /* Print CSS optimization */
 @media print {
-  body * {
-    visibility: hidden;
+  /* Hide all non-printable elements to avoid empty pages and layout conflicts */
+  aside,
+  header,
+  .mobile-bottom-nav,
+  .sidebar-backdrop,
+  .quote-form-column,
+  .quote-actions-row,
+  .view-section:not(.active),
+  .view-section.active > *:not(.quote-preview-column),
+  .modal-overlay,
+  button {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
   }
-  #quote-document-sheet, #quote-document-sheet * {
-    visibility: visible;
+
+  /* Reset all main layouts so they don't force constraints or heights */
+  html,
+  body,
+  .app-wrapper,
+  main,
+  #cotizador-view,
+  .quote-builder-grid,
+  .quote-preview-column,
+  .quote-sheet-wrapper {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
   }
+
+  /* Target the printable document sheet itself */
   #quote-document-sheet {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    border: none;
-    box-shadow: none;
-    padding: 0;
+    display: flex !important;
+    flex-direction: column !important;
+    visibility: visible !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 10px !important;
+    margin: 0 !important;
+    position: static !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Style all child elements of the sheet for print visibility */
+  #quote-document-sheet * {
+    visibility: visible !important;
+  }
+
+  /* Specific print adjustments for layout elements */
+  .quote-sheet-header {
+    border-bottom: 2px solid #1e3a1e !important;
+    padding-bottom: 12px !important;
+    margin-bottom: 16px !important;
+    page-break-inside: avoid;
+  }
+
+  .quote-sheet-brand h1 {
+    color: #1e3a1e !important;
+  }
+
+  .quote-sheet-parties {
+    margin-bottom: 16px !important;
+    gap: 20px !important;
+    page-break-inside: avoid;
+  }
+
+  .quote-sheet-details {
+    background: #f1f5f9 !important;
+    padding: 8px 16px !important;
+    margin-bottom: 16px !important;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .quote-sheet-table {
+    margin-bottom: 20px !important;
+    page-break-inside: auto !important;
+  }
+
+  .quote-sheet-table tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  .quote-sheet-table th {
+    background-color: #1e3a1e !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .quote-sheet-footer {
+    margin-top: 24px !important; /* Replaces margin-top: auto for print compatibility */
+    border-top: 1px solid #cbd5e1 !important;
+    padding-top: 12px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .quote-sheet-notes-section {
+    font-size: 9px !important;
+    color: #475569 !important;
+  }
+
+  .quote-sheet-totals-section {
+    gap: 4px !important;
+  }
+
+  .totals-row {
+    font-size: 11px !important;
+  }
+
+  .totals-row.total strong {
+    color: #15803d !important; /* Green primary color for total */
   }
 }
 
