@@ -451,7 +451,8 @@ app.delete('/api/asesores/:id', authenticateToken, async (req, res) => {
     if (!adv) return res.status(404).json({ error: 'Advisor not found' });
 
     await db.run('UPDATE asesores SET activo = 0 WHERE id = ?', [id]);
-    res.json({ message: 'Advisor deactivated successfully' });
+    await db.run('UPDATE clientes SET asesor_id = NULL WHERE asesor_id = ?', [id]);
+    res.json({ message: 'Advisor deactivated and their clients unassigned successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to deactivate advisor' });
