@@ -1932,4 +1932,19 @@ tr:hover td {
     background-color: rgba(16, 185, 129, 0.05) !important;
     border-left: 4px solid var(--success) !important;
   }
+
+  /* Vertical stacking for Admin Assignment Board */
+  .assign-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    min-height: auto !important;
+  }
+
+  #assign-unassigned-list,
+  #assign-advisors-list,
+  #assign-biddable-list {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
 }
+
