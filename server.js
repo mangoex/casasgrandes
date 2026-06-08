@@ -971,6 +971,229 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   }
 });
 
+// Direct assignment of client to advisor
+app.put('/api/asignacion/clientes/:id/asesor', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { id } = req.params;
+  const { asesor_id } = req.body;
+  
+  try {
+    const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [id]);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    
+    await db.run('UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?', [asesor_id || null, id]);
+    
+    // Reject any pending bids
+    if (asesor_id) {
+      await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND estatus = 'Pendiente'", [id]);
+    }
+    
+    res.json({ message: 'Client advisor assigned successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to assign client advisor' });
+  }
+});
+
+// Fetch clients without advisors
+app.get('/api/asignacion/sin-asesor', authenticateToken, async (req, res) => {
+  try {
+    const query = `
+      SELECT c.*, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn
+      FROM clientes c
+      LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
+      WHERE c.activo = 1 AND c.asesor_id IS NULL
+      ORDER BY c.nombre ASC
+    `;
+    const clients = await db.all(query);
+    res.json(clients);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch unassigned clients' });
+  }
+});
+
+// Update client biddable status
+app.put('/api/clientes/:id/puja-status', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { id } = req.params;
+  const { disponible_para_puja } = req.body;
+  
+  try {
+    const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [id]);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    
+    await db.run('UPDATE clientes SET disponible_para_puja = ? WHERE id = ?', [disponible_para_puja ? 1 : 0, id]);
+    
+    // If removed from biddable pool, clean up pending bids
+    if (!disponible_para_puja) {
+      await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND estatus = 'Pendiente'", [id]);
+    }
+    
+    res.json({ message: 'Client bidding status updated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update client bidding status' });
+  }
+});
+
+// Get bids list
+app.get('/api/asignacion/pujas', authenticateToken, async (req, res) => {
+  try {
+    let query = `
+      SELECT p.*, c.nombre as cliente_nombre, a.nombre as asesor_nombre
+      FROM crm_pujas p
+      JOIN clientes c ON p.cliente_id = c.id
+      JOIN asesores a ON p.asesor_id = a.id
+    `;
+    const params = [];
+    if (req.user.nivel_rol === 'Asesor') {
+      query += ` WHERE p.asesor_id = ?`;
+      params.push(req.user.id);
+    }
+    query += ` ORDER BY p.creado_en DESC`;
+    
+    const bids = await db.all(query, params);
+    res.json(bids);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch bids' });
+  }
+});
+
+// Submit a bid (Advisor only)
+app.post('/api/asignacion/pujas', authenticateToken, async (req, res) => {
+  const { cliente_id, justificacion } = req.body;
+  const asesor_id = req.user.id;
+  
+  if (!cliente_id || !justificacion) {
+    return res.status(400).json({ error: 'cliente_id and justificacion are required' });
+  }
+  
+  try {
+    const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [cliente_id]);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (!client.disponible_para_puja) {
+      return res.status(400).json({ error: 'Client is not available for bidding' });
+    }
+    if (client.asesor_id !== null) {
+      return res.status(400).json({ error: 'Client already has an advisor assigned' });
+    }
+    
+    const existing = await db.get(
+      "SELECT * FROM crm_pujas WHERE cliente_id = ? AND asesor_id = ? AND estatus = 'Pendiente'",
+      [cliente_id, asesor_id]
+    );
+    
+    if (existing) {
+      await db.run(
+        "UPDATE crm_pujas SET justificacion = ?, creado_en = CURRENT_TIMESTAMP WHERE id = ?",
+        [justificacion, existing.id]
+      );
+      return res.json({ message: 'Bid updated successfully', bidId: existing.id });
+    }
+    
+    const result = await db.run(
+      "INSERT INTO crm_pujas (cliente_id, asesor_id, justificacion) VALUES (?, ?, ?)",
+      [cliente_id, asesor_id, justificacion]
+    );
+    res.json({ message: 'Bid placed successfully', bidId: result.id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to place bid' });
+  }
+});
+
+// Approve or reject a bid (Admin only)
+app.post('/api/asignacion/pujas/:id/decision', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { id } = req.params;
+  const { decision } = req.body;
+  
+  if (decision !== 'Aprobada' && decision !== 'Rechazada') {
+    return res.status(400).json({ error: "Decision must be 'Aprobada' or 'Rechazada'" });
+  }
+  
+  try {
+    const bid = await db.get('SELECT * FROM crm_pujas WHERE id = ?', [id]);
+    if (!bid) return res.status(404).json({ error: 'Bid not found' });
+    if (bid.estatus !== 'Pendiente') {
+      return res.status(400).json({ error: 'Decision has already been made on this bid' });
+    }
+    
+    if (decision === 'Aprobada') {
+      const client = await db.get('SELECT * FROM clientes WHERE id = ?', [bid.cliente_id]);
+      if (!client) return res.status(404).json({ error: 'Client not found' });
+      if (client.asesor_id !== null) {
+        return res.status(400).json({ error: 'Client already has an advisor assigned' });
+      }
+      
+      await db.run('UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?', [bid.asesor_id, bid.cliente_id]);
+      await db.run("UPDATE crm_pujas SET estatus = 'Aprobada' WHERE id = ?", [id]);
+      await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND id != ? AND estatus = 'Pendiente'", [bid.cliente_id, id]);
+      
+      res.json({ message: 'Bid approved and client assigned successfully' });
+    } else {
+      await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [id]);
+      res.json({ message: 'Bid rejected successfully' });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to process decision' });
+  }
+});
+
+// Fetch AI matching metrics
+app.get('/api/asignacion/metricas-AI', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  
+  try {
+    const advisorsQuery = `
+      SELECT 
+        a.id as asesor_id,
+        a.nombre,
+        COALESCE(SUM(CASE WHEN q.estatus IN ('Vendido', 'Entregado') THEN q.total_mxn ELSE 0 END), 0) as total_sales_mxn,
+        COUNT(CASE WHEN p.realizada = 1 THEN 1 END) as completed_visits,
+        COUNT(p.id) as total_visits,
+        COUNT(CASE WHEN p.realizada = 0 THEN 1 END) as pending_visits
+      FROM asesores a
+      LEFT JOIN cotizaciones q ON q.asesor_id = a.id
+      LEFT JOIN planificacion_semanal p ON p.asesor_id = a.id
+      WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'
+      GROUP BY a.id, a.nombre
+    `;
+    const advisorsMetrics = await db.all(advisorsQuery);
+    
+    const clientsQuery = `
+      SELECT 
+        c.id as cliente_id,
+        c.nombre,
+        COALESCE(SUM(q.total_mxn), 0) as total_purchase_mxn
+      FROM clientes c
+      LEFT JOIN cotizaciones q ON q.cliente_id = c.id AND q.estatus IN ('Vendido', 'Entregado')
+      WHERE c.activo = 1 AND c.asesor_id IS NULL
+      GROUP BY c.id, c.nombre
+    `;
+    const clientsMetrics = await db.all(clientsQuery);
+    
+    res.json({
+      advisors: advisorsMetrics,
+      clients: clientsMetrics
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch matching metrics' });
+  }
+});
+
 // -------------------------------------------------------------
 // SALES TARGETS (METAS) ENDPOINTS
 // -------------------------------------------------------------

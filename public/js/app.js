@@ -240,6 +240,8 @@ function switchView(viewId, title) {
     loadAdminData();
   } else if (viewId === 'planeacion-view') {
     loadPlaneacionView();
+  } else if (viewId === 'asignacion-view') {
+    loadAsignacionView();
   }
 }
 
@@ -2829,6 +2831,538 @@ window.editCatalogClient = async function(clientId) {
   
   await loadCRMClientFormConfig(c.cuenta_clave_id, c.asesor_id);
   openModal('add-client-modal');
+};
+
+// -------------------------------------------------------------
+// CLIENT ASSIGNMENT & BIDDING (PUJAS) LOGIC
+// -------------------------------------------------------------
+
+// Active state for client tabs
+let activeClientTab = 'catalog'; // 'catalog' or 'bids'
+let allUnassignedClients = [];
+let allActiveBids = [];
+let allMatchingMetrics = null;
+
+// Tab switcher for advisor client list
+window.switchClientTab = function(tabName) {
+  activeClientTab = tabName;
+  const tabCatalog = document.getElementById('tab-client-catalog');
+  const tabBids = document.getElementById('tab-client-bids');
+  const secCatalog = document.getElementById('client-catalog-section');
+  const secBids = document.getElementById('client-bids-section');
+  
+  if (tabName === 'catalog') {
+    if (tabCatalog) tabCatalog.classList.add('active');
+    if (tabBids) tabBids.classList.remove('active');
+    if (secCatalog) secCatalog.style.display = 'block';
+    if (secBids) secBids.style.display = 'none';
+    loadCatalogData();
+  } else {
+    if (tabCatalog) tabCatalog.classList.remove('active');
+    if (tabBids) tabBids.classList.add('active');
+    if (secCatalog) secCatalog.style.display = 'none';
+    if (secBids) secBids.style.display = 'block';
+    loadClientBidsPool();
+  }
+};
+
+// Load client bids pool (Advisors)
+window.loadClientBidsPool = async function() {
+  const tbody = document.getElementById('client-bids-tbody');
+  if (!tbody) return;
+  
+  try {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">Cargando pool de clientes...</td></tr>';
+    
+    // Fetch biddable clients and bids list
+    const clientsRes = await fetch(`${API_URL}/api/asignacion/sin-asesor`, { headers: getHeaders() });
+    const allClients = await clientsRes.json();
+    
+    const bidsRes = await fetch(`${API_URL}/api/asignacion/pujas`, { headers: getHeaders() });
+    const myBids = await bidsRes.json();
+    
+    // Filter to only biddable ones
+    const biddableClients = allClients.filter(c => c.disponible_para_puja === 1);
+    
+    tbody.innerHTML = '';
+    
+    if (biddableClients.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">No hay agricultores disponibles para puja en este momento.</td></tr>';
+      return;
+    }
+    
+    // Load historical purchases metrics if available, or just fetch quotes
+    const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
+    const quotes = await quotesRes.json();
+    
+    biddableClients.forEach(c => {
+      // Calculate purchase volume
+      const totalPurchases = quotes
+        .filter(q => q.cliente_id === c.id && (q.estatus === 'Vendido' || q.estatus === 'Entregado'))
+        .reduce((sum, q) => sum + q.total_mxn, 0);
+      
+      const bid = myBids.find(b => b.cliente_id === c.id && b.asesor_id === user.id);
+      
+      let statusHtml = '<span class="badge badge-secondary">Ninguna</span>';
+      let actionText = '✏️ Enviar Propuesta';
+      if (bid) {
+        let badgeClass = 'badge-warning';
+        if (bid.estatus === 'Aprobada') badgeClass = 'badge-success';
+        if (bid.estatus === 'Rechazada') badgeClass = 'badge-danger';
+        statusHtml = `<span class="badge ${badgeClass}" title="${bid.justificacion}">${bid.estatus}</span>`;
+        actionText = bid.estatus === 'Pendiente' ? '✏️ Editar Propuesta' : '👁️ Ver';
+      }
+      
+      const isActionDisabled = bid && bid.estatus !== 'Pendiente';
+      
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${c.nombre}</strong></td>
+          <td>${c.contacto || '-'}</td>
+          <td>${c.ubicacion || '-'}</td>
+          <td>${c.superficie_text || '-'}</td>
+          <td>$${totalPurchases.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</td>
+          <td>${statusHtml}</td>
+          <td style="text-align: center;">
+            <button class="btn btn-primary" style="width: auto; padding: 4px 10px; font-size: 11px; margin: 0;" 
+              onclick="openBidForm(${c.id}, '${c.nombre.replace(/'/g, "\\'")}', '${bid ? bid.justificacion.replace(/'/g, "\\'").replace(/"/g, '&quot;') : ''}')"
+              ${isActionDisabled ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+              ${actionText}
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+  } catch (err) {
+    console.error('Failed to load client bids pool:', err);
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger);">Error: ${err.message}</td></tr>`;
+  }
+};
+
+// Open Bid Form modal
+window.openBidForm = function(clientId, clientName, existingJustification = '') {
+  document.getElementById('bid-client-id').value = clientId;
+  document.getElementById('bid-client-name').textContent = clientName;
+  document.getElementById('bid-justification').value = existingJustification;
+  openModal('bid-modal');
+};
+
+// Bind Bid Form Submit
+document.getElementById('bid-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const clientId = document.getElementById('bid-client-id').value;
+  const justificacion = document.getElementById('bid-justification').value;
+  const submitBtn = document.getElementById('bid-submit-btn');
+  
+  try {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Enviando...';
+    
+    const res = await fetch(`${API_URL}/api/asignacion/pujas`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ cliente_id: clientId, justificacion })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to submit bid');
+    }
+    
+    closeModal('bid-modal');
+    alert('Propuesta de asignación enviada con éxito.');
+    loadClientBidsPool();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Enviar Puja';
+  }
+});
+
+// Load Assignment View (Admin Only)
+window.loadAsignacionView = async function() {
+  const unassignedList = document.getElementById('assign-unassigned-list');
+  const biddableList = document.getElementById('assign-biddable-list');
+  const advisorsList = document.getElementById('assign-advisors-list');
+  
+  if (!unassignedList || !biddableList || !advisorsList) return;
+  
+  try {
+    unassignedList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando agricultores...</div>';
+    biddableList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando pool...</div>';
+    advisorsList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando asesores...</div>';
+    
+    // 1. Fetch unassigned clients
+    const clientsRes = await fetch(`${API_URL}/api/asignacion/sin-asesor`, { headers: getHeaders() });
+    allUnassignedClients = await clientsRes.json();
+    
+    // 2. Fetch all bids
+    const bidsRes = await fetch(`${API_URL}/api/asignacion/pujas`, { headers: getHeaders() });
+    allActiveBids = await bidsRes.json();
+    
+    // 3. Fetch active advisors
+    const advisorsRes = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
+    const advisors = await advisorsRes.json();
+    
+    // 4. Fetch metrics for AI Suggestions
+    const metricsRes = await fetch(`${API_URL}/api/asignacion/metricas-AI`, { headers: getHeaders() });
+    allMatchingMetrics = await metricsRes.json();
+    
+    // Bind search input filters
+    const searchInput = document.getElementById('assign-search-client');
+    const searchAdvisorInput = document.getElementById('assign-search-advisor');
+    const onSearchInput = () => {
+      if (allMatchingMetrics) {
+        const activeAdvisors = advisors.filter(a => a.activo === 1 && a.nivel_rol === 'Asesor');
+        renderAsignacionBoard(activeAdvisors);
+      }
+    };
+    if (searchInput && !searchInput.dataset.listenerBound) {
+      searchInput.dataset.listenerBound = 'true';
+      searchInput.addEventListener('input', onSearchInput);
+    }
+    if (searchAdvisorInput && !searchAdvisorInput.dataset.listenerBound) {
+      searchAdvisorInput.dataset.listenerBound = 'true';
+      searchAdvisorInput.addEventListener('input', onSearchInput);
+    }
+    
+    // Render
+    renderAsignacionBoard(advisors.filter(a => a.activo === 1 && a.nivel_rol === 'Asesor'));
+  } catch (err) {
+    console.error('Failed to load assignment view:', err);
+    unassignedList.innerHTML = `<div style="color: var(--danger); padding: 20px;">Error: ${err.message}</div>`;
+  }
+};
+
+// Render Board layout
+window.renderAsignacionBoard = function(advisors) {
+  const unassignedList = document.getElementById('assign-unassigned-list');
+  const biddableList = document.getElementById('assign-biddable-list');
+  const advisorsList = document.getElementById('assign-advisors-list');
+  
+  const searchInput = document.getElementById('assign-search-client');
+  const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+  
+  const searchAdvisorInput = document.getElementById('assign-search-advisor');
+  const advisorSearchTerm = searchAdvisorInput ? searchAdvisorInput.value.toLowerCase().trim() : '';
+  
+  // Filter unassigned clients
+  let filteredClients = allUnassignedClients;
+  if (searchTerm) {
+    filteredClients = filteredClients.filter(c => 
+      c.nombre.toLowerCase().includes(searchTerm) ||
+      (c.contacto && c.contacto.toLowerCase().includes(searchTerm)) ||
+      (c.ubicacion && c.ubicacion.toLowerCase().includes(searchTerm))
+    );
+  }
+  
+  // Filter advisors
+  window.filteredAdvisors = advisors;
+  if (advisorSearchTerm) {
+    window.filteredAdvisors = advisors.filter(a => a.nombre.toLowerCase().includes(advisorSearchTerm));
+  }
+  
+  // Separate clients
+  const directAssignClients = filteredClients.filter(c => c.disponible_para_puja === 0);
+  const biddablePoolClients = allUnassignedClients.filter(c => c.disponible_para_puja === 1);
+  
+  // Update counts
+  document.getElementById('assign-unassigned-count').textContent = directAssignClients.length;
+  document.getElementById('assign-biddable-count').textContent = biddablePoolClients.length;
+  document.getElementById('assign-advisors-count').textContent = window.filteredAdvisors.length;
+  
+  // Render column 1: Direct Assign
+  unassignedList.innerHTML = '';
+  if (directAssignClients.length === 0) {
+    unassignedList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 30px; border: 1px dashed var(--border); border-radius: var(--radius);">No hay clientes sin asesor para asignación directa.</div>';
+  } else {
+    directAssignClients.forEach(c => {
+      // Find client purchase history
+      const cMetric = allMatchingMetrics?.clients.find(cm => cm.cliente_id === c.id);
+      const purchaseVol = cMetric ? cMetric.total_purchase_mxn : 0;
+      
+      const card = document.createElement('div');
+      card.className = 'kanban-card';
+      card.id = `client-assign-card-${c.id}`;
+      card.draggable = true;
+      card.style.cursor = 'grab';
+      card.style.borderLeft = '4px solid var(--primary)';
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', `client:${c.id}`);
+      });
+      
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+          <strong style="font-size: 13px; color: var(--text-dark);">${c.nombre}</strong>
+          <button class="btn btn-secondary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; line-height: 1;" onclick="showAISuggestion(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="Recomendación IA">🤖 IA</button>
+        </div>
+        <div style="font-size: 11px; color: var(--text-light); margin: 4px 0;">📍 ${c.ubicacion || 'Sin ubicación'} | 📐 ${c.superficie_text || '-'}</div>
+        <div style="font-size: 11px; color: var(--text-light); font-weight: 500;">Historial: $${purchaseVol.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+          <button class="btn btn-primary" style="width: auto; padding: 4px 8px; font-size: 11px; margin: 0; background: var(--warning); border-color: var(--warning);" onclick="toggleClientBiddable(${c.id}, true)">🔔 Hacer Disponible</button>
+        </div>
+      `;
+      unassignedList.appendChild(card);
+    });
+  }
+  
+  // Render column 2: Biddable Pool with bids
+  biddableList.innerHTML = '';
+  if (biddablePoolClients.length === 0) {
+    biddableList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 30px; border: 1px dashed var(--border); border-radius: var(--radius);">El pool de pujas está vacío.</div>';
+  } else {
+    biddablePoolClients.forEach(c => {
+      const clientBids = allActiveBids.filter(b => b.cliente_id === c.id && b.estatus === 'Pendiente');
+      const cMetric = allMatchingMetrics?.clients.find(cm => cm.cliente_id === c.id);
+      const purchaseVol = cMetric ? cMetric.total_purchase_mxn : 0;
+      
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.padding = '12px';
+      card.style.borderLeft = '4px solid var(--warning)';
+      card.style.marginBottom = '12px';
+      
+      let bidsHtml = '';
+      if (clientBids.length === 0) {
+        bidsHtml = '<div style="font-size: 11px; color: var(--text-light); text-align: center; padding: 8px; border: 1px dashed var(--border); border-radius: 4px;">Sin propuestas recibidas aún.</div>';
+      } else {
+        clientBids.forEach(b => {
+          bidsHtml += `
+            <div style="background: var(--bg-hover); padding: 8px; border-radius: var(--radius); border-left: 3px solid var(--primary); display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong>👤 ${b.asesor_nombre}</strong>
+                <div style="display: flex; gap: 6px;">
+                  <button class="btn btn-primary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; background: var(--success); border-color: var(--success); line-height: 1;" onclick="processBidDecision(${b.id}, 'Aprobada')" title="Aceptar propuesta">✓ Aceptar</button>
+                  <button class="btn btn-primary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; background: var(--danger); border-color: var(--danger); line-height: 1;" onclick="processBidDecision(${b.id}, 'Rechazada')" title="Rechazar propuesta">✗</button>
+                </div>
+              </div>
+              <p style="margin: 0; font-style: italic; color: var(--text-dark);">"${b.justificacion}"</p>
+            </div>
+          `;
+        });
+      }
+      
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+          <strong style="font-size: 13px; color: var(--text-dark);">${c.nombre}</strong>
+          <button class="btn btn-secondary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; line-height: 1;" onclick="toggleClientBiddable(${c.id}, false)" title="Quitar del pool">Quitar ✗</button>
+        </div>
+        <div style="font-size: 11px; color: var(--text-light); margin-bottom: 8px;">📍 ${c.ubicacion || 'Sin ubicación'} | $${purchaseVol.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
+        
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-dark); margin: 8px 0 6px 0;">Propuestas de Asesores (${clientBids.length}):</div>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+          ${bidsHtml}
+        </div>
+      `;
+      biddableList.appendChild(card);
+    });
+  }
+  
+  // Render column 3: Advisors (Drop Zones)
+  advisorsList.innerHTML = '';
+  if (window.filteredAdvisors.length === 0) {
+    advisorsList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 30px;">No hay asesores comerciales que coincidan.</div>';
+  } else {
+    window.filteredAdvisors.forEach(a => {
+      const aMetric = allMatchingMetrics?.advisors.find(am => am.asesor_id === a.id);
+      const salesVol = aMetric ? Number(aMetric.total_sales_mxn) : 0;
+      const complVisits = aMetric ? Number(aMetric.completed_visits) : 0;
+      const totalVisits = aMetric ? Number(aMetric.total_visits) : 0;
+      const pendingVisits = aMetric ? Number(aMetric.pending_visits) : 0;
+      
+      const complRate = totalVisits > 0 ? Math.round((complVisits / totalVisits) * 100) : 0;
+      
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.id = `advisor-assign-card-${a.id}`;
+      card.style.padding = '12px';
+      card.style.border = '2px dashed var(--border)';
+      card.style.background = 'var(--bg-card)';
+      card.style.transition = 'all 0.2s ease';
+      
+      // Drag & Drop listeners on Drop Zone
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        card.style.borderColor = 'var(--success)';
+        card.style.background = 'rgba(46, 204, 113, 0.1)';
+      });
+      
+      card.addEventListener('dragleave', () => {
+        card.style.borderColor = 'var(--border)';
+        card.style.background = 'var(--bg-card)';
+      });
+      
+      card.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        card.style.borderColor = 'var(--border)';
+        card.style.background = 'var(--bg-card)';
+        
+        const dragData = e.dataTransfer.getData('text/plain');
+        if (dragData && dragData.startsWith('client:')) {
+          const clientId = Number(dragData.split(':')[1]);
+          await assignClientDirectly(clientId, a.id, a.nombre);
+        }
+      });
+      
+      card.innerHTML = `
+        <div style="font-weight: bold; font-size: 13px; color: var(--text-dark); display: flex; justify-content: space-between;">
+          <span>👤 ${a.nombre}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; color: var(--text-light); margin-top: 6px;">
+          <div>Ventas: <strong>$${(salesVol / 1000000).toFixed(1)}M</strong></div>
+          <div>Visitas: <strong>${complRate}% (${complVisits}/${totalVisits})</strong></div>
+          <div style="grid-column: span 2;">Carga de Trabajo: <strong style="color: ${pendingVisits > 4 ? 'var(--danger)' : 'var(--success)'};">${pendingVisits} pendientes</strong></div>
+        </div>
+      `;
+      advisorsList.appendChild(card);
+    });
+  }
+};
+
+// Make client available for puja
+window.toggleClientBiddable = async function(clientId, isBiddable) {
+  try {
+    const res = await fetch(`${API_URL}/api/clientes/${clientId}/puja-status`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ disponible_para_puja: isBiddable })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to update status');
+    }
+    
+    loadAsignacionView();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+};
+
+// Decide on advisor bid
+window.processBidDecision = async function(bidId, decision) {
+  try {
+    const res = await fetch(`${API_URL}/api/asignacion/pujas/${bidId}/decision`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ decision })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to submit decision');
+    }
+    
+    loadAsignacionView();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+};
+
+// Direct Drag & Drop assignment
+window.assignClientDirectly = async function(clientId, advisorId, advisorName) {
+  try {
+    const res = await fetch(`${API_URL}/api/asignacion/clientes/${clientId}/asesor`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ asesor_id: advisorId })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to assign client');
+    }
+    
+    alert(`Cliente asignado con éxito a ${advisorName}.`);
+    loadAsignacionView();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+};
+
+// AI Matching Suggester
+window.showAISuggestion = function(clientId, clientName) {
+  const modalBody = document.getElementById('ai-suggestion-body');
+  if (!modalBody || !allMatchingMetrics) return;
+  
+  const cMetric = allMatchingMetrics.clients.find(cm => cm.cliente_id === clientId);
+  const clientPurchase = cMetric ? cMetric.total_purchase_mxn : 0;
+  
+  // Heuristic Scoring
+  const scores = allMatchingMetrics.advisors.map(a => {
+    const maxSales = Math.max(...allMatchingMetrics.advisors.map(ad => ad.total_sales_mxn), 1);
+    const salesScore = (a.total_sales_mxn / maxSales) * 100;
+    
+    const complRate = a.total_visits > 0 ? (a.completed_visits / a.total_visits) * 100 : 70;
+    
+    const maxPending = Math.max(...allMatchingMetrics.advisors.map(ad => ad.pending_visits), 1);
+    const availabilityScore = ((maxPending - a.pending_visits) / maxPending) * 100;
+    
+    let matchScore = 0;
+    let reasoning = '';
+    
+    if (clientPurchase > 1000000) {
+      matchScore = Math.round((salesScore * 0.6) + (complRate * 0.4));
+      reasoning = 'Asesor con excelente volumen de venta y cumplimiento, ideal para proteger y fidelizar cuentas grandes.';
+    } else {
+      matchScore = Math.round((availabilityScore * 0.6) + (complRate * 0.4));
+      reasoning = 'Asesor con amplia disponibilidad de agenda actual para brindar atención dedicada y desarrollar la cuenta.';
+    }
+    
+    return {
+      id: a.asesor_id,
+      nombre: a.nombre,
+      score: Math.max(matchScore, 10),
+      reasoning,
+      stats: {
+        sales: a.total_sales_mxn,
+        visits: complRate,
+        pending: a.pending_visits
+      }
+    };
+  });
+  
+  scores.sort((a, b) => b.score - a.score);
+  
+  let html = `
+    <div style="background: var(--bg-hover); padding: 12px; border-radius: var(--radius); margin-bottom: 16px;">
+      <div style="font-weight: 600; font-size: 13px; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px;">Cliente Analizado</div>
+      <div style="font-size: 16px; font-weight: bold; color: var(--text-dark);">${clientName}</div>
+      <div style="font-size: 13px; color: var(--primary); font-weight: 500; margin-top: 4px;">Compras Históricas: $${clientPurchase.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
+    </div>
+    
+    <div style="font-weight: 700; font-size: 14px; color: var(--text-dark); margin-bottom: 12px;">Top 3 Asesores Recomendados:</div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+  `;
+  
+  scores.slice(0, 3).forEach((s, idx) => {
+    let medal = '🥇';
+    if (idx === 1) medal = '🥈';
+    if (idx === 2) medal = '🥉';
+    
+    html += `
+      <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="font-size: 14px; color: var(--text-dark);">${medal} ${s.nombre}</strong>
+          <span class="badge ${s.score > 80 ? 'badge-success' : 'badge-info'}" style="font-size: 12px; padding: 4px 10px; font-weight: 700;">${s.score}% Match</span>
+        </div>
+        <p style="margin: 0; font-size: 12px; color: var(--text-dark); line-height: 1.4; font-style: italic;">"${s.reasoning}"</p>
+        <div style="font-size: 11px; color: var(--text-light); display: flex; gap: 12px; border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 2px;">
+          <span>Ventas: $${(s.stats.sales / 1000000).toFixed(1)}M</span>
+          <span>Visitas: ${Math.round(s.stats.visits)}%</span>
+          <span>Pendientes: ${s.stats.pending}</span>
+        </div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+          <button class="btn btn-primary" style="width: auto; padding: 4px 12px; font-size: 11px; margin: 0;" onclick="closeModal('ai-suggestion-modal'); assignClientDirectly(${clientId}, ${s.id}, '${s.nombre.replace(/'/g, "\\'")}')">Asignar Directamente</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `</div>`;
+  modalBody.innerHTML = html;
+  openModal('ai-suggestion-modal');
 };
 
 

@@ -24,6 +24,29 @@ const pool = connectionString
       ssl: (process.env.PGHOST === 'localhost' || !process.env.PGHOST) ? false : { rejectUnauthorized: false }
     });
 
+// Database auto-migration / schema updates
+async function initSchema() {
+  try {
+    await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS disponible_para_puja INTEGER DEFAULT 0');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_pujas (
+        id SERIAL PRIMARY KEY,
+        cliente_id INTEGER NOT NULL,
+        asesor_id INTEGER NOT NULL,
+        justificacion TEXT,
+        estatus TEXT DEFAULT 'Pendiente',
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE,
+        FOREIGN KEY (asesor_id) REFERENCES asesores(id) ON DELETE CASCADE
+      )
+    `);
+    console.log('PostgreSQL schema auto-updates checked/applied successfully.');
+  } catch (err) {
+    console.error('Error checking/applying PostgreSQL schema updates:', err.message);
+  }
+}
+initSchema();
+
 pool.on('connect', () => {
   console.log('Successfully connected to PostgreSQL pool.');
 });

@@ -78,6 +78,11 @@
             <span class="icon">📦</span> Almacén
           </a>
         </li>
+        <li class="nav-item admin-only" data-target="asignacion-view" style="display: none;">
+          <a href="#">
+            <span class="icon">🔄</span> Asignación
+          </a>
+        </li>
         <li class="nav-item admin-only" data-target="admin-view" style="display: none;">
           <a href="#">
             <span class="icon">⚙️</span> Administración
@@ -433,7 +438,15 @@
               <button id="btn-catalog-open-client-modal" class="btn btn-primary" style="width: auto; padding: 8px 16px; margin: 0;">👤 Registrar Cliente</button>
             </div>
           </div>
-          <div class="table-container">
+
+          <!-- Sub-tabs for catalog vs biddable pool -->
+          <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+            <button id="tab-client-catalog" class="btn btn-secondary active" style="width: auto; padding: 6px 16px; font-size: 13px;" onclick="switchClientTab('catalog')">👥 Catálogo General</button>
+            <button id="tab-client-bids" class="btn btn-secondary" style="width: auto; padding: 6px 16px; font-size: 13px;" onclick="switchClientTab('bids')">🔔 Clientes Disponibles (Pujas)</button>
+          </div>
+
+          <!-- Section 1: General Catalog -->
+          <div id="client-catalog-section" class="table-container">
             <table>
               <thead>
                 <tr>
@@ -455,6 +468,30 @@
               </tbody>
             </table>
           </div>
+
+          <!-- Section 2: Biddable Pool for Advisors -->
+          <div id="client-bids-section" style="display: none;" class="table-container">
+            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 16px;">Aquí se muestran los agricultores sin asesor asignado actualmente que están disponibles para asignación. Puedes pujar por ellos enviando tu propuesta.</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Contacto</th>
+                  <th>Ubicación</th>
+                  <th>Superficie</th>
+                  <th>Compras Históricas</th>
+                  <th>Tu Estado de Puja</th>
+                  <th style="text-align: center;">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="client-bids-tbody">
+                <tr>
+                  <td colspan="7" style="text-align: center; color: var(--text-light);">Cargando...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
         </div>
       </div>
 
@@ -732,6 +769,71 @@
         </div>
       </div>
 
+      <!-- G. CLIENT ASSIGNMENT VIEW (ADMIN ONLY) -->
+      <div id="asignacion-view" class="view-section admin-only">
+        <div class="card" style="margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3 style="margin: 0 0 4px 0;">Asignación Inteligente de Clientes</h3>
+              <p style="margin: 0; font-size: 13px; color: var(--text-light);">Asigna agricultores directamente, ponlos disponibles para pujas o usa la recomendación de la IA.</p>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+              <input type="text" id="assign-search-client" placeholder="🔍 Buscar agricultor..." class="form-control" style="width: 180px; margin: 0; padding: 8px 12px; font-size: 13px;">
+              <input type="text" id="assign-search-advisor" placeholder="🔍 Buscar asesor..." class="form-control" style="width: 180px; margin: 0; padding: 8px 12px; font-size: 13px;">
+              <button class="btn btn-secondary" style="width: auto; margin: 0; padding: 8px 16px; font-size: 13px;" onclick="loadAsignacionView()">🔄 Recargar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="assign-grid" style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 24px; min-height: 500px;">
+          <!-- Column 1: Unassigned Clients -->
+          <div class="card" style="padding: 16px; display: flex; flex-direction: column;">
+            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <h4 style="margin: 0; font-weight: 700;">Agricultores sin Asesor</h4>
+              <span class="badge badge-info" id="assign-unassigned-count">0</span>
+            </div>
+            <div id="assign-unassigned-list" style="flex: 1; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 12px; padding: 4px;">
+              <div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando...</div>
+            </div>
+          </div>
+
+          <!-- Column 2: Biddable pool -->
+          <div class="card" style="padding: 16px; display: flex; flex-direction: column; background: var(--bg-hover);">
+            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <h4 style="margin: 0; font-weight: 700;">Pool "Disponible" (Pujas)</h4>
+              <span class="badge badge-warning" id="assign-biddable-count">0</span>
+            </div>
+            <div id="assign-biddable-list" style="flex: 1; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 16px; padding: 4px;">
+              <div style="text-align: center; color: var(--text-light); padding: 20px;">No hay clientes en el pool de puja.</div>
+            </div>
+          </div>
+
+          <!-- Column 3: Active Advisors (Drop Zones) -->
+          <div class="card" style="padding: 16px; display: flex; flex-direction: column;">
+            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+              <h4 style="margin: 0; font-weight: 700;">Asesores (Arrastra aquí)</h4>
+              <span class="badge badge-success" id="assign-advisors-count">0</span>
+            </div>
+            <div id="assign-advisors-list" style="flex: 1; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 12px; padding: 4px;">
+              <div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Suggestion Modal -->
+      <div id="ai-suggestion-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+          <div class="modal-header">
+            <h3 id="ai-modal-title">Recomendación de la IA</h3>
+            <span class="close-modal-btn" onclick="closeModal('ai-suggestion-modal')">&times;</span>
+          </div>
+          <div id="ai-suggestion-body" style="padding: 16px 0;">
+            <!-- Content populated dynamically -->
+          </div>
+        </div>
+      </div>
+
       <!-- F. ADMINISTRATION VIEW -->
       <div id="admin-view" class="view-section">
         <!-- View sub-tabs -->
@@ -905,6 +1007,33 @@
             <div style="text-align: center; color: var(--text-light); font-size: 14px;">No hay visitas registradas.</div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bid Submission Modal -->
+  <div id="bid-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2>Enviar Propuesta de Asignación</h2>
+        <button class="modal-close" onclick="closeModal('bid-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="bid-form">
+          <input type="hidden" id="bid-client-id">
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label style="font-weight: 600; margin-bottom: 8px; display: block;">Cliente Seleccionado:</label>
+            <div id="bid-client-name" style="font-weight: bold; font-size: 16px; color: var(--primary);"></div >
+          </div>
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label for="bid-justification" style="font-weight: 600; margin-bottom: 8px; display: block;">Justificación / ¿Por qué deseas este cliente?:</label>
+            <textarea id="bid-justification" placeholder="Escribe tus razones, experiencia relevante con el cultivo o zona, o propuesta de trabajo..." class="form-input" style="width: 100%; height: 120px; padding: 10px; resize: vertical;" required></textarea>
+          </div>
+          <div class="flex-actions" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+            <button type="button" class="btn btn-secondary" style="width: auto; margin: 0;" onclick="closeModal('bid-modal')">Cancelar</button>
+            <button type="submit" class="btn btn-primary" style="width: auto; margin: 0;" id="bid-submit-btn">Enviar Puja</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
