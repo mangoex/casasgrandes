@@ -85,7 +85,13 @@ function showAppView() {
   
   // Handle Admin Sidebar Visibility
   if (user.nivel_rol === 'Administrador') {
-    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+    document.querySelectorAll('.admin-only').forEach(el => {
+      if (el.classList.contains('view-section')) {
+        el.style.display = ''; // let CSS handle view section toggling
+      } else {
+        el.style.display = 'block';
+      }
+    });
   } else {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   }
@@ -93,14 +99,19 @@ function showAppView() {
   // Handle Admin or Advisor Sidebar Visibility
   const isAdminOrAdvisor = ['Administrador', 'Asesor'].includes(user.nivel_rol);
   document.querySelectorAll('.admin-or-advisor-only').forEach(el => {
-    el.style.display = isAdminOrAdvisor ? 'block' : 'none';
+    if (el.classList.contains('view-section')) {
+      el.style.display = isAdminOrAdvisor ? '' : 'none';
+    } else {
+      el.style.display = isAdminOrAdvisor ? 'block' : 'none';
+    }
   });
 
   // Handle Admin or Coordinator Visibility
   if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') {
     document.querySelectorAll('.admin-or-coordinator-only').forEach(el => {
-      // If it is select dropdown, display it inline-block or block
-      if (el.tagName === 'SELECT') {
+      if (el.classList.contains('view-section')) {
+        el.style.display = '';
+      } else if (el.tagName === 'SELECT') {
         el.style.display = 'inline-block';
       } else {
         el.style.display = 'block';
