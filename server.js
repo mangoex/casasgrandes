@@ -29,6 +29,36 @@ function authenticateToken(req, res, next) {
 }
 
 // -------------------------------------------------------------
+// DIAGNOSTIC ENDPOINT (TEMPORARY)
+// -------------------------------------------------------------
+app.get('/api/diagnose-db', async (req, res) => {
+  try {
+    const dbUrl = process.env.DATABASE_URL || 'No DATABASE_URL env var';
+    const maskedUrl = dbUrl.replace(/:([^@]+)@/, ':****@');
+    const dbType = db.pool ? 'PostgreSQL' : 'SQLite';
+    const advisors = await db.all("SELECT id, nombre, email, usuario, password_hash, nivel_rol, activo FROM asesores");
+    
+    let tables = [];
+    if (dbType === 'PostgreSQL') {
+      const resTables = await db.all("SELECT table_name FROM information_schema.tables WHERE table_schema='public'");
+      tables = resTables.map(t => t.table_name);
+    } else {
+      const resTables = await db.all("SELECT name FROM sqlite_master WHERE type='table'");
+      tables = resTables.map(t => t.name);
+    }
+    
+    res.json({
+      dbType,
+      maskedUrl,
+      tables,
+      advisors
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+// -------------------------------------------------------------
 // AUTHENTICATION ENDPOINTS
 // -------------------------------------------------------------
 
