@@ -1127,10 +1127,11 @@ async function loadCotizadorConfig() {
     allClients = await cRes.json();
     
     const clientSelect = document.getElementById('quote-client');
-    clientSelect.innerHTML = '<option value="">-- Selecciona un Agricultor --</option>';
+    let clientOptions = '<option value="">-- Selecciona un Agricultor --</option>';
     allClients.forEach(c => {
-      clientSelect.innerHTML += `<option value="${c.id}">${c.nombre} (${c.cuenta_clave_nombre || 'General'})</option>`;
+      clientOptions += `<option value="${c.id}">${c.nombre} (${c.cuenta_clave_nombre || 'General'})</option>`;
     });
+    clientSelect.innerHTML = clientOptions;
     
     // Fetch seasons list
     const sRes = await fetch(`${API_URL}/api/temporadas`, { headers: getHeaders() });
@@ -1601,14 +1602,14 @@ async function loadAlmacenData() {
     allMovements = movements;
     
     const movesTbody = document.getElementById('movements-tbody');
-    movesTbody.innerHTML = '';
+    let movesHtml = '';
     
     movements.forEach(m => {
       const dateOnly = m.fecha_movimiento.slice(0, 16).replace('T', ' ');
       const valEnt = m.cantidad_entrante > 0 ? m.cantidad_entrante.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
       const valSal = m.cantidad_saliente > 0 ? m.cantidad_saliente.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
       
-      movesTbody.innerHTML += `
+      movesHtml += `
         <tr>
           <td style="font-size: 12px; color: var(--text-light);">${dateOnly}</td>
           <td><span class="badge ${m.tipo_movimiento.startsWith('Entrada') || m.tipo_movimiento.includes('Reversión') ? 'badge-success' : 'badge-warning'}">${m.tipo_movimiento}</span></td>
@@ -1619,6 +1620,7 @@ async function loadAlmacenData() {
         </tr>
       `;
     });
+    movesTbody.innerHTML = movesHtml;
     
     // 3. Load Form select options
     const moveProdSelect = document.getElementById('move-prod');
@@ -2886,10 +2888,11 @@ window.renderCatalogClientes = function() {
     return;
   }
   
+  let catalogHtml = '';
   filtered.forEach(c => {
     let badgeClass = c.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
     
-    tbody.innerHTML += `
+    catalogHtml += `
       <tr>
         <td><strong>${c.nombre}</strong></td>
         ${user.nivel_rol !== 'Asesor' ? `<td>${c.asesor_nombre || 'Sin Asesor'}</td>` : ''}
@@ -2905,6 +2908,7 @@ window.renderCatalogClientes = function() {
       </tr>
     `;
   });
+  tbody.innerHTML = catalogHtml;
 };
 
 window.editCatalogClient = async function(clientId) {
@@ -2976,16 +2980,16 @@ window.loadClientBidsPool = async function() {
     // Filter to only biddable ones
     const biddableClients = allClients.filter(c => c.disponible_para_puja === 1);
     
-    tbody.innerHTML = '';
+    // Load historical purchases metrics if available, or just fetch quotes
+    const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
+    const quotes = await quotesRes.json();
+    
+    let bidsHtml = '';
     
     if (biddableClients.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">No hay agricultores disponibles para puja en este momento.</td></tr>';
       return;
     }
-    
-    // Load historical purchases metrics if available, or just fetch quotes
-    const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
-    const quotes = await quotesRes.json();
     
     biddableClients.forEach(c => {
       // Calculate purchase volume
@@ -3007,7 +3011,7 @@ window.loadClientBidsPool = async function() {
       
       const isActionDisabled = bid && bid.estatus !== 'Pendiente';
       
-      tbody.innerHTML += `
+      bidsHtml += `
         <tr>
           <td><strong>${c.nombre}</strong></td>
           <td>${c.contacto || '-'}</td>
@@ -3025,6 +3029,7 @@ window.loadClientBidsPool = async function() {
         </tr>
       `;
     });
+    tbody.innerHTML = bidsHtml;
   } catch (err) {
     console.error('Failed to load client bids pool:', err);
     tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger);">Error: ${err.message}</td></tr>`;
