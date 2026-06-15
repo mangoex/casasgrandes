@@ -3,15 +3,72 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 let schedulerInterval = null;
 
-// Helper to get Gemini API instance
-function getModel(customApiKey, agentId = 'agent') {
-  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY no configurada. Por favor configure su API Key en el panel o en el archivo .env');
+// Helper to generate text using Gemini or OpenRouter
+async function generateText(prompt, keyOrConfig = {}) {
+  // Load global config
+  const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
+  const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
+  
+  let provider = globalConfig.provider || 'gemini';
+  let geminiKey = globalConfig.gemini_api_key || process.env.GEMINI_API_KEY;
+  let openrouterKey = globalConfig.openrouter_api_key || process.env.OPENROUTER_API_KEY;
+  let openrouterModel = globalConfig.openrouter_model || 'google/gemini-2.5-flash';
+
+  if (typeof keyOrConfig === 'string') {
+    if (provider === 'openrouter') {
+      openrouterKey = keyOrConfig;
+    } else {
+      geminiKey = keyOrConfig;
+    }
+  } else if (typeof keyOrConfig === 'object' && keyOrConfig !== null) {
+    if (keyOrConfig.provider) provider = keyOrConfig.provider;
+    if (keyOrConfig.gemini_api_key) geminiKey = keyOrConfig.gemini_api_key;
+    if (keyOrConfig.openrouter_api_key) openrouterKey = keyOrConfig.openrouter_api_key;
+    if (keyOrConfig.openrouter_model) openrouterModel = keyOrConfig.openrouter_model;
   }
-  const genAI = new GoogleGenerativeAI(apiKey);
-  // Using gemini-1.5-flash for speed, reliability and JSON parsing
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+  if (provider === 'openrouter') {
+    if (!openrouterKey) {
+      throw new Error('OPENROUTER_API_KEY no configurada. Configure su API Key en el panel o en el archivo .env');
+    }
+    
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openrouterKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://casasgrandes.sales",
+        "X-Title": "AgriSales Pro"
+      },
+      body: JSON.stringify({
+        model: openrouterModel,
+        messages: [
+          { role: "user", content: prompt }
+        ]
+      })
+    });
+    
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} - ${errText}`);
+    }
+    
+    const data = await response.json();
+    if (!data.choices || data.choices.length === 0) {
+      throw new Error(`OpenRouter no devolvió respuestas. Response: ${JSON.stringify(data)}`);
+    }
+    return data.choices[0].message.content.trim();
+  } else {
+    // Direct Gemini
+    if (!geminiKey) {
+      throw new Error('GEMINI_API_KEY no configurada. Configure su API Key en el panel o en el archivo .env');
+    }
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(geminiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  }
 }
 
 // Log writer helper
@@ -100,7 +157,6 @@ async function runCEOAgent(customApiKey) {
   await writeLog('ceo', 'info', 'Iniciando ejecución del CEO Agent...');
   
   try {
-    const model = getModel(customApiKey, 'ceo');
     
     // Fetch current system data
     const advisors = await db.all("SELECT id, nombre, email, activo FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
@@ -164,8 +220,7 @@ Parte 2: Una sección final con los datos estructurados en formato JSON puro den
 Asegúrate de que las metas propuestas sean retadoras pero realistas, basadas en el historial de ventas del asesor si está disponible (de lo contrario, pon metas iniciales promedio).
 `;
 
-    const result = await model.generateContent(prompt);
-    const textResponse = result.response.text();
+    const textResponse = await generateText(prompt, customApiKey);
 
     // Extract JSON block using regex
     const jsonMatch = textResponse.match(/```json\s*([\s\S]*?)\s*```/);
@@ -202,7 +257,6 @@ async function runCoordinatorAgent(customApiKey) {
   await writeLog('coordinador', 'info', 'Iniciando ejecución del Coordinador Agent...');
 
   try {
-    const model = getModel(customApiKey, 'coordinador');
 
     // Fetch active advisors
     const advisors = await db.all("SELECT id, nombre, telefono, email FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
@@ -255,8 +309,7 @@ Por favor, redacta un mensaje corto en español (máximo 150 palabras) dirigido 
 Devuelve ÚNICAMENTE el texto del mensaje para enviar por WhatsApp, sin introducciones ni comentarios adicionales.
 `;
 
-      const result = await model.generateContent(prompt);
-      const messageText = result.response.text().trim();
+      const messageText = await generateText(prompt, customApiKey);
 
       // Create a wa.me URL
       const cleanPhone = (advisor.telefono || '').replace(/\D/g, '');
@@ -298,7 +351,6 @@ async function runOutreachAgent(customApiKey) {
   await writeLog('outreach', 'info', 'Iniciando ejecución del Outreach Agent...');
 
   try {
-    const model = getModel(customApiKey, 'outreach');
 
     // Fetch active products
     const products = await db.all("SELECT id, producto, tipo_categoria, list_price_mxn, base_usd FROM productos WHERE activo = 1");
@@ -373,8 +425,7 @@ Devuelve tu recomendación en formato JSON puro. El JSON debe ser un objeto con 
 Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos en el catálogo. Devuelve ÚNICAMENTE el bloque JSON.
 `;
 
-      const result = await model.generateContent(prompt);
-      const jsonText = result.response.text().trim();
+      const jsonText = await generateText(prompt, customApiKey);
       
       // Clean up markdown code blocks if the model returned them
       const cleanJsonText = jsonText.replace(/```json|```/g, '').trim();

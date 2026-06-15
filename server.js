@@ -1743,20 +1743,35 @@ app.get('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (re
     // Fetch global config if exists to check API key
     const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
     const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
-    const hasApiKey = !!(globalConfig.gemini_api_key || process.env.GEMINI_API_KEY);
     
-    // Mask API key if returned
-    let maskedKey = '';
+    const provider = globalConfig.provider || 'gemini';
+    const hasGeminiKey = !!(globalConfig.gemini_api_key || process.env.GEMINI_API_KEY);
+    const hasOpenRouterKey = !!(globalConfig.openrouter_api_key || process.env.OPENROUTER_API_KEY);
+    const openrouterModel = globalConfig.openrouter_model || 'google/gemini-2.5-flash';
+    
+    // Mask API keys
+    let maskedGeminiKey = '';
     if (globalConfig.gemini_api_key) {
-      maskedKey = globalConfig.gemini_api_key.substring(0, 8) + '...';
+      maskedGeminiKey = globalConfig.gemini_api_key.substring(0, 8) + '...';
     } else if (process.env.GEMINI_API_KEY) {
-      maskedKey = process.env.GEMINI_API_KEY.substring(0, 8) + '...';
+      maskedGeminiKey = process.env.GEMINI_API_KEY.substring(0, 8) + '...';
+    }
+
+    let maskedOpenRouterKey = '';
+    if (globalConfig.openrouter_api_key) {
+      maskedOpenRouterKey = globalConfig.openrouter_api_key.substring(0, 8) + '...';
+    } else if (process.env.OPENROUTER_API_KEY) {
+      maskedOpenRouterKey = process.env.OPENROUTER_API_KEY.substring(0, 8) + '...';
     }
 
     res.json({
       configs: rows.filter(r => r.agente_id !== 'global'),
-      hasApiKey,
-      maskedKey
+      provider,
+      hasGeminiKey,
+      maskedGeminiKey,
+      hasOpenRouterKey,
+      maskedOpenRouterKey,
+      openrouterModel
     });
   } catch (err) {
     console.error(err);
@@ -1765,29 +1780,46 @@ app.get('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (re
 });
 
 app.post('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (req, res) => {
-  const { configs, gemini_api_key } = req.body;
+  const { configs, provider, gemini_api_key, openrouter_api_key, openrouter_model } = req.body;
   try {
-    // 1. Update API key if provided
+    // 1. Fetch current global config
+    const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
+    let globalConfig = JSON.parse(globalRow?.configuracion || '{}');
+    
+    if (provider) globalConfig.provider = provider;
+    
+    // Update keys if provided and not masked placeholder
     if (gemini_api_key !== undefined) {
-      // Store API Key globally
-      const globalRow = await db.get("SELECT id FROM crm_agentes_config WHERE agente_id = 'global'");
-      const apiKeyVal = gemini_api_key.trim();
-      
-      // If it doesn't look like a masked placeholder
-      if (apiKeyVal && !apiKeyVal.includes('...')) {
-        if (globalRow) {
-          await db.run(
-            "UPDATE crm_agentes_config SET configuracion = ? WHERE agente_id = 'global'",
-            [JSON.stringify({ gemini_api_key: apiKeyVal })]
-          );
-        } else {
-          await db.run(
-            "INSERT INTO crm_agentes_config (agente_id, nombre, activo, configuracion) VALUES ('global', 'Global Config', 1, ?)",
-            [JSON.stringify({ gemini_api_key: apiKeyVal })]
-          );
-        }
-        process.env.GEMINI_API_KEY = apiKeyVal; // set in memory
+      const val = gemini_api_key.trim();
+      if (val && !val.includes('...')) {
+        globalConfig.gemini_api_key = val;
+        process.env.GEMINI_API_KEY = val;
       }
+    }
+    
+    if (openrouter_api_key !== undefined) {
+      const val = openrouter_api_key.trim();
+      if (val && !val.includes('...')) {
+        globalConfig.openrouter_api_key = val;
+        process.env.OPENROUTER_API_KEY = val;
+      }
+    }
+    
+    if (openrouter_model !== undefined) {
+      globalConfig.openrouter_model = openrouter_model.trim();
+    }
+
+    // Save global settings
+    if (globalRow) {
+      await db.run(
+        "UPDATE crm_agentes_config SET configuracion = ? WHERE agente_id = 'global'",
+        [JSON.stringify(globalConfig)]
+      );
+    } else {
+      await db.run(
+        "INSERT INTO crm_agentes_config (agente_id, nombre, activo, configuracion) VALUES ('global', 'Global Config', 1, ?)",
+        [JSON.stringify(globalConfig)]
+      );
     }
 
     // 2. Update agent active status and customized settings
@@ -1810,16 +1842,23 @@ app.post('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (r
 app.post('/api/agentes/ejecutar', authenticateToken, authorizeAgentAdmin, async (req, res) => {
   const { agente_id } = req.body;
   try {
-    // Fetch global API key
     const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
     const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
-    const apiKey = globalConfig.gemini_api_key || process.env.GEMINI_API_KEY;
+    const provider = globalConfig.provider || 'gemini';
 
-    if (!apiKey) {
-      return res.status(400).json({ error: 'GEMINI_API_KEY no configurada. Configure su API Key antes de ejecutar los agentes.' });
+    if (provider === 'openrouter') {
+      const apiKey = globalConfig.openrouter_api_key || process.env.OPENROUTER_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ error: 'OPENROUTER_API_KEY no configurada. Configure su API Key antes de ejecutar los agentes.' });
+      }
+    } else {
+      const apiKey = globalConfig.gemini_api_key || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ error: 'GEMINI_API_KEY no configurada. Configure su API Key antes de ejecutar los agentes.' });
+      }
     }
 
-    const result = await agentsService.executeAgent(agente_id, apiKey);
+    const result = await agentsService.executeAgent(agente_id);
     res.json({ success: true, result });
   } catch (err) {
     console.error(`Error executing agent manually: ${err.message}`);

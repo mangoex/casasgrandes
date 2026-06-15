@@ -1039,17 +1039,45 @@
         <!-- Configuration Card -->
         <div class="card" style="margin-bottom: 24px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);">
           <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">⚙️ Configuración del Sistema de IA</h3>
+          
+          <div style="margin-bottom: 20px;">
+            <label for="ia-provider" style="display: block; margin-bottom: 8px; font-weight: 500;">Proveedor de IA:</label>
+            <select id="ia-provider" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text); width: 240px; font-size: 14px;">
+              <option value="gemini">Google Gemini Directo</option>
+              <option value="openrouter">OpenRouter API</option>
+            </select>
+          </div>
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px;">
-            <div>
+            <!-- Gemini direct key container -->
+            <div id="container-gemini-config">
               <label for="ia-gemini-key" style="display: block; margin-bottom: 8px; font-weight: 500;">Google Gemini API Key:</label>
               <div style="display: flex; gap: 8px;">
-                <input type="password" id="ia-gemini-key" placeholder="Ingresa tu GEMINI_API_KEY..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text);">
-                <button id="btn-toggle-key-visibility" class="btn btn-secondary" style="width: auto; padding: 0 16px;">👁️</button>
+                <input type="password" id="ia-gemini-key" placeholder="Ingresa tu GEMINI_API_KEY..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text); font-size: 14px;">
+                <button id="btn-toggle-gemini-key-visibility" class="btn btn-secondary btn-toggle-key" style="width: auto; padding: 0 16px;" data-target="ia-gemini-key">👁️</button>
               </div>
-              <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Esta llave se guarda en el servidor de forma segura para realizar el razonamiento de los agentes.</p>
+              <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Esta llave se usa para llamar directamente a Google Gemini (gemini-1.5-flash).</p>
             </div>
-            <div style="display: flex; align-items: flex-end; padding-bottom: 6px;">
-              <button id="btn-save-ia-config" class="btn btn-primary" style="width: auto; padding: 10px 24px;">Guardar Configuración</button>
+
+            <!-- OpenRouter config container -->
+            <div id="container-openrouter-config" style="display: none; grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%;">
+              <div>
+                <label for="ia-openrouter-key" style="display: block; margin-bottom: 8px; font-weight: 500;">OpenRouter API Key:</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="password" id="ia-openrouter-key" placeholder="sk-or-v1-..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text); font-size: 14px;">
+                  <button id="btn-toggle-openrouter-key-visibility" class="btn btn-secondary btn-toggle-key" style="width: auto; padding: 0 16px;" data-target="ia-openrouter-key">👁️</button>
+                </div>
+                <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Tu clave de API de OpenRouter.</p>
+              </div>
+              <div>
+                <label for="ia-openrouter-model" style="display: block; margin-bottom: 8px; font-weight: 500;">Modelo de OpenRouter:</label>
+                <input type="text" id="ia-openrouter-model" placeholder="google/gemini-2.5-flash" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text); font-size: 14px;">
+                <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Ejemplos: <code>google/gemini-2.5-flash</code>, <code>meta-llama/llama-3-8b-instruct</code>.</p>
+              </div>
+            </div>
+            
+            <div style="display: flex; align-items: flex-end; padding-bottom: 6px; grid-column: 2;">
+              <button id="btn-save-ia-config" class="btn btn-primary" style="width: auto; padding: 10px 24px; margin-top: 10px;">Guardar Configuración</button>
             </div>
           </div>
 

@@ -3915,10 +3915,27 @@ async function loadIAViewData() {
     const data = await res.json();
     currentAgentsConfig = data.configs;
     
-    // Set API Key display
-    const apiKeyInput = document.getElementById('ia-gemini-key');
-    if (apiKeyInput) {
-      apiKeyInput.value = data.maskedKey || '';
+    // Set Provider Selector
+    const providerSelect = document.getElementById('ia-provider');
+    if (providerSelect) {
+      providerSelect.value = data.provider || 'gemini';
+      toggleProviderUI(data.provider || 'gemini');
+    }
+    
+    // Set API Keys and Model
+    const geminiInput = document.getElementById('ia-gemini-key');
+    if (geminiInput) {
+      geminiInput.value = data.maskedGeminiKey || '';
+    }
+
+    const openrouterInput = document.getElementById('ia-openrouter-key');
+    if (openrouterInput) {
+      openrouterInput.value = data.maskedOpenRouterKey || '';
+    }
+
+    const modelInput = document.getElementById('ia-openrouter-model');
+    if (modelInput) {
+      modelInput.value = data.openrouterModel || 'google/gemini-2.5-flash';
     }
     
     // Set Switches and Prompts
@@ -3955,6 +3972,22 @@ async function loadIAViewData() {
   } catch (err) {
     console.error(err);
     alert(err.message);
+  }
+}
+
+function toggleProviderUI(provider) {
+  const geminiContainer = document.getElementById('container-gemini-config');
+  const openrouterContainer = document.getElementById('container-openrouter-config');
+  
+  if (provider === 'openrouter') {
+    if (geminiContainer) geminiContainer.style.display = 'none';
+    if (openrouterContainer) {
+      openrouterContainer.style.display = 'grid';
+      openrouterContainer.style.setProperty('display', 'grid', 'important');
+    }
+  } else {
+    if (geminiContainer) geminiContainer.style.display = 'block';
+    if (openrouterContainer) openrouterContainer.style.display = 'none';
   }
 }
 
@@ -4338,7 +4371,15 @@ function simpleMarkdownToHtml(md) {
 
 // Bind event listeners for the system config buttons
 function bindIAViewEventListeners() {
-  // Save API Key and Switches
+  // Bind Provider dropdown change
+  const providerSelect = document.getElementById('ia-provider');
+  if (providerSelect) {
+    providerSelect.addEventListener('change', (e) => {
+      toggleProviderUI(e.target.value);
+    });
+  }
+
+  // Save Config and Switches
   const saveBtn = document.getElementById('btn-save-ia-config');
   if (saveBtn) {
     saveBtn.addEventListener('click', async (e) => {
@@ -4346,9 +4387,11 @@ function bindIAViewEventListeners() {
       saveBtn.disabled = true;
       saveBtn.innerText = 'Guardando...';
       
-      const apiKeyVal = document.getElementById('ia-gemini-key').value;
       const payload = {
-        gemini_api_key: apiKeyVal,
+        provider: document.getElementById('ia-provider').value,
+        gemini_api_key: document.getElementById('ia-gemini-key').value,
+        openrouter_api_key: document.getElementById('ia-openrouter-key').value,
+        openrouter_model: document.getElementById('ia-openrouter-model').value,
         configs: [
           {
             agente_id: 'ceo',
@@ -4387,19 +4430,19 @@ function bindIAViewEventListeners() {
     });
   }
 
-  // Toggle API Key visibility
-  const toggleKeyBtn = document.getElementById('btn-toggle-key-visibility');
-  if (toggleKeyBtn) {
-    toggleKeyBtn.addEventListener('click', (e) => {
+  // Toggle API Key visibility buttons
+  document.querySelectorAll('.btn-toggle-key').forEach(btn => {
+    btn.addEventListener('click', (e) => {
       e.preventDefault();
-      const apiKeyInput = document.getElementById('ia-gemini-key');
+      const targetId = btn.getAttribute('data-target');
+      const apiKeyInput = document.getElementById(targetId);
       if (apiKeyInput) {
         const isPassword = apiKeyInput.type === 'password';
         apiKeyInput.type = isPassword ? 'text' : 'password';
-        toggleKeyBtn.innerText = isPassword ? '🔒' : '👁️';
+        btn.innerText = isPassword ? '🔒' : '👁️';
       }
     });
-  }
+  });
 
   // Bind Switch visuals (custom switch click handle to check/uncheck checkbox)
   const switches = ['ceo', 'coordinador', 'outreach'];
