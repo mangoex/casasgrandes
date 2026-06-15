@@ -783,6 +783,198 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
+// DELETE QUOTATION
+app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const q = await db.get('SELECT * FROM cotizaciones WHERE id = ?', [id]);
+    if (!q) return res.status(404).json({ error: 'Quotation not found' });
+    
+    // Authorization check
+    if (req.user.nivel_rol === 'Asesor') {
+      if (q.asesor_id !== req.user.id) {
+        return res.status(403).json({ error: 'Unauthorized to delete this quote' });
+      }
+      if (q.estatus !== 'Borrador') {
+        return res.status(400).json({ error: 'Asesores can only delete draft quotes' });
+      }
+    }
+    
+    // Check if stock is currently deducted and revert it
+    const stockDeducted = await db.get(
+      "SELECT id FROM almacen_movimientos WHERE cotizacion_id = ? AND tipo_movimiento LIKE 'Salida%' LIMIT 1",
+      [id]
+    );
+    
+    if (stockDeducted) {
+      const now = new Date().toISOString();
+      const items = await db.all('SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
+      for (const item of items) {
+        const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
+        const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
+        const new_stock = current_stock + item.cantidad_ordenada;
+        
+        await db.run(`
+          INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
+          VALUES (?, 'Reversión por Eliminación', ?, ?, 0, ?, ?, ?, ?, ?)
+        `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Reversión de stock por eliminación de cotización`]);
+      }
+    }
+    
+    await db.run('DELETE FROM cotizaciones WHERE id = ?', [id]);
+    res.json({ message: 'Quotation deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete quotation' });
+  }
+});
+
+// EDIT QUOTATION (HEADER & DETAILS)
+app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { ciclo_agricola, condiciones_pago, financiera, notas, temporada_id, items } = req.body;
+  
+  if (!items || !Array.isArray(items)) {
+    return res.status(400).json({ error: 'items array is required' });
+  }
+  
+  try {
+    const q = await db.get('SELECT * FROM cotizaciones WHERE id = ?', [id]);
+    if (!q) return res.status(404).json({ error: 'Quotation not found' });
+    
+    if (req.user.nivel_rol === 'Asesor' && q.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to edit this quote' });
+    }
+    
+    // Step 1: Revert stock if currently deducted
+    const stockDeducted = await db.get(
+      "SELECT id FROM almacen_movimientos WHERE cotizacion_id = ? AND tipo_movimiento LIKE 'Salida%' LIMIT 1",
+      [id]
+    );
+    const now = new Date().toISOString();
+    
+    if (stockDeducted) {
+      const oldItems = await db.all('SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
+      for (const item of oldItems) {
+        const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
+        const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
+        const new_stock = current_stock + item.cantidad_ordenada;
+        
+        await db.run(`
+          INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
+          VALUES (?, 'Reversión por Edición', ?, ?, 0, ?, ?, ?, ?, ?)
+        `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Reversión de stock por edición de cotización`]);
+      }
+    }
+    
+    // Step 2: Calculate pricing for new items
+    const client = await db.get('SELECT * FROM clientes WHERE id = ?', [q.cliente_id]);
+    const ccId = client.cuenta_clave_id || 1;
+    const keyAccount = await db.get('SELECT * FROM cuentas_clave WHERE id = ?', [ccId]);
+    const keyAccountDesc = keyAccount ? keyAccount.descuento_mxn : 0.0;
+    
+    const activeSeason = temporada_id ? 
+      await db.get('SELECT * FROM temporadas WHERE id = ?', [temporada_id]) : 
+      await db.get("SELECT * FROM temporadas WHERE actividad = 'Temporada (Precio Lleno)'");
+      
+    let totalDiscountableSeeds = 0;
+    const calculatedRows = [];
+    
+    for (const item of items) {
+      const prod = await db.get('SELECT * FROM productos WHERE id = ?', [item.producto_id]);
+      if (!prod) return res.status(404).json({ error: `Product ID ${item.producto_id} not found` });
+      
+      if (prod.descontar === 1) {
+        totalDiscountableSeeds += item.cantidad;
+      }
+      calculatedRows.push({ item, prod });
+    }
+    
+    const getVolumeMultiplier = (totalBags) => {
+      if (totalBags >= 500) return 0.75;
+      if (totalBags >= 250) return 0.80;
+      if (totalBags >= 100) return 0.85;
+      if (totalBags >= 50) return 0.90;
+      if (totalBags >= 20) return 0.95;
+      return 1.00;
+    };
+    
+    const volMultiplier = getVolumeMultiplier(totalDiscountableSeeds);
+    let grandTotal = 0.0;
+    
+    for (const row of calculatedRows) {
+      const prod = row.prod;
+      const item = row.item;
+      let seasonPrice = prod.list_price_mxn;
+      
+      if (prod.tipo_categoria !== 'Agroquímico') {
+        const discount = activeSeason ? activeSeason.descuento_porcentaje : 0.0;
+        const action = activeSeason ? activeSeason.estado_operacion : 'Sumar';
+        seasonPrice = action === 'Restar' ? 
+          prod.list_price_mxn * (1 - discount / 100.0) : 
+          prod.list_price_mxn * (1 + discount / 100.0);
+      }
+      
+      let netPrice = 0.0;
+      if (prod.descontar === 1) {
+        const usdPriceForTier = Math.round((prod.base_usd * volMultiplier) * 100) / 100;
+        netPrice = Math.round(usdPriceForTier * 4.00 * 18.70) - keyAccountDesc;
+      } else if (prod.tipo_categoria === 'Híbrido') {
+        netPrice = Math.round(seasonPrice);
+      } else {
+        netPrice = seasonPrice - prod.descuento_fijo_quimicos;
+      }
+      
+      row.netPrice = netPrice;
+      row.subtotal = netPrice * item.cantidad;
+      grandTotal += row.subtotal;
+    }
+    
+    // Step 3: Delete old details
+    await db.run('DELETE FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
+    
+    // Step 4: Insert new details
+    for (const row of calculatedRows) {
+      await db.run(`
+        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
+        VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+      `, [id, row.item.producto_id, temporada_id || (activeSeason ? activeSeason.id : 1), row.item.cantidad, row.prod.list_price_mxn, row.netPrice, row.subtotal]);
+    }
+    
+    // Update header
+    const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000.0 : 0.0;
+    
+    await db.run(`
+      UPDATE cotizaciones
+      SET ciclo_agricola = ?, condiciones_pago = ?, financiera = ?, notas = ?, total_mxn = ?, anticipo_apartado = ?
+      WHERE id = ?
+    `, [ciclo_agricola, condiciones_pago, financiera || null, notas || null, grandTotal, anticipoApartado, id]);
+    
+    // Step 5: Re-deduct stock if state is Sold or Delivered
+    if (q.estatus === 'Vendido' || q.estatus === 'Entregado') {
+      for (const row of calculatedRows) {
+        const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [row.item.producto_id]);
+        const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
+        const new_stock = current_stock - row.item.cantidad;
+        
+        await db.run(`
+          INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
+          VALUES (?, 'Salida por Pedido (Editado)', ?, 0, ?, ?, ?, ?, ?, ?)
+        `, [now, row.item.producto_id, row.item.cantidad, new_stock, id, req.user.id, q.folio_cotizacion, `Salida registrada por cambio de detalles de cotización`]);
+      }
+      
+      if (q.estatus === 'Entregado') {
+        await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
+      }
+    }
+    
+    res.json({ message: 'Quotation updated successfully', total_mxn: grandTotal });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update quotation' });
+  }
+});
+
 // -------------------------------------------------------------
 // WAREHOUSE & INVENTORY ENDPOINTS
 // -------------------------------------------------------------
@@ -1632,9 +1824,23 @@ app.post('/api/planificacion/:id/convertir-cotizacion', authenticateToken, async
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, 'Creado automáticamente desde planificación semanal', NULL)
     `, [now, plan.cliente_id, plan.asesor_id, cicloAgricola, condicionesPago, prefix, mesShort, estatus, totalMxn]);
     
+    const cotId = result.id;
+    
+    // Automatically insert default product details if forecast has bags
+    if (plan.pronostico_bolsas > 0) {
+      const defaultProduct = await db.get("SELECT * FROM productos WHERE tipo_categoria = 'Híbrido' AND activo = 1 ORDER BY id ASC LIMIT 1");
+      if (defaultProduct) {
+        const precioNeto = plan.pronostico_monto_mxn ? Math.round((plan.pronostico_monto_mxn / plan.pronostico_bolsas) * 100) / 100 : defaultProduct.list_price_mxn;
+        await db.run(`
+          INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
+          VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+        `, [cotId, defaultProduct.id, 1, plan.pronostico_bolsas, defaultProduct.list_price_mxn, precioNeto, plan.pronostico_monto_mxn]);
+      }
+    }
+    
     await db.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [id]);
     
-    res.status(201).json({ id: result.id, folio: prefix, message: 'Plan successfully converted to Prospecto' });
+    res.status(201).json({ id: cotId, folio: prefix, message: 'Plan successfully converted to Prospecto' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to convert plan' });

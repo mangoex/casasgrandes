@@ -927,7 +927,7 @@ function renderKanbanBoard(quotesList) {
     });
     
     // Build items summary label
-    const itemsSummary = q.items.map(i => `${i.producto_nombre.split(' ')[0]} (x${i.cantidad})`).join(', ') || 'Sin productos';
+    const itemsSummary = q.items.map(i => `${i.producto_nombre.split(' ')[0]} (x${i.cantidad_ordenada || i.cantidad || 0})`).join(', ') || 'Sin productos';
     
     const prevLabels = {
       'Autorizada': 'Prospecto',
@@ -1039,12 +1039,18 @@ async function loadClientCRMDetails(clientId) {
   }
 }
 
+let activeQuoteId = null;
+let activeQuote = null;
+let editQuoteItemsCount = 0;
+
 window.showQuoteDetails = async function(quoteId) {
   try {
+    // Reset modal display modes
+    toggleQuoteEditMode(false);
+    
     // 1. Find the quote in allQuotes or fetch it if not found
     let quote = allQuotes.find(q => q.id === Number(quoteId));
     if (!quote) {
-      // Fetch specifically if not found in cache
       const res = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
       if (res.ok) {
         allQuotes = await res.json();
@@ -1057,7 +1063,10 @@ window.showQuoteDetails = async function(quoteId) {
       return;
     }
 
-    // 2. Render details fields
+    activeQuoteId = quote.id;
+    activeQuote = quote;
+
+    // 2. Render details fields in View Mode
     document.getElementById('quote-detail-folio').textContent = quote.folio_cotizacion || '-';
     document.getElementById('quote-detail-cliente').textContent = quote.cliente_nombre || '-';
     document.getElementById('quote-detail-asesor').textContent = quote.asesor_nombre || '-';
@@ -1087,7 +1096,7 @@ window.showQuoteDetails = async function(quoteId) {
       statusBadge.style.color = '#95a5a6';
     }
 
-    // 3. Render products table
+    // 3. Render products table in View Mode
     const productsBody = document.getElementById('quote-detail-products-body');
     productsBody.innerHTML = '';
     
@@ -1095,11 +1104,12 @@ window.showQuoteDetails = async function(quoteId) {
       productsBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-light); padding: 12px;">Sin productos en esta cotización.</td></tr>`;
     } else {
       quote.items.forEach(item => {
-        const subtotal = item.cantidad * item.precio_neto_unitario;
+        const qty = item.cantidad_ordenada || item.cantidad || 0;
+        const subtotal = qty * item.precio_neto_unitario;
         productsBody.innerHTML += `
           <tr>
             <td style="padding: 8px; border-bottom: 1px solid var(--border);">${item.producto_nombre}</td>
-            <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: center;">${item.cantidad}</td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: center;">${qty}</td>
             <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: right;">$${parseFloat(item.precio_lista_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
             <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: right;">$${parseFloat(item.precio_neto_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
             <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: right; font-weight: 500;">$${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
@@ -1111,12 +1121,14 @@ window.showQuoteDetails = async function(quoteId) {
     // Render total
     document.getElementById('quote-detail-total').textContent = `$${parseFloat(quote.total_mxn).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
 
-    // 4. Action button "Autorizar" visibility
-    const authBtn = document.getElementById('btn-authorize-quote');
+    // 4. Handle buttons visibility (Authorize, Edit, Delete)
     const isBorrador = quote.estatus === 'Borrador' || quote.estatus === 'Pendiente Autorización';
-    const hasPermission = user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador';
+    const hasAdminOrCoordPermission = user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador';
+    const isOwner = quote.asesor_id === user.id;
 
-    if (isBorrador && hasPermission) {
+    // Authorize button: only Admin or Coordinator for Draft quotes
+    const authBtn = document.getElementById('btn-authorize-quote');
+    if (isBorrador && hasAdminOrCoordPermission) {
       authBtn.style.display = 'inline-flex';
       authBtn.onclick = async () => {
         if (confirm(`¿Está seguro que desea autorizar la cotización con Folio ${quote.folio_cotizacion}?`)) {
@@ -1127,10 +1139,273 @@ window.showQuoteDetails = async function(quoteId) {
       authBtn.style.display = 'none';
     }
 
+    // Edit button: Admin/Coordinator can edit any. Advisor can edit only their own draft quotes.
+    const editBtn = document.getElementById('btn-edit-quote');
+    if (hasAdminOrCoordPermission || (isOwner && isBorrador)) {
+      editBtn.style.display = 'inline-block';
+    } else {
+      editBtn.style.display = 'none';
+    }
+
+    // Delete button: Admin/Coordinator can delete any. Advisor can delete only their own draft quotes.
+    const deleteBtn = document.getElementById('btn-delete-quote');
+    if (hasAdminOrCoordPermission || (isOwner && isBorrador)) {
+      deleteBtn.style.display = 'inline-block';
+    } else {
+      deleteBtn.style.display = 'none';
+    }
+
     openModal('quote-detail-modal');
   } catch (err) {
     console.error('Failed to show quote details:', err);
     alert('Error al mostrar los detalles de la cotización: ' + err.message);
+  }
+};
+
+window.toggleQuoteEditMode = async function(isEdit) {
+  const viewDiv = document.getElementById('quote-detail-view-mode');
+  const editDiv = document.getElementById('quote-detail-edit-mode');
+  
+  if (!isEdit) {
+    viewDiv.style.display = 'block';
+    editDiv.style.display = 'none';
+    return;
+  }
+  
+  if (!activeQuote) return;
+  
+  try {
+    // Load config if needed
+    if (allProducts.length === 0) {
+      const pRes = await fetch(`${API_URL}/api/productos`, { headers: getHeaders() });
+      allProducts = await pRes.json();
+    }
+    if (allSeasons.length === 0) {
+      const sRes = await fetch(`${API_URL}/api/temporadas`, { headers: getHeaders() });
+      allSeasons = await sRes.json();
+    }
+    
+    // Fill header inputs
+    document.getElementById('edit-quote-ciclo').value = activeQuote.ciclo_agricola || 'O-I 2026';
+    document.getElementById('edit-quote-condicion').value = activeQuote.condiciones_pago || 'CONTADO';
+    document.getElementById('edit-quote-financiera').value = activeQuote.financiera || '';
+    document.getElementById('edit-quote-notas').value = activeQuote.notas || '';
+    
+    // Populate seasons select
+    const seasonSelect = document.getElementById('edit-quote-temporada');
+    seasonSelect.innerHTML = '';
+    allSeasons.forEach(s => {
+      const sign = s.estado_operacion === 'Restar' ? '-' : '+';
+      const label = s.descuento_porcentaje > 0 ? ` (${sign}${s.descuento_porcentaje}%)` : '';
+      seasonSelect.innerHTML += `<option value="${s.id}">${s.actividad}${label}</option>`;
+    });
+    
+    // Match season
+    const firstDetail = activeQuote.items && activeQuote.items[0];
+    if (firstDetail && firstDetail.temporada_id) {
+      seasonSelect.value = firstDetail.temporada_id;
+    }
+    
+    // Populate product rows
+    const container = document.getElementById('edit-quote-items-container');
+    container.innerHTML = '';
+    editQuoteItemsCount = 0;
+    
+    if (activeQuote.items && activeQuote.items.length > 0) {
+      activeQuote.items.forEach(item => {
+        addEditQuoteItemRow(item.producto_id, item.cantidad_ordenada || item.cantidad || 0);
+      });
+    } else {
+      addEditQuoteItemRow();
+    }
+    
+    await recalculateEditQuoteTotal();
+    
+    viewDiv.style.display = 'none';
+    editDiv.style.display = 'block';
+  } catch (err) {
+    console.error('Failed to init edit mode:', err);
+    alert('Error al abrir editor: ' + err.message);
+  }
+};
+
+window.addEditQuoteItemRow = function(prodId = '', qty = 1) {
+  editQuoteItemsCount++;
+  const container = document.getElementById('edit-quote-items-container');
+  
+  const div = document.createElement('div');
+  div.className = 'item-row';
+  div.id = `edit-quote-item-row-${editQuoteItemsCount}`;
+  div.style.display = 'flex';
+  div.style.gap = '10px';
+  div.style.alignItems = 'center';
+  div.style.marginBottom = '8px';
+  
+  let options = '<option value="">-- Selecciona un Producto --</option>';
+  allProducts.forEach(p => {
+    options += `<option value="${p.id}" ${p.id === Number(prodId) ? 'selected' : ''}>${p.producto} ($${p.list_price_mxn.toLocaleString('es-MX')} MXN)</option>`;
+  });
+  
+  div.innerHTML = `
+    <div style="flex: 2;">
+      <select class="form-input edit-item-product-select" style="margin-bottom:0;" required onchange="recalculateEditQuoteTotal()">${options}</select>
+    </div>
+    <div style="width: 100px;">
+      <input type="number" class="form-input edit-item-qty-input" style="margin-bottom:0;" min="1" value="${qty}" required oninput="recalculateEditQuoteTotal()">
+    </div>
+    <div>
+      <button type="button" class="btn btn-secondary" style="margin:0; padding: 10px; background: rgba(231, 76, 60, 0.1); color: #e74c3c; border-color: rgba(231, 76, 60, 0.2);" onclick="removeEditQuoteItemRow(${editQuoteItemsCount})">🗑️</button>
+    </div>
+  `;
+  container.appendChild(div);
+};
+
+window.removeEditQuoteItemRow = function(rowIndex) {
+  const row = document.getElementById(`edit-quote-item-row-${rowIndex}`);
+  if (row) {
+    row.remove();
+    recalculateEditQuoteTotal();
+  }
+};
+
+window.recalculateEditQuoteTotal = async function() {
+  if (!activeQuote) return;
+  
+  const rows = document.querySelectorAll('#edit-quote-items-container .item-row');
+  const items = [];
+  
+  rows.forEach(r => {
+    const prodSelect = r.querySelector('.edit-item-product-select');
+    const qtyInput = r.querySelector('.edit-item-qty-input');
+    
+    if (prodSelect && prodSelect.value) {
+      items.push({
+        producto_id: Number(prodSelect.value),
+        cantidad: Number(qtyInput.value) || 1
+      });
+    }
+  });
+  
+  if (items.length === 0) {
+    document.getElementById('edit-quote-total-val').textContent = '$0.00 MXN';
+    return;
+  }
+  
+  try {
+    const seasonId = document.getElementById('edit-quote-temporada').value;
+    
+    const res = await fetch(`${API_URL}/api/cotizaciones/calcular`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        cliente_id: activeQuote.cliente_id,
+        temporada_id: Number(seasonId) || null,
+        items
+      })
+    });
+    
+    if (res.ok) {
+      const calcResult = await res.json();
+      document.getElementById('edit-quote-total-val').textContent = `$${parseFloat(calcResult.total_mxn).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+    }
+  } catch (err) {
+    console.error('Failed to calculate pricing:', err);
+  }
+};
+
+window.saveEditQuote = async function() {
+  if (!activeQuote) return;
+  
+  const ciclo = document.getElementById('edit-quote-ciclo').value;
+  const condicion = document.getElementById('edit-quote-condicion').value;
+  const temporadaId = document.getElementById('edit-quote-temporada').value;
+  const financiera = document.getElementById('edit-quote-financiera').value.trim();
+  const notas = document.getElementById('edit-quote-notas').value.trim();
+  
+  const rows = document.querySelectorAll('#edit-quote-items-container .item-row');
+  const items = [];
+  
+  rows.forEach(r => {
+    const prodSelect = r.querySelector('.edit-item-product-select');
+    const qtyInput = r.querySelector('.edit-item-qty-input');
+    
+    if (prodSelect && prodSelect.value) {
+      items.push({
+        producto_id: Number(prodSelect.value),
+        cantidad: Number(qtyInput.value) || 1
+      });
+    }
+  });
+  
+  if (items.length === 0) {
+    alert('Debe agregar al menos un producto con cantidad válida.');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_URL}/api/cotizaciones/${activeQuote.id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        ciclo_agricola: ciclo,
+        condiciones_pago: condicion,
+        temporada_id: Number(temporadaId) || null,
+        financiera: financiera || null,
+        notas: notas || null,
+        items
+      })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to update quote details');
+    }
+    
+    closeModal('quote-detail-modal');
+    alert('Cotización actualizada con éxito.');
+    
+    // Reload CRM Board
+    await loadCRMBoardData();
+    
+    // Reload Outreach panel if open
+    if (document.getElementById('outreach-quotes-tbody')) {
+      await loadOutreachPanel();
+    }
+  } catch (err) {
+    alert(`Error al guardar: ${err.message}`);
+  }
+};
+
+window.deleteQuoteClick = async function() {
+  if (!activeQuote) return;
+  
+  if (!confirm(`¿Está completamente seguro de que desea ELIMINAR permanentemente la cotización con Folio ${activeQuote.folio_cotizacion}? Esta acción no se puede deshacer y revertirá cualquier stock afectado.`)) {
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_URL}/api/cotizaciones/${activeQuote.id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to delete quote');
+    }
+    
+    closeModal('quote-detail-modal');
+    alert('Cotización eliminada con éxito.');
+    
+    // Reload CRM Board
+    await loadCRMBoardData();
+    
+    // Reload Outreach panel if open
+    if (document.getElementById('outreach-quotes-tbody')) {
+      await loadOutreachPanel();
+    }
+  } catch (err) {
+    alert(`Error al eliminar: ${err.message}`);
   }
 };
 
@@ -1160,6 +1435,13 @@ async function authorizeQuote(quoteId) {
     alert(`Error al autorizar: ${err.message}`);
   }
 }
+
+// Bind season change in edit mode to recalculate total
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'edit-quote-temporada') {
+    recalculateEditQuoteTotal();
+  }
+});
 
 async function loadClientVisits(clientId) {
   try {

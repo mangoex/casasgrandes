@@ -1257,51 +1257,112 @@
         <button class="modal-close" onclick="closeModal('quote-detail-modal')">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="modal-grid-details" style="margin-bottom: 20px;">
-          <div><strong>Folio:</strong> <span id="quote-detail-folio">-</span></div>
-          <div><strong>Cliente:</strong> <span id="quote-detail-cliente">-</span></div>
-          <div><strong>Asesor:</strong> <span id="quote-detail-asesor">-</span></div>
-          <div><strong>Fecha Creación:</strong> <span id="quote-detail-fecha">-</span></div>
-          <div><strong>Ciclo Agrícola:</strong> <span id="quote-detail-ciclo">-</span></div>
-          <div><strong>Condiciones de Pago:</strong> <span id="quote-detail-condiciones">-</span></div>
-          <div><strong>Estatus:</strong> <span id="quote-detail-estatus" class="badge">-</span></div>
-          <div><strong>Financiera:</strong> <span id="quote-detail-financiera">-</span></div>
+        <!-- VIEW MODE -->
+        <div id="quote-detail-view-mode">
+          <div class="modal-grid-details" style="margin-bottom: 20px;">
+            <div><strong>Folio:</strong> <span id="quote-detail-folio">-</span></div>
+            <div><strong>Cliente:</strong> <span id="quote-detail-cliente">-</span></div>
+            <div><strong>Asesor:</strong> <span id="quote-detail-asesor">-</span></div>
+            <div><strong>Fecha Creación:</strong> <span id="quote-detail-fecha">-</span></div>
+            <div><strong>Ciclo Agrícola:</strong> <span id="quote-detail-ciclo">-</span></div>
+            <div><strong>Condiciones de Pago:</strong> <span id="quote-detail-condiciones">-</span></div>
+            <div><strong>Estatus:</strong> <span id="quote-detail-estatus" class="badge">-</span></div>
+            <div><strong>Financiera:</strong> <span id="quote-detail-financiera">-</span></div>
+          </div>
+
+          <h4 style="margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px;">Productos Cotizados</h4>
+          <div style="overflow-x: auto; margin-bottom: 20px;">
+            <table class="table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+                  <th style="padding: 8px;">Producto</th>
+                  <th style="padding: 8px; text-align: center;">Cantidad</th>
+                  <th style="padding: 8px; text-align: right;">Precio Lista</th>
+                  <th style="padding: 8px; text-align: right;">Precio Neto</th>
+                  <th style="padding: 8px; text-align: right;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody id="quote-detail-products-body">
+                <!-- Rendered dynamically -->
+              </tbody>
+              <tfoot>
+                <tr style="border-top: 2px solid var(--border); font-weight: bold;">
+                  <td colspan="4" style="padding: 10px; text-align: right;">Total Estimado:</td>
+                  <td id="quote-detail-total" style="padding: 10px; text-align: right; color: var(--accent);">0.00 MXN</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <strong>Notas:</strong>
+            <p id="quote-detail-notas" style="background: var(--bg-hover); padding: 12px; border-radius: var(--radius); font-size: 13px; margin-top: 6px; color: var(--text); border-left: 3px solid var(--border); line-height: 1.4;">-</p>
+          </div>
+
+          <div style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
+            <button id="btn-delete-quote" class="btn btn-secondary" style="display: none; width: auto; margin-top: 0; background: rgba(231, 76, 60, 0.1); color: #e74c3c; border-color: rgba(231, 76, 60, 0.2);" onclick="deleteQuoteClick()">
+              🗑️ Eliminar
+            </button>
+            <button id="btn-edit-quote" class="btn btn-secondary" style="display: none; width: auto; margin-top: 0;" onclick="toggleQuoteEditMode(true)">
+              ✏️ Editar
+            </button>
+            <button id="btn-authorize-quote" class="btn btn-primary" style="display: none; width: auto; background: var(--accent); border-color: var(--accent); font-weight: 600; gap: 6px; align-items: center;">
+              ✔️ Autorizar Cotización
+            </button>
+            <button class="btn btn-secondary" style="width: auto; margin-top: 0;" onclick="closeModal('quote-detail-modal')">Cerrar</button>
+          </div>
         </div>
 
-        <h4 style="margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px;">Productos Cotizados</h4>
-        <div style="overflow-x: auto; margin-bottom: 20px;">
-          <table class="table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
-            <thead>
-              <tr style="border-bottom: 1px solid var(--border); text-align: left;">
-                <th style="padding: 8px;">Producto</th>
-                <th style="padding: 8px; text-align: center;">Cantidad</th>
-                <th style="padding: 8px; text-align: right;">Precio Lista</th>
-                <th style="padding: 8px; text-align: right;">Precio Neto</th>
-                <th style="padding: 8px; text-align: right;">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody id="quote-detail-products-body">
-              <!-- Rendered dynamically -->
-            </tbody>
-            <tfoot>
-              <tr style="border-top: 2px solid var(--border); font-weight: bold;">
-                <td colspan="4" style="padding: 10px; text-align: right;">Total Estimado:</td>
-                <td id="quote-detail-total" style="padding: 10px; text-align: right; color: var(--accent);">0.00 MXN</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <!-- EDIT MODE -->
+        <div id="quote-detail-edit-mode" style="display: none;">
+          <form id="edit-quote-form" onsubmit="event.preventDefault();">
+            <div class="input-grid">
+              <div class="form-group">
+                <label>Ciclo Agrícola</label>
+                <select id="edit-quote-ciclo" class="form-input" required>
+                  <option value="O-I 2026">Otoño-Invierno (O-I 2026)</option>
+                  <option value="P-V 2026">Primavera-Verano (P-V 2026)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Condición de Pago</label>
+                <select id="edit-quote-condicion" class="form-input" required>
+                  <option value="CONTADO">Contado</option>
+                  <option value="CREDITO">Crédito (cosecha)</option>
+                  <option value="APARTADO">Apartado</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Temporada / Ajuste</label>
+                <select id="edit-quote-temporada" class="form-input" required></select>
+              </div>
+            </div>
+            <div class="input-grid">
+              <div class="form-group">
+                <label>Financiera</label>
+                <input type="text" id="edit-quote-financiera" class="form-input" placeholder="ej. Ninguna, FIRA, etc.">
+              </div>
+            </div>
 
-        <div style="margin-bottom: 24px;">
-          <strong>Notas:</strong>
-          <p id="quote-detail-notas" style="background: var(--bg-hover); padding: 12px; border-radius: var(--radius); font-size: 13px; margin-top: 6px; color: var(--text); border-left: 3px solid var(--border); line-height: 1.4;">-</p>
-        </div>
+            <h4 style="margin: 15px 0 10px 0; border-bottom: 1px solid var(--border); padding-bottom: 6px;">Editar Productos</h4>
+            <div id="edit-quote-items-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; margin-bottom: 12px; padding-right: 5px;">
+              <!-- Dynamic item rows injected here -->
+            </div>
+            <button type="button" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 12px; margin-bottom: 15px; margin-top: 0;" onclick="addEditQuoteItemRow()">➕ Agregar Producto</button>
 
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-          <button id="btn-authorize-quote" class="btn btn-primary" style="display: none; width: auto; background: var(--accent); border-color: var(--accent); font-weight: 600; gap: 6px; align-items: center;">
-            ✔️ Autorizar Cotización
-          </button>
-          <button class="btn btn-secondary" style="width: auto; margin-top: 0;" onclick="closeModal('quote-detail-modal')">Cerrar</button>
+            <div class="form-group">
+              <label>Notas</label>
+              <textarea id="edit-quote-notas" class="form-input" rows="2" placeholder="Notas adicionales..."></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 15px; margin-top: 15px; flex-wrap: wrap; gap: 12px;">
+              <span style="font-weight: bold;">Total Estimado: <span id="edit-quote-total-val" style="color: var(--accent);">$0.00 MXN</span></span>
+              <div style="display: flex; gap: 10px;">
+                <button type="button" class="btn btn-primary" style="width: auto; background: var(--accent); border-color: var(--accent);" onclick="saveEditQuote()">💾 Guardar</button>
+                <button type="button" class="btn btn-secondary" style="width: auto; margin: 0;" onclick="toggleQuoteEditMode(false)">Cancelar</button>
+              </div>
+            </div>
+          </form>
         </div>
       </div>
     </div>
