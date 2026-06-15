@@ -2079,4 +2079,54 @@ tr:hover td {
 .progress-bar-fill.warning { background-color: var(--accent); }
 .progress-bar-fill.success { background-color: var(--success); }
 
+/* AI Agent Dashboard styles */
+.ia-panel {
+  display: none;
+}
+.ia-panel.active {
+  display: block;
+}
+
+/* Custom Switch Styles */
+.switch-container input:checked + .custom-switch {
+  background: var(--primary) !important;
+}
+.switch-container input:checked + .custom-switch .switch-handle {
+  left: 23px !important;
+}
+
+/* Log type badges */
+.badge-log {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+}
+.badge-log.success {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.4);
+}
+.badge-log.info {
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
+  border: 1px solid rgba(52, 152, 219, 0.4);
+}
+.badge-log.error {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+}
+
+/* Whatsapp card style */
+.whatsapp-card {
+  border-left: 4px solid #2ecc71;
+  background: var(--surface);
+  transition: transform 0.2s ease;
+}
+.whatsapp-card:hover {
+  transform: translateY(-2px);
+}
+
 

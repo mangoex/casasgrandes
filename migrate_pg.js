@@ -84,6 +84,9 @@ async function runMigration() {
     await db.run('DROP TABLE IF EXISTS clientes CASCADE');
     await db.run('DROP TABLE IF EXISTS cuentas_clave CASCADE');
     await db.run('DROP TABLE IF EXISTS asesores CASCADE');
+    await db.run('DROP TABLE IF EXISTS crm_agentes_config CASCADE');
+    await db.run('DROP TABLE IF EXISTS crm_agentes_logs CASCADE');
+    await db.run('DROP TABLE IF EXISTS crm_ceo_propuestas CASCADE');
 
     // 2. Create tables using Postgres SERIAL
     console.log('Creating tables...');
@@ -285,6 +288,48 @@ async function runMigration() {
         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (asesor_id) REFERENCES asesores(id) ON DELETE CASCADE
       )
+    `);
+
+    await db.run(`
+      CREATE TABLE crm_agentes_config (
+        id SERIAL PRIMARY KEY,
+        agente_id TEXT UNIQUE NOT NULL,
+        nombre TEXT NOT NULL,
+        activo INTEGER DEFAULT 0,
+        configuracion TEXT DEFAULT '{}',
+        ultima_ejecucion TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE crm_agentes_logs (
+        id SERIAL PRIMARY KEY,
+        agente_id TEXT NOT NULL,
+        tipo_evento TEXT NOT NULL,
+        mensaje TEXT NOT NULL,
+        detalle TEXT,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE crm_ceo_propuestas (
+        id SERIAL PRIMARY KEY,
+        propuesta_json TEXT NOT NULL,
+        propuesta_markdown TEXT NOT NULL,
+        estatus TEXT DEFAULT 'Pendiente',
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.run(`
+      INSERT INTO crm_agentes_config (agente_id, nombre, activo, configuracion)
+      VALUES 
+        ('ceo', 'CEO Agent', 0, '{"prompt_adicional": "", "frecuencia_horas": 24}'),
+        ('coordinador', 'Coordinador Agent', 0, '{"prompt_adicional": "", "frecuencia_horas": 12}'),
+        ('outreach', 'Outreach Agent', 0, '{"prompt_adicional": "", "frecuencia_horas": 12}')
+      ON CONFLICT (agente_id) DO NOTHING
     `);
 
     console.log('Tables created successfully.');

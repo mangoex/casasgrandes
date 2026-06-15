@@ -1,0 +1,525 @@
+const db = require('./db');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+let schedulerInterval = null;
+
+// Helper to get Gemini API instance
+function getModel(customApiKey, agentId = 'agent') {
+  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY no configurada. Por favor configure su API Key en el panel o en el archivo .env');
+  }
+  const genAI = new GoogleGenerativeAI(apiKey);
+  // Using gemini-1.5-flash for speed, reliability and JSON parsing
+  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+}
+
+// Log writer helper
+async function writeLog(agentId, tipoEvento, mensaje, detalle = null) {
+  try {
+    await db.run(
+      'INSERT INTO crm_agentes_logs (agente_id, tipo_evento, mensaje, detalle) VALUES (?, ?, ?, ?)',
+      [agentId, tipoEvento, mensaje, typeof detalle === 'object' ? JSON.stringify(detalle, null, 2) : detalle]
+    );
+  } catch (err) {
+    console.error(`Failed to write agent log for ${agentId}:`, err.message);
+  }
+}
+
+// Update last execution timestamp
+async function updateLastExecution(agentId) {
+  try {
+    await db.run(
+      'UPDATE crm_agentes_config SET ultima_ejecucion = CURRENT_TIMESTAMP WHERE agente_id = ?',
+      [agentId]
+    );
+  } catch (err) {
+    console.error(`Failed to update last execution for ${agentId}:`, err.message);
+  }
+}
+
+// Pricing Helper matching the existing system logic
+function getVolumeMultiplier(qty) {
+  if (qty < 40) return 1.00;
+  if (qty < 60) return 0.95;
+  if (qty < 80) return 0.90;
+  if (qty < 90) return 0.85;
+  return 0.80;
+}
+
+async function calculateQuotePrice(productId, quantity, seasonId, clientKeyAccountTierId) {
+  const prod = await db.get("SELECT * FROM productos WHERE id = ?", [productId]);
+  const cc = clientKeyAccountTierId 
+    ? await db.get("SELECT * FROM cuentas_clave WHERE id = ?", [clientKeyAccountTierId]) 
+    : { descuento_mxn: 0.0 };
+  const season = seasonId 
+    ? await db.get("SELECT * FROM temporadas WHERE id = ?", [seasonId]) 
+    : { descuento_percentage: 0.0, estado_operacion: 'Sumar' };
+
+  if (!prod) return { netPrice: 0, subtotal: 0 };
+
+  const listPrice = prod.list_price_mxn;
+  let seasonPrice = listPrice;
+
+  if (prod.tipo_categoria === 'chemical') {
+    seasonPrice = listPrice;
+  } else {
+    const discount = season.descuento_percentage !== undefined ? season.descuento_percentage : 0;
+    if (season.estado_operacion === 'Restar') {
+      seasonPrice = listPrice * (1 - discount / 100.0);
+    } else {
+      seasonPrice = listPrice * (1 + discount / 100.0);
+    }
+  }
+
+  let netPrice = 0;
+  if (prod.tipo_categoria === 'seed_discount' || prod.producto.includes('Acceleron') || prod.producto.includes('Poncho')) {
+    // Seed pricing logic
+    const baseUsd = prod.base_usd || (listPrice / 100);
+    const volMultiplier = getVolumeMultiplier(quantity);
+    const usdPriceForTier = Math.round((baseUsd * volMultiplier) * 100) / 100;
+    const mxnVolumePrice = Math.round(usdPriceForTier * 4.00 * 18.70); // TC = 18.70
+    netPrice = mxnVolumePrice - (cc ? cc.descuento_mxn : 0);
+  } else if (prod.tipo_categoria === 'chemical') {
+    netPrice = seasonPrice - (prod.descuento_fijo_quimicos || 0);
+  } else {
+    netPrice = Math.round(seasonPrice);
+  }
+
+  const subtotal = netPrice * quantity;
+  return {
+    netPrice,
+    subtotal
+  };
+}
+
+// -------------------------------------------------------------
+// 1. CEO AGENT
+// -------------------------------------------------------------
+async function runCEOAgent(customApiKey) {
+  await writeLog('ceo', 'info', 'Iniciando ejecución del CEO Agent...');
+  
+  try {
+    const model = getModel(customApiKey, 'ceo');
+    
+    // Fetch current system data
+    const advisors = await db.all("SELECT id, nombre, email, activo FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
+    const products = await db.all("SELECT id, producto, tipo_categoria, list_price_mxn FROM productos WHERE activo = 1");
+    const clients = await db.all("SELECT id, nombre, asesor_id, estado_status FROM clientes WHERE activo = 1");
+    
+    // Fetch historical sales stats per advisor
+    const salesStats = await db.all(`
+      SELECT 
+        a.id as asesor_id,
+        a.nombre,
+        COALESCE(SUM(CASE WHEN q.estatus IN ('Vendido', 'Entregado') THEN q.total_mxn ELSE 0 END), 0) as ventas_historicas_mxn,
+        COUNT(q.id) as cotizaciones_totales
+      FROM asesores a
+      LEFT JOIN cotizaciones q ON q.asesor_id = a.id
+      WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'
+      GROUP BY a.id, a.nombre
+    `);
+
+    // Fetch config for CEO to see custom instructions
+    const configRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'ceo'");
+    const configData = JSON.parse(configRow?.configuracion || '{}');
+    const customPrompt = configData.prompt_adicional || "";
+
+    // Build the payload for Gemini
+    const dataContext = {
+      asesores: salesStats,
+      productos: products.map(p => ({ id: p.id, nombre: p.producto, categoria: p.tipo_categoria, precio: p.list_price_mxn })),
+      total_clientes: clients.length,
+      clientes_sin_asesor: clients.filter(c => !c.asesor_id).length,
+      instrucciones_adicionales: customPrompt
+    };
+
+    const prompt = `
+Eres el CEO Agent de AgriSales Pro. Tu rol es analizar las metas generales de la empresa, la lista de asesores activos, el portafolio de productos y el desempeño histórico para proponer metas individuales de ventas y visitas para el ciclo agrícola actual.
+
+Aquí tienes los datos del sistema en tiempo real:
+${JSON.stringify(dataContext, null, 2)}
+
+Tu objetivo es formular una propuesta detallada que asigne:
+1. Una meta de ventas totales en Pesos Mexicanos (MXN) para cada asesor.
+2. Una meta de visitas de campo para cada asesor.
+3. Metas específicas por categorías clave para cada asesor (Faena, Clavis, Crop Protection, Cosecha).
+
+Por favor, genera tu respuesta estructurada en dos partes:
+
+Parte 1: Un reporte ejecutivo detallado en formato Markdown explicativo con justificaciones de por qué estás proponiendo estas metas a cada asesor, incluyendo tablas comparativas.
+Parte 2: Una sección final con los datos estructurados en formato JSON puro dentro de un bloque de código markdown marcado con \`\`\`json y \`\`\`. El JSON debe ser un arreglo de objetos con el siguiente formato:
+[
+  {
+    "asesor_id": 1,
+    "monto_objetivo_mxn": 500000,
+    "bolsas_objetivo": 100,
+    "meta_faena": 150000,
+    "meta_clavis": 50000,
+    "meta_cropprotection": 200000,
+    "meta_cosecha": 100000
+  }
+]
+
+Asegúrate de que las metas propuestas sean retadoras pero realistas, basadas en el historial de ventas del asesor si está disponible (de lo contrario, pon metas iniciales promedio).
+`;
+
+    const result = await model.generateContent(prompt);
+    const textResponse = result.response.text();
+
+    // Extract JSON block using regex
+    const jsonMatch = textResponse.match(/```json\s*([\s\S]*?)\s*```/);
+    if (!jsonMatch) {
+      throw new Error('No se pudo encontrar el bloque JSON de metas en la respuesta del modelo.');
+    }
+    
+    const jsonStr = jsonMatch[1].trim();
+    const goalsArray = JSON.parse(jsonStr);
+
+    // Filter out the JSON block from the markdown presentation if desired, or keep it.
+    const markdownReport = textResponse.replace(/```json[\s\S]*?```/, '').trim();
+
+    // Save proposal to db
+    await db.run(
+      'INSERT INTO crm_ceo_propuestas (propuesta_json, propuesta_markdown, estatus) VALUES (?, ?, ?)',
+      [JSON.stringify(goalsArray), markdownReport, 'Pendiente']
+    );
+
+    await updateLastExecution('ceo');
+    await writeLog('ceo', 'success', 'Propuesta de metas generada con éxito.', { report: markdownReport, goals: goalsArray });
+    return { success: true, report: markdownReport, goals: goalsArray };
+
+  } catch (err) {
+    await writeLog('ceo', 'error', `Error en CEO Agent: ${err.message}`, err.stack);
+    throw err;
+  }
+}
+
+// -------------------------------------------------------------
+// 2. COORDINATOR AGENT
+// -------------------------------------------------------------
+async function runCoordinatorAgent(customApiKey) {
+  await writeLog('coordinador', 'info', 'Iniciando ejecución del Coordinador Agent...');
+
+  try {
+    const model = getModel(customApiKey, 'coordinador');
+
+    // Fetch active advisors
+    const advisors = await db.all("SELECT id, nombre, telefono, email FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
+    
+    // Fetch pending planning items for current/upcoming dates
+    const pendingPlanning = await db.all(`
+      SELECT 
+        p.id, p.asesor_id, p.cliente_id, p.fecha_programada, p.objetivo_visita,
+        c.nombre as cliente_nombre, c.telefono as cliente_telefono
+      FROM planificacion_semanal p
+      JOIN clientes c ON p.cliente_id = c.id
+      WHERE p.realizada = 0
+    `);
+
+    // Fetch config for Coordinator custom prompt
+    const configRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'coordinador'");
+    const configData = JSON.parse(configRow?.configuracion || '{}');
+    const customPrompt = configData.prompt_adicional || "";
+
+    const followUps = [];
+
+    // Group pending visits by advisor
+    for (const advisor of advisors) {
+      const advisorPending = pendingPlanning.filter(p => p.asesor_id === advisor.id);
+      
+      // We only target advisors with pending planning or if they have 0 plans scheduled
+      const contextData = {
+        asesor: { nombre: advisor.nombre, telefono: advisor.telefono },
+        visitas_pendientes: advisorPending.map(p => ({
+          cliente: p.cliente_nombre,
+          fecha: p.fecha_programada,
+          objetivo: p.objetivo_visita
+        })),
+        instrucciones_adicionales: customPrompt
+      };
+
+      const prompt = `
+Eres el Coordinador Agent de AgriSales Pro. Tu rol es supervisar la agenda semanal de los asesores agrícolas y ayudarlos a mantener el sistema actualizado redactando un mensaje de seguimiento de WhatsApp personalizado, amigable pero profesional.
+
+Aquí están los datos del asesor actual y su agenda pendiente:
+${JSON.stringify(contextData, null, 2)}
+
+Por favor, redacta un mensaje corto en español (máximo 150 palabras) dirigido al asesor. El mensaje debe:
+1. Saludarlo por su nombre de forma cercana.
+2. Recordarle las visitas pendientes específicas que tiene registradas en su agenda (con nombres de clientes y fechas).
+3. Pedirle amablemente que realice el check-in o actualice el estatus de estas visitas en la plataforma.
+4. Mantener un tono motivador y colaborativo.
+5. NO incluir placeholders como [Nombre] o [Fecha], usa los datos reales provistos.
+
+Devuelve ÚNICAMENTE el texto del mensaje para enviar por WhatsApp, sin introducciones ni comentarios adicionales.
+`;
+
+      const result = await model.generateContent(prompt);
+      const messageText = result.response.text().trim();
+
+      // Create a wa.me URL
+      const cleanPhone = (advisor.telefono || '').replace(/\D/g, '');
+      const waPhone = cleanPhone.startsWith('52') ? cleanPhone : '52' + cleanPhone; // Default country code Mexico if not set
+      const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(messageText)}`;
+
+      // Save notification in internal inbox
+      await db.run(
+        'INSERT INTO crm_notificaciones (asesor_id, mensaje, leido) VALUES (?, ?, 0)',
+        [advisor.id, `Mensaje de Coordinación IA: ${messageText}`]
+      );
+
+      followUps.push({
+        asesor_id: advisor.id,
+        nombre: advisor.nombre,
+        telefono: advisor.telefono,
+        mensaje: messageText,
+        wa_url: waUrl,
+        pendientes_count: advisorPending.length
+      });
+    }
+
+    // Save logs with all generated messages
+    await updateLastExecution('coordinador');
+    await writeLog('coordinador', 'success', 'Mensajes de seguimiento de agenda generados con éxito.', followUps);
+    
+    return { success: true, followUps };
+
+  } catch (err) {
+    await writeLog('coordinador', 'error', `Error en Coordinador Agent: ${err.message}`, err.stack);
+    throw err;
+  }
+}
+
+// -------------------------------------------------------------
+// 3. OUTREACH AGENT
+// -------------------------------------------------------------
+async function runOutreachAgent(customApiKey) {
+  await writeLog('outreach', 'info', 'Iniciando ejecución del Outreach Agent...');
+
+  try {
+    const model = getModel(customApiKey, 'outreach');
+
+    // Fetch active products
+    const products = await db.all("SELECT id, producto, tipo_categoria, list_price_mxn, base_usd FROM productos WHERE activo = 1");
+    // Fetch active seasons
+    const seasons = await db.all("SELECT id, actividad, descuento_percentage, estado_operacion FROM temporadas WHERE estado_operacion IN ('Restar', 'Sumar')");
+    // Fetch active clients who have an assigned advisor
+    const clients = await db.all(`
+      SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.estado_status, a.nombre as asesor_nombre
+      FROM clientes c
+      JOIN asesores a ON c.asesor_id = a.id
+      WHERE c.activo = 1 AND c.asesor_id IS NOT NULL
+    `);
+
+    if (clients.length === 0) {
+      await writeLog('outreach', 'info', 'No hay agricultores asignados para generar cotizaciones.');
+      return { success: true, createdQuotes: [] };
+    }
+
+    // Pick 3 clients at random or based on purchase patterns to avoid spamming
+    // In production, we could analyze who hasn't been quoted recently.
+    const selectedClients = clients.sort(() => 0.5 - Math.random()).slice(0, 3);
+    const createdQuotes = [];
+
+    // Fetch custom prompts if any
+    const configRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'outreach'");
+    const configData = JSON.parse(configRow?.configuracion || '{}');
+    const customPrompt = configData.prompt_adicional || "";
+
+    for (const client of selectedClients) {
+      // Fetch historic sales for this client to pass as context
+      const purchaseHistory = await db.all(`
+        SELECT p.producto, SUM(d.cantidad_ordenada) as total_cantidad
+        FROM cotizacion_detalles d
+        JOIN cotizaciones q ON d.cotizacion_id = q.id
+        JOIN productos p ON d.producto_id = p.id
+        WHERE q.cliente_id = ? AND q.estatus IN ('Vendido', 'Entregado')
+        GROUP BY p.producto
+      `, [client.id]);
+
+      const contextData = {
+        cliente: client.nombre,
+        estatus: client.estado_status,
+        historial_compras: purchaseHistory,
+        productos_disponibles: products.map(p => ({ id: p.id, nombre: p.producto, categoria: p.tipo_categoria })),
+        temporadas: seasons.map(s => ({ id: s.id, nombre: s.actividad })),
+        instrucciones_adicionales: customPrompt
+      };
+
+      const prompt = `
+Eres el Outreach Agent de AgriSales Pro. Tu rol es analizar las necesidades de un agricultor (basado en sus compras históricas y los productos en campaña de la temporada) y generar una recomendación estructurada para una cotización borrador sugerida.
+
+Aquí están los datos del cliente y los catálogos del sistema:
+${JSON.stringify(contextData, null, 2)}
+
+Por favor, decide una combinación lógica de 1 a 3 productos que le convenga comprar al agricultor en este momento. Define las cantidades de manera razonable basadas en compras históricas o hectáreas de tamaño promedio (e.g., entre 10 y 100 bolsas/piezas).
+
+Devuelve tu recomendación en formato JSON puro. El JSON debe ser un objeto con el siguiente formato, sin ninguna otra explicación:
+{
+  "ciclo_agricola": "P-V 2026",
+  "condiciones_pago": "Contado",
+  "financiera": "Ninguna",
+  "temporada_id": 1, 
+  "notas": "Sugerido automáticamente por Outreach Agent. Basado en compras previas.",
+  "items": [
+    {
+      "producto_id": 2,
+      "cantidad": 50
+    }
+  ]
+}
+
+Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos en el catálogo. Devuelve ÚNICAMENTE el bloque JSON.
+`;
+
+      const result = await model.generateContent(prompt);
+      const jsonText = result.response.text().trim();
+      
+      // Clean up markdown code blocks if the model returned them
+      const cleanJsonText = jsonText.replace(/```json|```/g, '').trim();
+      const quoteSpec = JSON.parse(cleanJsonText);
+
+      // 1. Create Cotización row in Borrador status
+      const folio = `OUT-${Date.now().toString().slice(-6)}-${client.id}`;
+      const today = new Date().toISOString().split('T')[0];
+      
+      const insertQuoteResult = await db.run(`
+        INSERT INTO cotizaciones (
+          fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago,
+          folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Borrador', 0.0, 0.0, ?, ?)
+      `, [
+        today,
+        client.id,
+        client.asesor_id,
+        quoteSpec.ciclo_agricola || 'P-V 2026',
+        quoteSpec.condiciones_pago || 'Contado',
+        folio,
+        new Date().toLocaleString('es-ES', { month: 'long' }),
+        quoteSpec.notas || 'Generado automáticamente por el Agente de Outreach.',
+        quoteSpec.financiera || 'Ninguna'
+      ]);
+
+      const quoteId = insertQuoteResult.id;
+      let grandTotal = 0;
+
+      // 2. Insert items and compute totals
+      for (const item of quoteSpec.items) {
+        const pricing = await calculateQuotePrice(item.producto_id, item.cantidad, quoteSpec.temporada_id, client.cuenta_clave_id);
+        const prodData = products.find(p => p.id === item.producto_id);
+
+        if (prodData) {
+          await db.run(`
+            INSERT INTO cotizacion_detalles (
+              cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada,
+              precio_lista_unitario, precio_neto_unitario, subtotal_mxn
+            ) VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+          `, [
+            quoteId,
+            item.producto_id,
+            quoteSpec.temporada_id,
+            item.cantidad,
+            prodData.list_price_mxn,
+            pricing.netPrice,
+            pricing.subtotal
+          ]);
+
+          grandTotal += pricing.subtotal;
+        }
+      }
+
+      // 3. Update total cost in database
+      await db.run('UPDATE cotizaciones SET total_mxn = ? WHERE id = ?', [grandTotal, quoteId]);
+
+      // 4. Create internal notification for Advisor
+      const notificationMsg = `El Agente de Outreach ha sugerido una cotización en Borrador (${folio}) para tu agricultor ${client.nombre} con un total de $${grandTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} MXN.`;
+      await db.run(
+        'INSERT INTO crm_notificaciones (asesor_id, mensaje, leido) VALUES (?, ?, 0)',
+        [client.asesor_id, notificationMsg]
+      );
+
+      createdQuotes.push({
+        quote_id: quoteId,
+        folio,
+        cliente: client.nombre,
+        asesor: client.asesor_nombre,
+        total_mxn: grandTotal
+      });
+    }
+
+    await updateLastExecution('outreach');
+    await writeLog('outreach', 'success', `Se generaron ${createdQuotes.length} cotizaciones automáticas en borrador.`, createdQuotes);
+    
+    return { success: true, createdQuotes };
+
+  } catch (err) {
+    await writeLog('outreach', 'error', `Error en Outreach Agent: ${err.message}`, err.stack);
+    throw err;
+  }
+}
+
+// -------------------------------------------------------------
+// GENERAL RUNNER AND SCHEDULER
+// -------------------------------------------------------------
+async function executeAgent(agentId, customApiKey) {
+  // Read config to verify if active (for scheduled runs, manual execution bypasses the active check)
+  const config = await db.get("SELECT activo FROM crm_agentes_config WHERE agente_id = ?", [agentId]);
+  
+  if (agentId === 'ceo') {
+    return await runCEOAgent(customApiKey);
+  } else if (agentId === 'coordinador') {
+    return await runCoordinatorAgent(customApiKey);
+  } else if (agentId === 'outreach') {
+    return await runOutreachAgent(customApiKey);
+  } else {
+    throw new Error(`Agente no identificado: ${agentId}`);
+  }
+}
+
+// Check and run agents based on scheduled times
+async function runScheduledAgents() {
+  try {
+    const agents = await db.all("SELECT * FROM crm_agentes_config WHERE activo = 1");
+    for (const agent of agents) {
+      const configData = JSON.parse(agent.configuracion || '{}');
+      const freqHours = configData.frecuencia_horas || 12;
+      const lastRun = agent.ultima_ejecucion ? new Date(agent.ultima_ejecucion) : new Date(0);
+      const now = new Date();
+      
+      const hoursElapsed = (now.getTime() - lastRun.getTime()) / (60 * 60 * 1000);
+      
+      if (hoursElapsed >= freqHours) {
+        console.log(`[AI Scheduler] Running scheduled agent: ${agent.nombre}`);
+        try {
+          await executeAgent(agent.agente_id);
+        } catch (err) {
+          console.error(`[AI Scheduler] Error running scheduled agent ${agent.agente_id}:`, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[AI Scheduler] Error loading agent schedules:", err.message);
+  }
+}
+
+function startBackgroundScheduler() {
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+  }
+  
+  // Run checks every 10 minutes
+  schedulerInterval = setInterval(runScheduledAgents, 10 * 60 * 1000);
+  console.log('AI Agents background scheduler initialized.');
+  
+  // Also run immediately on boot
+  runScheduledAgents();
+}
+
+module.exports = {
+  executeAgent,
+  startBackgroundScheduler,
+  runCEOAgent,
+  runCoordinatorAgent,
+  runOutreachAgent
+};

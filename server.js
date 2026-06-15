@@ -4,6 +4,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
+const agentsService = require('./agentsService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1724,17 +1725,206 @@ app.get('/api/notificaciones', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/notificaciones/leido', authenticateToken, async (req, res) => {
+// =============================================================
+// AI AGENTS MANAGEMENT ENDPOINTS
+// =============================================================
+
+// Middleware to authorize Admin or Coordinator
+function authorizeAgentAdmin(req, res, next) {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Acceso denegado: Se requiere rol Administrador o Coordinador' });
+  }
+  next();
+}
+
+app.get('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (req, res) => {
   try {
-    await db.run('UPDATE crm_notificaciones SET leido = 1 WHERE asesor_id = ?', [req.user.id]);
-    res.json({ message: 'Notifications marked as read' });
+    const rows = await db.all('SELECT agente_id, nombre, activo, configuracion, ultima_ejecucion FROM crm_agentes_config');
+    // Fetch global config if exists to check API key
+    const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
+    const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
+    const hasApiKey = !!(globalConfig.gemini_api_key || process.env.GEMINI_API_KEY);
+    
+    // Mask API key if returned
+    let maskedKey = '';
+    if (globalConfig.gemini_api_key) {
+      maskedKey = globalConfig.gemini_api_key.substring(0, 8) + '...';
+    } else if (process.env.GEMINI_API_KEY) {
+      maskedKey = process.env.GEMINI_API_KEY.substring(0, 8) + '...';
+    }
+
+    res.json({
+      configs: rows.filter(r => r.agente_id !== 'global'),
+      hasApiKey,
+      maskedKey
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to clear notifications' });
+    res.status(500).json({ error: 'Error al obtener configuraciones' });
+  }
+});
+
+app.post('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (req, res) => {
+  const { configs, gemini_api_key } = req.body;
+  try {
+    // 1. Update API key if provided
+    if (gemini_api_key !== undefined) {
+      // Store API Key globally
+      const globalRow = await db.get("SELECT id FROM crm_agentes_config WHERE agente_id = 'global'");
+      const apiKeyVal = gemini_api_key.trim();
+      
+      // If it doesn't look like a masked placeholder
+      if (apiKeyVal && !apiKeyVal.includes('...')) {
+        if (globalRow) {
+          await db.run(
+            "UPDATE crm_agentes_config SET configuracion = ? WHERE agente_id = 'global'",
+            [JSON.stringify({ gemini_api_key: apiKeyVal })]
+          );
+        } else {
+          await db.run(
+            "INSERT INTO crm_agentes_config (agente_id, nombre, activo, configuracion) VALUES ('global', 'Global Config', 1, ?)",
+            [JSON.stringify({ gemini_api_key: apiKeyVal })]
+          );
+        }
+        process.env.GEMINI_API_KEY = apiKeyVal; // set in memory
+      }
+    }
+
+    // 2. Update agent active status and customized settings
+    if (configs && Array.isArray(configs)) {
+      for (const c of configs) {
+        await db.run(
+          'UPDATE crm_agentes_config SET activo = ?, configuracion = ? WHERE agente_id = ?',
+          [c.activo ? 1 : 0, typeof c.configuracion === 'object' ? JSON.stringify(c.configuracion) : c.configuracion, c.agente_id]
+        );
+      }
+    }
+
+    res.json({ success: true, message: 'Configuraciones actualizadas' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al guardar configuraciones' });
+  }
+});
+
+app.post('/api/agentes/ejecutar', authenticateToken, authorizeAgentAdmin, async (req, res) => {
+  const { agente_id } = req.body;
+  try {
+    // Fetch global API key
+    const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
+    const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
+    const apiKey = globalConfig.gemini_api_key || process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'GEMINI_API_KEY no configurada. Configure su API Key antes de ejecutar los agentes.' });
+    }
+
+    const result = await agentsService.executeAgent(agente_id, apiKey);
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error(`Error executing agent manually: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/agentes/logs', authenticateToken, authorizeAgentAdmin, async (req, res) => {
+  try {
+    const logs = await db.all('SELECT * FROM crm_agentes_logs ORDER BY creado_en DESC LIMIT 50');
+    res.json(logs);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al cargar logs' });
+  }
+});
+
+app.get('/api/agentes/ceo/propuesta', authenticateToken, authorizeAgentAdmin, async (req, res) => {
+  try {
+    const proposal = await db.get('SELECT * FROM crm_ceo_propuestas WHERE estatus = \'Pendiente\' ORDER BY creado_en DESC LIMIT 1');
+    res.json(proposal || null);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al cargar propuesta de metas' });
+  }
+});
+
+app.post('/api/agentes/ceo/aplicar', authenticateToken, authorizeAgentAdmin, async (req, res) => {
+  const { propuesta_id } = req.body;
+  try {
+    const proposal = await db.get('SELECT * FROM crm_ceo_propuestas WHERE id = ?', [propuesta_id]);
+    if (!proposal) {
+      return res.status(404).json({ error: 'Propuesta no encontrada' });
+    }
+
+    const goals = JSON.parse(proposal.propuesta_json);
+    const today = new Date();
+    // Default cycle PV 2026 or parse from current context
+    const currentYear = today.getFullYear();
+    const ciclo = `PV ${currentYear}`;
+
+    for (const g of goals) {
+      // Check if advisor has meta for this cycle
+      const existing = await db.get('SELECT id FROM metas_ventas WHERE asesor_id = ? AND ciclo_agricola = ?', [g.asesor_id, ciclo]);
+      
+      if (existing) {
+        await db.run(
+          `UPDATE metas_ventas SET 
+            monto_objetivo_mxn = ?, 
+            bolsas_objetivo = ?, 
+            meta_faena = ?, 
+            meta_clavis = ?, 
+            meta_cropprotection = ?, 
+            meta_cosecha = ?,
+            activo = 1
+           WHERE id = ?`,
+          [g.monto_objetivo_mxn, g.bolsas_objetivo, g.meta_faena, g.meta_clavis, g.meta_cropprotection, g.meta_cosecha, existing.id]
+        );
+      } else {
+        await db.run(
+          `INSERT INTO metas_ventas (
+            asesor_id, ciclo_agricola, monto_objetivo_mxn, bolsas_objetivo,
+            meta_faena, meta_clavis, meta_cropprotection, meta_cosecha, activo
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          [g.asesor_id, ciclo, g.monto_objetivo_mxn, g.bolsas_objetivo, g.meta_faena, g.meta_clavis, g.meta_cropprotection, g.meta_cosecha]
+        );
+      }
+    }
+
+    await db.run('UPDATE crm_ceo_propuestas SET estatus = \'Aplicada\' WHERE id = ?', [propuesta_id]);
+    
+    // Log success
+    await db.run(
+      'INSERT INTO crm_agentes_logs (agente_id, tipo_evento, mensaje) VALUES (?, ?, ?)',
+      ['ceo', 'info', `Propuesta de metas (ID ${propuesta_id}) aprobada y aplicada con éxito para el ciclo ${ciclo}`]
+    );
+
+    res.json({ success: true, message: 'Metas propuestas aplicadas con éxito.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al aplicar las metas de ventas' });
+  }
+});
+
+app.get('/api/agentes/coordinador/seguimientos', authenticateToken, authorizeAgentAdmin, async (req, res) => {
+  try {
+    // Read last coordinator run logs that succeeded
+    const log = await db.get("SELECT detalle, creado_en FROM crm_agentes_logs WHERE agente_id = 'coordinador' AND tipo_evento = 'success' ORDER BY creado_en DESC LIMIT 1");
+    if (!log) {
+      return res.json([]);
+    }
+    const followUps = JSON.parse(log.detalle || '[]');
+    res.json({
+      creado_en: log.creado_en,
+      followUps
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener los seguimientos' });
   }
 });
 
 // Start Server
 app.listen(PORT, () => {
   console.log(`Casas Grandes Sales Management Server running on port ${PORT}`);
+  // Initialize agents background scheduler
+  agentsService.startBackgroundScheduler();
 });

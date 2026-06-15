@@ -88,6 +88,11 @@
             <span class="icon">⚙️</span> Administración
           </a>
         </li>
+        <li class="nav-item admin-or-coordinator-only" data-target="ia-view" style="display: none;">
+          <a href="#">
+            <span class="icon">🤖</span> Seguimiento IA
+          </a>
+        </li>
       </ul>
       
       <div class="user-profile">
@@ -1023,6 +1028,169 @@
           </div>
         </div>
       </div>
+      <div id="ia-view" class="view-section admin-or-coordinator-only">
+        <div class="flex-header" style="margin-bottom: 24px;">
+          <div>
+            <h1 class="view-title">🤖 Seguimiento IA y Agentes Autónomos</h1>
+            <p class="view-subtitle" style="color: var(--text-light); margin-top: 4px;">Configura y monitorea a los agentes que automatizan el análisis de metas, supervisan la agenda y generan cotizaciones.</p>
+          </div>
+        </div>
+
+        <!-- Configuration Card -->
+        <div class="card" style="margin-bottom: 24px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);">
+          <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">⚙️ Configuración del Sistema de IA</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px;">
+            <div>
+              <label for="ia-gemini-key" style="display: block; margin-bottom: 8px; font-weight: 500;">Google Gemini API Key:</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="password" id="ia-gemini-key" placeholder="Ingresa tu GEMINI_API_KEY..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text);">
+                <button id="btn-toggle-key-visibility" class="btn btn-secondary" style="width: auto; padding: 0 16px;">👁️</button>
+              </div>
+              <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Esta llave se guarda en el servidor de forma segura para realizar el razonamiento de los agentes.</p>
+            </div>
+            <div style="display: flex; align-items: flex-end; padding-bottom: 6px;">
+              <button id="btn-save-ia-config" class="btn btn-primary" style="width: auto; padding: 10px 24px;">Guardar Configuración</button>
+            </div>
+          </div>
+
+          <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0;">
+
+          <!-- Agent Activation Cards -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <!-- CEO Config Card -->
+            <div class="card" style="padding: 16px; border: 1px solid var(--border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; display: flex; align-items: center; gap: 6px;">🎯 CEO Agent</h4>
+                <label class="switch-container" style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                  <input type="checkbox" id="switch-agent-ceo" style="display: none;">
+                  <span class="custom-switch" style="width: 44px; height: 24px; background: #ccc; display: inline-block; border-radius: 12px; position: relative; transition: 0.3s;"><span style="width: 18px; height: 18px; background: #fff; border-radius: 50%; display: block; position: absolute; top: 3px; left: 3px; transition: 0.3s;" class="switch-handle"></span></span>
+                </label>
+              </div>
+              <p style="font-size: 12px; color: var(--text-light); margin-bottom: 12px;">Propone metas individuales de ventas y visitas para los asesores del ciclo agrícola.</p>
+              <textarea id="prompt-ceo" placeholder="Instrucciones adicionales para el CEO..." style="width: 100%; height: 60px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; resize: none; background: var(--input-bg); color: var(--text);"></textarea>
+            </div>
+
+            <!-- Coordinator Config Card -->
+            <div class="card" style="padding: 16px; border: 1px solid var(--border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; display: flex; align-items: center; gap: 6px;">💬 Coordinator Agent</h4>
+                <label class="switch-container" style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                  <input type="checkbox" id="switch-agent-coordinador" style="display: none;">
+                  <span class="custom-switch" style="width: 44px; height: 24px; background: #ccc; display: inline-block; border-radius: 12px; position: relative; transition: 0.3s;"><span style="width: 18px; height: 18px; background: #fff; border-radius: 50%; display: block; position: absolute; top: 3px; left: 3px; transition: 0.3s;" class="switch-handle"></span></span>
+                </label>
+              </div>
+              <p style="font-size: 12px; color: var(--text-light); margin-bottom: 12px;">Supervisa la agenda de visitas, genera enlaces pre-redactados para WhatsApp.</p>
+              <textarea id="prompt-coordinador" placeholder="Instrucciones adicionales para el Coordinador..." style="width: 100%; height: 60px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; resize: none; background: var(--input-bg); color: var(--text);"></textarea>
+            </div>
+
+            <!-- Outreach Config Card -->
+            <div class="card" style="padding: 16px; border: 1px solid var(--border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; display: flex; align-items: center; gap: 6px;">📝 Outreach Agent</h4>
+                <label class="switch-container" style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                  <input type="checkbox" id="switch-agent-outreach" style="display: none;">
+                  <span class="custom-switch" style="width: 44px; height: 24px; background: #ccc; display: inline-block; border-radius: 12px; position: relative; transition: 0.3s;"><span style="width: 18px; height: 18px; background: #fff; border-radius: 50%; display: block; position: absolute; top: 3px; left: 3px; transition: 0.3s;" class="switch-handle"></span></span>
+                </label>
+              </div>
+              <p style="font-size: 12px; color: var(--text-light); margin-bottom: 12px;">Analiza compras previas y crea cotizaciones recomendadas automáticas en Borrador.</p>
+              <textarea id="prompt-outreach" placeholder="Instrucciones adicionales para Outreach..." style="width: 100%; height: 60px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; resize: none; background: var(--input-bg); color: var(--text);"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+          <button id="tab-ia-ceo" class="btn btn-secondary active" style="width: auto; padding: 8px 20px; font-size: 14px;">🎯 CEO (Metas)</button>
+          <button id="tab-ia-coordinador" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">💬 Coordinación (WhatsApp)</button>
+          <button id="tab-ia-outreach" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">📝 Outreach (Cotizaciones)</button>
+          <button id="tab-ia-logs" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">📋 Historial / Logs</button>
+        </div>
+
+        <!-- 1. CEO Tab content -->
+        <div id="panel-ia-ceo" class="ia-panel active">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+            <h3 style="margin: 0;">Propuesta de Metas de Ventas</h3>
+            <button id="btn-run-ceo" class="btn btn-secondary" style="width: auto; display: flex; align-items: center; gap: 6px;">⚡ Ejecutar CEO Agent Ahora</button>
+          </div>
+          
+          <div id="ceo-proposal-container">
+            <div class="card" style="text-align: center; padding: 40px; color: var(--text-light);">
+              <p style="font-size: 16px;">Cargando propuesta de metas...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Coordinador Tab content -->
+        <div id="panel-ia-coordinador" class="ia-panel" style="display: none;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+            <h3 style="margin: 0;">Seguimiento Semanal de Asesores</h3>
+            <button id="btn-run-coordinador" class="btn btn-secondary" style="width: auto; display: flex; align-items: center; gap: 6px;">⚡ Ejecutar Coordinador Agent Ahora</button>
+          </div>
+          
+          <div id="coordinador-followups-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;">
+            <div class="card" style="text-align: center; padding: 40px; color: var(--text-light); grid-column: 1 / -1;">
+              <p style="font-size: 16px;">Cargando seguimientos pendientes...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Outreach Tab content -->
+        <div id="panel-ia-outreach" class="ia-panel" style="display: none;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+            <h3 style="margin: 0;">Cotizaciones Sugeridas por IA</h3>
+            <button id="btn-run-outreach" class="btn btn-secondary" style="width: auto; display: flex; align-items: center; gap: 6px;">⚡ Ejecutar Outreach Agent Ahora</button>
+          </div>
+          
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Folio</th>
+                    <th>Cliente / Agricultor</th>
+                    <th>Asesor Encargado</th>
+                    <th style="text-align: right;">Total Estimado</th>
+                    <th>Estatus</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="outreach-quotes-tbody">
+                  <tr>
+                    <td colspan="6" style="text-align: center; color: var(--text-light);">Cargando cotizaciones sugeridas...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Logs Tab content -->
+        <div id="panel-ia-logs" class="ia-panel" style="display: none;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+            <h3 style="margin: 0;">Bitácora de Ejecución de Agentes</h3>
+            <button id="btn-refresh-logs" class="btn btn-secondary" style="width: auto;">🔄 Actualizar Logs</button>
+          </div>
+          
+          <div class="card" style="max-height: 500px; overflow-y: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Agente</th>
+                  <th>Fecha/Hora</th>
+                  <th>Estatus</th>
+                  <th>Mensaje</th>
+                  <th>Detalles</th>
+                </tr>
+              </thead>
+              <tbody id="ia-logs-tbody">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--text-light);">Cargando bitácora de eventos...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Bottom Navigation Bar for Mobile -->
@@ -1041,6 +1209,9 @@
       </div>
       <div class="mobile-nav-item" data-target="catalog-view">
         <span class="mobile-nav-icon">🌾</span>
+      </div>
+      <div class="mobile-nav-item admin-or-coordinator-only" data-target="ia-view" style="display: none;">
+        <span class="mobile-nav-icon">🤖</span>
       </div>
     </div>
 

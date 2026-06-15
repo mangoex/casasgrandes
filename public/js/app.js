@@ -47,6 +47,7 @@ let allMovements = [];
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
   setupPlanningSelectionListeners();
+  bindIAViewEventListeners();
 });
 
 function setupPlanningSelectionListeners() {
@@ -268,6 +269,8 @@ function switchView(viewId, title) {
     loadAsignacionView();
   } else if (viewId === 'asignacion-asesor-view') {
     loadAdvisorAssignmentView();
+  } else if (viewId === 'ia-view') {
+    loadIAViewData();
   }
 }
 
@@ -3894,5 +3897,614 @@ document.addEventListener('DOMContentLoaded', () => {
   if (csvBtn) csvBtn.addEventListener('click', exportKardexToCSV);
   if (pdfBtn) pdfBtn.addEventListener('click', exportKardexToPDF);
 });
+
+// =============================================================
+// AI AGENTS SEGUIMIENTO IA FRONTEND
+// =============================================================
+let activeIaTab = 'ceo';
+let currentAgentsConfig = [];
+
+async function loadIAViewData() {
+  try {
+    const res = await fetch('/api/agentes/config', {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al cargar configuraciones de agentes');
+    
+    const data = await res.json();
+    currentAgentsConfig = data.configs;
+    
+    // Set API Key display
+    const apiKeyInput = document.getElementById('ia-gemini-key');
+    if (apiKeyInput) {
+      apiKeyInput.value = data.maskedKey || '';
+    }
+    
+    // Set Switches and Prompts
+    currentAgentsConfig.forEach(agent => {
+      const switchEl = document.getElementById(`switch-agent-${agent.agente_id}`);
+      const promptEl = document.getElementById(`prompt-${agent.agente_id}`);
+      
+      if (switchEl) {
+        switchEl.checked = agent.activo === 1;
+        // visual style for custom switch
+        const handle = switchEl.nextElementSibling;
+        if (handle) {
+          if (agent.activo === 1) {
+            handle.style.background = 'var(--primary)';
+            handle.querySelector('.switch-handle').style.left = '23px';
+          } else {
+            handle.style.background = '#ccc';
+            handle.querySelector('.switch-handle').style.left = '3px';
+          }
+        }
+      }
+      if (promptEl) {
+        const c = JSON.parse(agent.configuracion || '{}');
+        promptEl.value = c.prompt_adicional || '';
+      }
+    });
+    
+    // Initialize Tab if first time
+    setupIATabs();
+    
+    // Load current active tab panel
+    switchIAPanel(activeIaTab);
+
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
+  }
+}
+
+function setupIATabs() {
+  const tabs = [
+    { id: 'tab-ia-ceo', name: 'ceo' },
+    { id: 'tab-ia-coordinador', name: 'coordinador' },
+    { id: 'tab-ia-outreach', name: 'outreach' },
+    { id: 'tab-ia-logs', name: 'logs' }
+  ];
+  
+  tabs.forEach(tab => {
+    const el = document.getElementById(tab.id);
+    if (el) {
+      // Avoid duplicate event listener bindings by overwriting or checking
+      if (!el.dataset.bound) {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          tabs.forEach(t => document.getElementById(t.id)?.classList.remove('active'));
+          el.classList.add('active');
+          switchIAPanel(tab.name);
+        });
+        el.dataset.bound = 'true';
+      }
+    }
+  });
+}
+
+function switchIAPanel(tabName) {
+  activeIaTab = tabName;
+  
+  // Hide all panels
+  document.querySelectorAll('.ia-panel').forEach(p => p.style.display = 'none');
+  
+  // Show active panel
+  const activePanel = document.getElementById(`panel-ia-${tabName}`);
+  if (activePanel) activePanel.style.display = 'block';
+  
+  // Load data
+  if (tabName === 'ceo') {
+    loadCEOPanel();
+  } else if (tabName === 'coordinador') {
+    loadCoordinadorPanel();
+  } else if (tabName === 'outreach') {
+    loadOutreachPanel();
+  } else if (tabName === 'logs') {
+    loadIALogs();
+  }
+}
+
+async function loadCEOPanel() {
+  const container = document.getElementById('ceo-proposal-container');
+  if (!container) return;
+  
+  try {
+    const res = await fetch('/api/agentes/ceo/propuesta', {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al cargar propuesta de metas');
+    
+    const proposal = await res.json();
+    
+    if (!proposal) {
+      container.innerHTML = `
+        <div class="card" style="text-align: center; padding: 40px; color: var(--text-light);">
+          <p style="font-size: 16px; margin-bottom: 15px;">No hay propuestas de metas pendientes en este momento.</p>
+          <p style="font-size: 13px;">Haz clic en el botón "Ejecutar CEO Agent Ahora" para analizar los datos del sistema y generar una propuesta de metas.</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // Parse proposal.propuesta_markdown
+    const mdHtml = simpleMarkdownToHtml(proposal.propuesta_markdown);
+    
+    container.innerHTML = `
+      <div class="card" style="margin-bottom: 20px; border-left: 4px solid var(--primary);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+          <div>
+            <h4 style="margin: 0; font-size: 16px; color: var(--text);">Propuesta de Metas - Ciclo PV ${new Date(proposal.creado_en).getFullYear()}</h4>
+            <small style="color: var(--text-light);">Generado el: ${new Date(proposal.creado_en).toLocaleString('es-MX')}</small>
+          </div>
+          <span class="badge badge-warning" style="background: rgba(243, 156, 18, 0.2); color: #f39c12; border: 1px solid rgba(243, 156, 18, 0.4); padding: 4px 10px; border-radius: 12px; font-size: 12px;">Pendiente de Aprobación</span>
+        </div>
+        <div class="markdown-content" style="line-height: 1.6; margin-bottom: 24px; font-size: 14px;">
+          ${mdHtml}
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: flex-end; border-top: 1px solid var(--border); padding-top: 16px;">
+          <button id="btn-aplicar-metas-ceo" class="btn btn-primary" style="width: auto; padding: 10px 24px;" data-id="${proposal.id}">✓ Aprobar y Aplicar Metas</button>
+        </div>
+      </div>
+    `;
+    
+    // Bind Apply Button
+    document.getElementById('btn-aplicar-metas-ceo')?.addEventListener('click', async (e) => {
+      const proposalId = e.target.getAttribute('data-id');
+      e.target.disabled = true;
+      e.target.innerText = 'Aplicando Metas...';
+      
+      try {
+        const applyRes = await fetch('/api/agentes/ceo/aplicar', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ propuesta_id: proposalId })
+        });
+        if (!applyRes.ok) throw new Error('Error al aplicar metas');
+        
+        alert('Las metas individuales han sido guardadas y aplicadas con éxito en el sistema.');
+        loadCEOPanel();
+      } catch (err) {
+        alert(err.message);
+        e.target.disabled = false;
+        e.target.innerText = '✓ Aprobar y Aplicar Metas';
+      }
+    });
+
+  } catch (err) {
+    container.innerHTML = `<div class="card" style="padding: 20px; color: var(--danger); text-align: center;">${err.message}</div>`;
+  }
+}
+
+async function loadCoordinadorPanel() {
+  const container = document.getElementById('coordinador-followups-container');
+  if (!container) return;
+  
+  try {
+    const res = await fetch('/api/agentes/coordinador/seguimientos', {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al cargar seguimientos de agenda');
+    
+    const data = await res.json();
+    const followUps = data.followUps || [];
+    
+    if (followUps.length === 0) {
+      container.innerHTML = `
+        <div class="card" style="text-align: center; padding: 40px; color: var(--text-light); grid-column: 1 / -1;">
+          <p style="font-size: 16px;">No hay seguimientos generados recientemente.</p>
+          <p style="font-size: 13px; margin-top: 8px;">Haz clic en "Ejecutar Coordinador Agent Ahora" para analizar las agendas y generar propuestas de contacto.</p>
+        </div>
+      `;
+      return;
+    }
+    
+    let html = '';
+    followUps.forEach(f => {
+      html += `
+        <div class="card whatsapp-card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+              <div>
+                <h4 style="margin: 0; font-size: 16px; color: var(--text);">${f.nombre}</h4>
+                <small style="color: var(--text-light);">Teléfono: ${f.telefono || 'Sin registrar'}</small>
+              </div>
+              <span class="badge" style="background: rgba(231, 76, 60, 0.15); color: #e74c3c; padding: 2px 8px; border-radius: 10px; font-size: 11px;">
+                ${f.pendientes_count} visitas pendientes
+              </span>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-style: italic; font-size: 13px; color: var(--text); line-height: 1.5; margin-bottom: 16px; white-space: pre-wrap;">
+              "${f.mensaje}"
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end;">
+            <a href="${f.wa_url}" target="_blank" class="btn btn-success" style="width: auto; padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px; text-decoration: none; background: #2ecc71; color: #fff; border-radius: var(--radius-md);">
+              🟢 Enviar por WhatsApp
+            </a>
+          </div>
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+
+  } catch (err) {
+    container.innerHTML = `<div class="card" style="padding: 20px; color: var(--danger); text-align: center; grid-column: 1 / -1;">${err.message}</div>`;
+  }
+}
+
+async function loadOutreachPanel() {
+  const tbody = document.getElementById('outreach-quotes-tbody');
+  if (!tbody) return;
+  
+  try {
+    const res = await fetch('/api/cotizaciones', {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al cargar cotizaciones');
+    
+    const quotes = await res.json();
+    
+    // Filter quotes created by outreach agent (starts with OUT- in folio or generated by outreach in notes)
+    const outreachQuotes = quotes.filter(q => 
+      (q.folio_cotizacion && q.folio_cotizacion.startsWith('OUT-')) || 
+      (q.notas && q.notas.includes('Outreach'))
+    );
+    
+    if (outreachQuotes.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-light); padding: 30px;">
+            No hay cotizaciones sugeridas por la IA en borrador en este momento.<br>
+            <small>Haz clic en "Ejecutar Outreach Agent Ahora" para analizar agricultores y proponer cotizaciones.</small>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    
+    let html = '';
+    outreachQuotes.forEach(q => {
+      html += `
+        <tr>
+          <td><strong>${q.folio_cotizacion}</strong></td>
+          <td>${q.cliente_nombre || q.cliente_id}</td>
+          <td>${q.asesor_nombre || 'Sin asignar'}</td>
+          <td style="text-align: right; font-weight: 600;">$${parseFloat(q.total_mxn).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</td>
+          <td><span class="badge" style="background: rgba(52, 152, 219, 0.2); color: #3498db; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${q.estatus}</span></td>
+          <td>
+            <button class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 12px;" onclick="viewQuoteInCRM('${q.id}')">👁️ Ver en Kanban</button>
+          </td>
+        </tr>
+      `;
+    });
+    
+    tbody.innerHTML = html;
+
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--danger);">${err.message}</td></tr>`;
+  }
+}
+
+function viewQuoteInCRM(quoteId) {
+  // Switch to CRM View and highlight or show the Kanban board
+  const crmTab = document.querySelector('.nav-links [data-target="crm-view"]');
+  if (crmTab) crmTab.click();
+}
+
+async function loadIALogs() {
+  const tbody = document.getElementById('ia-logs-tbody');
+  if (!tbody) return;
+  
+  try {
+    const res = await fetch('/api/agentes/logs', {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al cargar bitácora de agentes');
+    
+    const logs = await res.json();
+    
+    if (logs.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; color: var(--text-light); padding: 30px;">No hay registros de eventos aún.</td>
+        </tr>
+      `;
+      return;
+    }
+    
+    let html = '';
+    logs.forEach(l => {
+      const dateStr = new Date(l.creado_en).toLocaleString('es-MX');
+      let badgeClass = 'info';
+      if (l.tipo_evento === 'success') badgeClass = 'success';
+      if (l.tipo_evento === 'error') badgeClass = 'error';
+      
+      const agentNames = {
+        'ceo': '🎯 CEO Agent',
+        'coordinador': '💬 Coordinator Agent',
+        'outreach': '📝 Outreach Agent'
+      };
+      
+      // Detalle toggle
+      const hasDetail = !!l.detalle;
+      const detailBtn = hasDetail 
+        ? `<button class="btn btn-secondary" style="width: auto; padding: 2px 8px; font-size: 11px;" onclick="toggleLogDetail(this)">Ver Detalle</button>`
+        : '<span style="color: var(--text-light);">-</span>';
+      
+      html += `
+        <tr>
+          <td><strong>${agentNames[l.agente_id] || l.agente_id}</strong></td>
+          <td style="white-space: nowrap;">${dateStr}</td>
+          <td><span class="badge-log ${l.tipo_evento}">${l.tipo_evento.toUpperCase()}</span></td>
+          <td>${l.mensaje}</td>
+          <td>${detailBtn}</td>
+        </tr>
+        ${hasDetail ? `
+          <tr class="log-detail-row" style="display: none; background: rgba(0,0,0,0.15);">
+            <td colspan="5">
+              <pre style="max-width: 100%; white-space: pre-wrap; font-family: monospace; font-size: 11px; padding: 12px; color: var(--text); overflow-x: auto; max-height: 200px;">${l.detalle}</pre>
+            </td>
+          </tr>
+        ` : ''}
+      `;
+    });
+    
+    tbody.innerHTML = html;
+
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger);">${err.message}</td></tr>`;
+  }
+}
+
+function toggleLogDetail(btn) {
+  const currentRow = btn.closest('tr');
+  const detailRow = currentRow.nextElementSibling;
+  if (detailRow && detailRow.classList.contains('log-detail-row')) {
+    const isHidden = detailRow.style.display === 'none';
+    detailRow.style.display = isHidden ? 'table-row' : 'none';
+    btn.innerText = isHidden ? 'Ocultar Detalle' : 'Ver Detalle';
+  }
+}
+
+// Simple Markdown parser for proposal presentation
+function simpleMarkdownToHtml(md) {
+  if (!md) return '';
+  let html = md;
+  
+  // Headers
+  html = html.replace(/^### (.*$)/gim, '<h5 style="margin-top: 12px; margin-bottom: 6px; font-size: 15px; font-weight: 600;">$1</h5>');
+  html = html.replace(/^## (.*$)/gim, '<h4 style="margin-top: 16px; margin-bottom: 8px; font-size: 16px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 4px;">$1</h4>');
+  html = html.replace(/^# (.*$)/gim, '<h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px; font-weight: 800;">$1</h3>');
+  
+  // Bold
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Tables
+  // Simple check if markdown table is present and replace it with a styled table
+  const lines = html.split('\n');
+  let inTable = false;
+  let tableRows = [];
+  let parsedLines = [];
+  
+  lines.forEach(line => {
+    if (line.trim().startsWith('|')) {
+      inTable = true;
+      // skip separators
+      if (!line.includes('---')) {
+        const cells = line.split('|').map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1);
+        tableRows.push(cells);
+      }
+    } else {
+      if (inTable) {
+        // construct HTML table
+        let tableHtml = '<table class="data-table" style="margin: 15px 0; font-size: 13px;"><thead><tr>';
+        // Header row
+        tableRows[0].forEach(cell => {
+          tableHtml += `<th>${cell}</th>`;
+        });
+        tableHtml += '</tr></thead><tbody>';
+        // Body rows
+        for (let r = 1; r < tableRows.length; r++) {
+          tableHtml += '<tr>';
+          tableRows[r].forEach(cell => {
+            tableHtml += `<td>${cell}</td>`;
+          });
+          tableHtml += '</tr>';
+        }
+        tableHtml += '</tbody></table>';
+        parsedLines.push(tableHtml);
+        inTable = false;
+        tableRows = [];
+      }
+      parsedLines.push(line);
+    }
+  });
+  
+  html = parsedLines.join('\n');
+  
+  // Bullet lists
+  html = html.replace(/^\s*\-\s*(.*$)/gim, '<li style="margin-left: 20px; list-style-type: disc;">$1</li>');
+  
+  // Paragraphs
+  html = html.replace(/\n\n/g, '<br><br>');
+  
+  return html;
+}
+
+// Bind event listeners for the system config buttons
+function bindIAViewEventListeners() {
+  // Save API Key and Switches
+  const saveBtn = document.getElementById('btn-save-ia-config');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      saveBtn.disabled = true;
+      saveBtn.innerText = 'Guardando...';
+      
+      const apiKeyVal = document.getElementById('ia-gemini-key').value;
+      const payload = {
+        gemini_api_key: apiKeyVal,
+        configs: [
+          {
+            agente_id: 'ceo',
+            activo: document.getElementById('switch-agent-ceo').checked ? 1 : 0,
+            configuracion: { prompt_adicional: document.getElementById('prompt-ceo').value }
+          },
+          {
+            agente_id: 'coordinador',
+            activo: document.getElementById('switch-agent-coordinador').checked ? 1 : 0,
+            configuracion: { prompt_adicional: document.getElementById('prompt-coordinador').value }
+          },
+          {
+            agente_id: 'outreach',
+            activo: document.getElementById('switch-agent-outreach').checked ? 1 : 0,
+            configuracion: { prompt_adicional: document.getElementById('prompt-outreach').value }
+          }
+        ]
+      };
+      
+      try {
+        const res = await fetch('/api/agentes/config', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Error al guardar configuraciones');
+        
+        alert('Configuraciones e interruptores de agentes de IA actualizados correctamente.');
+        loadIAViewData();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerText = 'Guardar Configuración';
+      }
+    });
+  }
+
+  // Toggle API Key visibility
+  const toggleKeyBtn = document.getElementById('btn-toggle-key-visibility');
+  if (toggleKeyBtn) {
+    toggleKeyBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const apiKeyInput = document.getElementById('ia-gemini-key');
+      if (apiKeyInput) {
+        const isPassword = apiKeyInput.type === 'password';
+        apiKeyInput.type = isPassword ? 'text' : 'password';
+        toggleKeyBtn.innerText = isPassword ? '🔒' : '👁️';
+      }
+    });
+  }
+
+  // Bind Switch visuals (custom switch click handle to check/uncheck checkbox)
+  const switches = ['ceo', 'coordinador', 'outreach'];
+  switches.forEach(sw => {
+    const swEl = document.getElementById(`switch-agent-${sw}`);
+    if (swEl) {
+      swEl.addEventListener('change', () => {
+        const handle = swEl.nextElementSibling;
+        if (handle) {
+          const isChecked = swEl.checked;
+          handle.style.background = isChecked ? 'var(--primary)' : '#ccc';
+          handle.querySelector('.switch-handle').style.left = isChecked ? '23px' : '3px';
+        }
+      });
+    }
+  });
+
+  // Run CEO Agent Button
+  const runCeoBtn = document.getElementById('btn-run-ceo');
+  if (runCeoBtn) {
+    runCeoBtn.addEventListener('click', async () => {
+      runCeoBtn.disabled = true;
+      runCeoBtn.innerText = '🤖 CEO Generando metas...';
+      try {
+        const res = await fetch('/api/agentes/ejecutar', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ agente_id: 'ceo' })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Fallo en la ejecución');
+        }
+        alert('El CEO Agent completó el análisis de desempeño y ha generado una propuesta de metas.');
+        loadCEOPanel();
+      } catch (err) {
+        alert(`Error al ejecutar CEO: ${err.message}`);
+      } finally {
+        runCeoBtn.disabled = false;
+        runCeoBtn.innerText = '⚡ Ejecutar CEO Agent Ahora';
+      }
+    });
+  }
+
+  // Run Coordinator Agent Button
+  const runCoordBtn = document.getElementById('btn-run-coordinador');
+  if (runCoordBtn) {
+    runCoordBtn.addEventListener('click', async () => {
+      runCoordBtn.disabled = true;
+      runCoordBtn.innerText = '🤖 Redactando mensajes...';
+      try {
+        const res = await fetch('/api/agentes/ejecutar', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ agente_id: 'coordinador' })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Fallo en la ejecución');
+        }
+        alert('El Coordinador Agent completó la revisión de la planeación y generó mensajes de WhatsApp.');
+        loadCoordinadorPanel();
+      } catch (err) {
+        alert(`Error al ejecutar Coordinador: ${err.message}`);
+      } finally {
+        runCoordBtn.disabled = false;
+        runCoordBtn.innerText = '⚡ Ejecutar Coordinador Agent Ahora';
+      }
+    });
+  }
+
+  // Run Outreach Agent Button
+  const runOutreachBtn = document.getElementById('btn-run-outreach');
+  if (runOutreachBtn) {
+    runOutreachBtn.addEventListener('click', async () => {
+      runOutreachBtn.disabled = true;
+      runOutreachBtn.innerText = '🤖 Creando cotizaciones...';
+      try {
+        const res = await fetch('/api/agentes/ejecutar', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ agente_id: 'outreach' })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Fallo en la ejecución');
+        }
+        alert('El Outreach Agent analizó los patrones históricos y generó cotizaciones borrador automáticas.');
+        loadOutreachPanel();
+      } catch (err) {
+        alert(`Error al ejecutar Outreach: ${err.message}`);
+      } finally {
+        runOutreachBtn.disabled = false;
+        runOutreachBtn.innerText = '⚡ Ejecutar Outreach Agent Ahora';
+      }
+    });
+  }
+
+  // Refresh Logs Button
+  const refreshLogsBtn = document.getElementById('btn-refresh-logs');
+  if (refreshLogsBtn) {
+    refreshLogsBtn.addEventListener('click', () => {
+      loadIALogs();
+    });
+  }
+}
 
 
