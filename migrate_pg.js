@@ -235,6 +235,10 @@ async function runMigration() {
         ciclo_agricola VARCHAR(30) NOT NULL,
         monto_objetivo_mxn REAL DEFAULT 0.0,
         bolsas_objetivo INTEGER DEFAULT 0,
+        meta_faena REAL DEFAULT 0.0,
+        meta_clavis REAL DEFAULT 0.0,
+        meta_cropprotection REAL DEFAULT 0.0,
+        meta_cosecha REAL DEFAULT 0.0,
         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         activo INTEGER DEFAULT 1,
         FOREIGN KEY (asesor_id) REFERENCES asesores(id)

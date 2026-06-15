@@ -41,6 +41,7 @@ let allSeasons = [];
 let currentPlanList = [];
 let currentCycleMetaMxn = 0;
 let currentCycleMetaBags = 0;
+let allMovements = [];
 
 // On Page Load
 document.addEventListener('DOMContentLoaded', () => {
@@ -338,84 +339,84 @@ async function loadDashboardData() {
     return `hsl(${h}, 65%, 45%)`;
   };
 
+  const cycleSelect = document.getElementById('dashboard-ciclo-select');
+  if (cycleSelect && !cycleSelect.dataset.listenerBound) {
+    cycleSelect.dataset.listenerBound = 'true';
+    cycleSelect.addEventListener('change', () => {
+      loadDashboardData();
+    });
+  }
+  const selectedCycle = cycleSelect ? cycleSelect.value : 'O-I 2026';
+
   try {
-    const res = await fetch(`${API_URL}/api/dashboard/stats`, { headers: getHeaders() });
+    const res = await fetch(`${API_URL}/api/dashboard/stats?ciclo_agricola=${encodeURIComponent(selectedCycle)}`, { headers: getHeaders() });
     const stats = await res.json();
     
-    document.getElementById('stat-clients').textContent = stats.total_clients;
-    document.getElementById('stat-quotes').textContent = stats.active_quotes;
-    
-    // Format total sales
-    const salesVal = Number(stats.total_sales_mxn) || 0.0;
-    document.getElementById('stat-sales').textContent = `$${salesVal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
-    
-    // Fetch all quotes to render dynamic SVG chart
-    const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
-    const quotes = await quotesRes.json();
-    
-    // RENDER SVG MONTHLY SALES CHART
-    const monthNames = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-    const monthlySales = Array(12).fill(0);
-    
-    quotes.forEach(q => {
-      if (q.estatus === 'Vendido' || q.estatus === 'Entregado') {
-        let dateObj = new Date(q.fecha_creacion);
-        if (isNaN(dateObj.getTime()) && typeof q.fecha_creacion === 'string') {
-          const parts = q.fecha_creacion.split('/');
-          if (parts.length === 3) {
-            dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-          }
-        }
-        const monthIndex = dateObj.getMonth();
-        if (monthIndex >= 0 && monthIndex < 12) {
-          monthlySales[monthIndex] += q.total_mxn;
-        }
-      }
-    });
-    
-    const maxVal = Math.max(...monthlySales, 50000);
-    const chartDiv = document.getElementById('dashboard-sales-chart');
-    const width = 800;
-    const height = 180;
-    const padding = 25;
-    
-    const points = monthlySales.map((val, idx) => {
-      const x = padding + (idx * (width - padding * 2) / 11);
-      const y = height - padding - (val * (height - padding * 2) / maxVal);
-      return { x, y, val, month: monthNames[idx] };
-    });
-    
-    const dPath = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-    const dArea = `${dPath} L ${points[11].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
-    
-    let gridLines = '';
-    for (let i = 0; i <= 4; i++) {
-      const y = padding + i * (height - padding * 2) / 4;
-      gridLines += `<line x1="${padding}" y1="${y}" x2="${width - padding}" y2="${y}" class="chart-grid-line" />`;
+    if (document.getElementById('stat-clients')) document.getElementById('stat-clients').textContent = stats.total_clients;
+    if (document.getElementById('stat-sales')) {
+      const salesVal = Number(stats.total_sales_mxn) || 0.0;
+      document.getElementById('stat-sales').textContent = `$${salesVal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
+    }
+    if (document.getElementById('stat-sales-contado')) {
+      const contadoVal = Number(stats.contado_sales_mxn) || 0.0;
+      document.getElementById('stat-sales-contado').textContent = `$${contadoVal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
+    }
+    if (document.getElementById('stat-sales-credito')) {
+      const creditoVal = Number(stats.credito_sales_mxn) || 0.0;
+      document.getElementById('stat-sales-credito').textContent = `$${creditoVal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
+    }
+    if (document.getElementById('stat-sales-recuperado')) {
+      const recuperadoVal = Number(stats.recuperado_sales_mxn) || 0.0;
+      document.getElementById('stat-sales-recuperado').textContent = `$${recuperadoVal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
+    }
+    if (document.getElementById('stat-sales-promesa')) {
+      const promesaVal = Number(stats.promesa_sales_mxn) || 0.0;
+      document.getElementById('stat-sales-promesa').textContent = `$${promesaVal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
     }
     
-    let dots = '';
-    let labels = '';
-    points.forEach(p => {
-      dots += `<circle cx="${p.x}" cy="${p.y}" r="4.5" class="chart-dot" title="${p.month}: $${p.val.toLocaleString()}" />`;
-      labels += `<text x="${p.x}" y="${height - 6}" text-anchor="middle" font-size="9" fill="var(--text-light)" font-weight="600">${p.month}</text>`;
-    });
+    // Render goals progress table
+    const goalsTbody = document.getElementById('dashboard-goals-tbody');
+    if (goalsTbody) {
+      goalsTbody.innerHTML = '';
+      if (!stats.goals_progress || stats.goals_progress.length === 0) {
+        goalsTbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No hay metas comerciales definidas.</td></tr>';
+      } else {
+        stats.goals_progress.forEach(g => {
+          const target = Number(g.target) || 0;
+          const real = Number(g.real) || 0;
+          let pct = 0;
+          if (target > 0) {
+            pct = Math.round((real / target) * 100);
+          }
+          
+          let fillClass = 'success';
+          if (pct < 50) fillClass = 'danger';
+          else if (pct < 80) fillClass = 'warning';
+          
+          const fillWidth = Math.min(pct, 100);
+          
+          goalsTbody.innerHTML += `
+            <tr>
+              <td><strong>${g.category}</strong></td>
+              <td style="text-align: right; font-weight: 500;">${target.toLocaleString('es-MX')} ${g.unit}</td>
+              <td style="text-align: right; font-weight: 600; color: var(--success);">${real.toLocaleString('es-MX')} ${g.unit}</td>
+              <td style="text-align: right; font-weight: 700;">${pct}%</td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="progress-bar-container" style="flex-grow: 1;">
+                    <div class="progress-bar-fill ${fillClass}" style="width: ${fillWidth}%;"></div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          `;
+        });
+      }
+    }
     
-    chartDiv.innerHTML = `
-      <svg viewBox="0 0 ${width} ${height}" class="chart-svg">
-        <defs>
-          <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.25"></stop>
-            <stop offset="100%" stop-color="var(--primary)" stop-opacity="0.00"></stop>
-          </linearGradient>
-        </defs>
-        ${gridLines}
-        <path d="${dArea}" class="chart-area" />
-        <path d="${dPath}" class="chart-line" />
-        ${dots}
-        ${labels}
-      </svg>
-    `;
+    // Fetch all quotes to render recent orders table
+    const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
+    const quotes = await quotesRes.json();
     
     // Toggle Advisor column header in recent orders table based on role
     const thAsesor = document.getElementById('th-asesor');
@@ -903,8 +904,13 @@ function renderKanbanBoard(quotesList) {
     card.draggable = true;
     card.addEventListener('dragstart', (e) => drag(e, q.id));
     
-    // double click to view detail modal
-    card.addEventListener('dblclick', () => loadClientCRMDetails(q.cliente_id));
+    // single click to view detail modal (ignoring buttons)
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.kanban-arrow-btn') || e.target.closest('button')) {
+        return;
+      }
+      loadClientCRMDetails(q.cliente_id);
+    });
     
     // Build items summary label
     const itemsSummary = q.items.map(i => `${i.producto_nombre.split(' ')[0]} (x${i.cantidad})`).join(', ') || 'Sin productos';
@@ -1592,6 +1598,7 @@ async function loadAlmacenData() {
     // 2. Load History Movements
     const movesRes = await fetch(`${API_URL}/api/almacen/movimientos`, { headers: getHeaders() });
     const movements = await movesRes.json();
+    allMovements = movements;
     
     const movesTbody = document.getElementById('movements-tbody');
     movesTbody.innerHTML = '';
@@ -2638,7 +2645,7 @@ let allAdminMetas = [];
 async function loadAdminMetas() {
   const tbody = document.getElementById('admin-metas-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-light);">Cargando...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">Cargando...</td></tr>';
   
   try {
     const res = await fetch(`${API_URL}/api/metas`, { headers: getHeaders() });
@@ -2650,7 +2657,7 @@ async function loadAdminMetas() {
     
     tbody.innerHTML = '';
     if (!Array.isArray(allAdminMetas) || allAdminMetas.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No hay metas comerciales configuradas.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">No hay metas comerciales configuradas.</td></tr>';
       return;
     }
     
@@ -2661,7 +2668,11 @@ async function loadAdminMetas() {
           <td><strong>${m.asesor_nombre || 'General / Global'}</strong></td>
           <td>${m.ciclo_agricola}</td>
           <td style="text-align: right; font-weight: 600;">$${amountVal.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td>
-          <td style="text-align: right; font-weight: 600;">${m.bolsas_objetivo}</td>
+          <td style="text-align: right; font-weight: 600;">${m.bolsas_objetivo || 0}</td>
+          <td style="text-align: right; font-weight: 600;">${m.meta_faena || 0}</td>
+          <td style="text-align: right; font-weight: 600;">${m.meta_clavis || 0}</td>
+          <td style="text-align: right; font-weight: 600;">${m.meta_cropprotection || 0}</td>
+          <td style="text-align: right; font-weight: 600;">${m.meta_cosecha || 0}</td>
           <td>
             <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 12px; margin: 0;" onclick="openEditMetaModal(${m.id})">Editar</button>
           </td>
@@ -2669,7 +2680,7 @@ async function loadAdminMetas() {
       `;
     });
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger);">Error: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--danger);">Error: ${err.message}</td></tr>`;
   }
 }
 
@@ -2710,6 +2721,10 @@ window.openEditMetaModal = async function(id) {
   document.getElementById('meta-asesor').value = m.asesor_id;
   document.getElementById('meta-ciclo').value = m.ciclo_agricola;
   document.getElementById('meta-bags').value = m.bolsas_objetivo;
+  document.getElementById('meta-faena').value = m.meta_faena || 0;
+  document.getElementById('meta-clavis').value = m.meta_clavis || 0;
+  document.getElementById('meta-cropprotection').value = m.meta_cropprotection || 0;
+  document.getElementById('meta-cosecha').value = m.meta_cosecha || 0;
   document.getElementById('meta-amount').value = m.monto_objetivo_mxn;
   
   document.getElementById('meta-modal-title').textContent = 'Editar Meta Comercial';
@@ -2723,7 +2738,11 @@ document.getElementById('add-meta-form').addEventListener('submit', async (e) =>
     asesor_id: Number(document.getElementById('meta-asesor').value),
     ciclo_agricola: document.getElementById('meta-ciclo').value,
     monto_objetivo_mxn: Number(document.getElementById('meta-amount').value) || 0.0,
-    bolsas_objetivo: Number(document.getElementById('meta-bags').value) || 0
+    bolsas_objetivo: Number(document.getElementById('meta-bags').value) || 0,
+    meta_faena: Number(document.getElementById('meta-faena').value) || 0,
+    meta_clavis: Number(document.getElementById('meta-clavis').value) || 0,
+    meta_cropprotection: Number(document.getElementById('meta-cropprotection').value) || 0,
+    meta_cosecha: Number(document.getElementById('meta-cosecha').value) || 0
   };
   
   try {
@@ -3731,5 +3750,133 @@ window.clearNotifications = async function() {
     console.error(err);
   }
 };
+
+// Export Kardex to Excel (CSV)
+function exportKardexToCSV() {
+  if (!allMovements || allMovements.length === 0) {
+    alert("No hay movimientos cargados para exportar.");
+    return;
+  }
+  
+  let csvContent = "\uFEFF"; // UTF-8 BOM
+  csvContent += "Fecha,Tipo de Movimiento,Producto,Entradas,Salidas,Saldo Resultante,Referencia,Notas\n";
+  
+  allMovements.forEach(m => {
+    const date = m.fecha_movimiento.slice(0, 16).replace('T', ' ');
+    const type = `"${m.tipo_movimiento.replace(/"/g, '""')}"`;
+    const prod = `"${m.producto_nombre.replace(/"/g, '""')}"`;
+    const ent = m.cantidad_entrante || 0;
+    const sal = m.cantidad_saliente || 0;
+    const balance = m.existencias_resultantes || 0;
+    const ref = `"${(m.referencia_factura || '').replace(/"/g, '""')}"`;
+    const notes = `"${(m.notas || '').replace(/"/g, '""')}"`;
+    csvContent += `${date},${type},${prod},${ent},${sal},${balance},${ref},${notes}\n`;
+  });
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `kardex_movimientos_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// Export Kardex to PDF (Printable Window)
+function exportKardexToPDF() {
+  if (!allMovements || allMovements.length === 0) {
+    alert("No hay movimientos cargados para exportar.");
+    return;
+  }
+  
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert("Por favor permite las ventanas emergentes (popups) para exportar a PDF.");
+    return;
+  }
+  
+  let rowsHtml = '';
+  allMovements.forEach(m => {
+    const date = m.fecha_movimiento.slice(0, 16).replace('T', ' ');
+    const ent = m.cantidad_entrante > 0 ? m.cantidad_entrante.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
+    const sal = m.cantidad_saliente > 0 ? m.cantidad_saliente.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
+    rowsHtml += `
+      <tr>
+        <td>${date}</td>
+        <td>${m.tipo_movimiento}</td>
+        <td><strong>${m.producto_nombre}</strong></td>
+        <td style="text-align: right;">${ent}</td>
+        <td style="text-align: right;">${sal}</td>
+        <td style="text-align: right;">${m.existencias_resultantes.toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
+      </tr>
+    `;
+  });
+  
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Kardex de Movimientos - AgriSales Pro</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; padding: 20px; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #10b981; padding-bottom: 15px; margin-bottom: 25px; }
+          .title { font-size: 24px; font-weight: bold; color: #10b981; }
+          .subtitle { font-size: 14px; color: #666; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th { background-color: #f3f4f6; color: #374151; font-weight: 600; text-align: left; padding: 10px; border-bottom: 1px solid #d1d5db; font-size: 12px; }
+          td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
+          tr:nth-child(even) { background-color: #fafafa; }
+          .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="title">AgriSales Pro</div>
+            <div class="subtitle">Reporte de Auditoría de Inventario (Kardex)</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-weight: 600; font-size: 12px;">Fecha de Impresión:</div>
+            <div style="font-size: 12px; color: #666;">${new Date().toLocaleString()}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Movimiento</th>
+              <th>Producto</th>
+              <th style="text-align: right;">Entradas</th>
+              <th style="text-align: right;">Salidas</th>
+              <th style="text-align: right;">Saldo</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+        <div class="footer">
+          AgriSales Pro &copy; 2026 - Distribuidora Casas Grandes. Todos los derechos reservados.
+        </div>
+        <script>
+          window.onload = function() {
+            window.print();
+            window.onafterprint = function() { window.close(); };
+          }
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+// Bind Export buttons
+document.addEventListener('DOMContentLoaded', () => {
+  const csvBtn = document.getElementById('btn-export-kardex-csv');
+  const pdfBtn = document.getElementById('btn-export-kardex-pdf');
+  
+  if (csvBtn) csvBtn.addEventListener('click', exportKardexToCSV);
+  if (pdfBtn) pdfBtn.addEventListener('click', exportKardexToPDF);
+});
 
 

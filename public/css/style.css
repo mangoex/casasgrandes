@@ -2058,4 +2058,25 @@ tr:hover td {
   color: var(--success);
 }
 
+/* Progress Bar for goals */
+.progress-bar-container {
+  width: 100%;
+  background-color: var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  height: 8px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.4s ease;
+}
+
+.progress-bar-fill.danger { background-color: var(--danger); }
+.progress-bar-fill.warning { background-color: var(--accent); }
+.progress-bar-fill.success { background-color: var(--success); }
+
 

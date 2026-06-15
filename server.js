@@ -930,38 +930,107 @@ app.post('/api/almacen/produccion-uan32', authenticateToken, async (req, res) =>
 
 app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   try {
+    const ciclo = req.query.ciclo_agricola || 'O-I 2026';
+    
+    // 1. Clients Count
     let clientsSql = 'SELECT count(*) as count FROM clientes WHERE activo = 1';
-    let quotesSql = "SELECT count(*) as count FROM cotizaciones WHERE estatus = 'Borrador' OR estatus = 'Autorizada'";
-    let salesSql = "SELECT sum(total_mxn) as total FROM cotizaciones WHERE estatus = 'Vendido'";
-    const params = [];
-
+    const clientsParams = [];
     if (req.user.nivel_rol === 'Asesor') {
       clientsSql += ' AND asesor_id = ?';
-      quotesSql += ' AND asesor_id = ?';
-      salesSql += ' AND asesor_id = ?';
-      params.push(req.user.id);
+      clientsParams.push(req.user.id);
     }
+    const clientsCount = await db.get(clientsSql, clientsParams);
 
-    const clientsCount = await db.get(clientsSql, params);
-    const quotesCount = await db.get(quotesSql, params);
-    const salesTotal = await db.get(salesSql, params);
-    
-    // Visits by adviser (keeping it for backward compatibility or potential uses)
-    let visitsSql = `
-      SELECT a.nombre as adviser, count(v.id) as count
-      FROM asesores a
-      LEFT JOIN crm_visitas v ON v.asesor_id = a.id
-      WHERE a.activo = 1
-    `;
-    const visitsParams = [];
+    // 2. Promesa de Venta (Borrador/Autorizada)
+    let promesaSql = "SELECT COALESCE(SUM(total_mxn), 0.0) as total FROM cotizaciones WHERE estatus IN ('Borrador', 'Autorizada') AND ciclo_agricola = ?";
+    const promesaParams = [ciclo];
     if (req.user.nivel_rol === 'Asesor') {
-      visitsSql += ' AND a.id = ?';
-      visitsParams.push(req.user.id);
+      promesaSql += ' AND asesor_id = ?';
+      promesaParams.push(req.user.id);
     }
-    visitsSql += ' GROUP BY a.id ORDER BY count DESC';
-    const visits = await db.all(visitsSql, visitsParams);
+    const promesaRes = await db.get(promesaSql, promesaParams);
 
-    // Fetch active advisors performance metrics
+    // 3. Ventas Contado (Contado + Vendido/Entregado)
+    let contadoSql = "SELECT COALESCE(SUM(total_mxn), 0.0) as total FROM cotizaciones WHERE condiciones_pago = 'Contado' AND estatus IN ('Vendido', 'Entregado') AND ciclo_agricola = ?";
+    const contadoParams = [ciclo];
+    if (req.user.nivel_rol === 'Asesor') {
+      contadoSql += ' AND asesor_id = ?';
+      contadoParams.push(req.user.id);
+    }
+    const contadoRes = await db.get(contadoSql, contadoParams);
+
+    // 4. Ventas Crédito (Crédito + Entregado)
+    let creditoSql = "SELECT COALESCE(SUM(total_mxn), 0.0) as total FROM cotizaciones WHERE (condiciones_pago LIKE '%Crédito%' OR condiciones_pago LIKE '%Credito%') AND estatus = 'Entregado' AND ciclo_agricola = ?";
+    const creditoParams = [ciclo];
+    if (req.user.nivel_rol === 'Asesor') {
+      creditoSql += ' AND asesor_id = ?';
+      creditoParams.push(req.user.id);
+    }
+    const creditoRes = await db.get(creditoSql, creditoParams);
+
+    // 5. Monto Recuperado (Crédito + Vendido)
+    let recuperadoSql = "SELECT COALESCE(SUM(total_mxn), 0.0) as total FROM cotizaciones WHERE (condiciones_pago LIKE '%Crédito%' OR condiciones_pago LIKE '%Credito%') AND estatus = 'Vendido' AND ciclo_agricola = ?";
+    const recuperadoParams = [ciclo];
+    if (req.user.nivel_rol === 'Asesor') {
+      recuperadoSql += ' AND asesor_id = ?';
+      recuperadoParams.push(req.user.id);
+    }
+    const recuperadoRes = await db.get(recuperadoSql, recuperadoParams);
+
+    const promesa_sales_mxn = promesaRes ? promesaRes.total : 0.0;
+    const contado_sales_mxn = contadoRes ? contadoRes.total : 0.0;
+    const credito_sales_mxn = creditoRes ? creditoRes.total : 0.0;
+    const recuperado_sales_mxn = recuperadoRes ? recuperadoRes.total : 0.0;
+    const total_sales_mxn = contado_sales_mxn + recuperado_sales_mxn;
+
+    // 6. Real quantities for goals
+    let realSql = `
+      SELECT 
+        COALESCE(SUM(CASE WHEN p.tipo_categoria = 'Híbrido' THEN cd.cantidad_ordenada ELSE 0 END), 0) as real_semilla,
+        COALESCE(SUM(CASE WHEN p.tipo_categoria = 'Agroquímico' AND p.producto ILIKE '%Faena%' THEN cd.cantidad_ordenada ELSE 0 END), 0) as real_faena,
+        COALESCE(SUM(CASE WHEN p.tipo_categoria = 'Agroquímico' AND p.producto ILIKE '%Clavis%' THEN cd.cantidad_ordenada ELSE 0 END), 0) as real_clavis,
+        COALESCE(SUM(CASE WHEN p.tipo_categoria = 'Agroquímico' AND p.producto NOT ILIKE '%Faena%' AND p.producto NOT ILIKE '%Clavis%' THEN cd.cantidad_ordenada ELSE 0 END), 0) as real_cropprotection,
+        COALESCE(SUM(CASE WHEN p.tipo_categoria = 'Fertilizante' THEN cd.cantidad_ordenada ELSE 0 END), 0) as real_cosecha
+      FROM cotizacion_detalles cd
+      JOIN productos p ON cd.producto_id = p.id
+      JOIN cotizaciones c ON cd.cotizacion_id = c.id
+      WHERE c.estatus IN ('Vendido', 'Entregado') AND c.ciclo_agricola = ?
+    `;
+    const realParams = [ciclo];
+    if (req.user.nivel_rol === 'Asesor') {
+      realSql += ' AND c.asesor_id = ?';
+      realParams.push(req.user.id);
+    }
+    const realRes = await db.get(realSql, realParams);
+
+    // 7. Target quantities (metas)
+    let targetsSql = `
+      SELECT 
+        COALESCE(SUM(bolsas_objetivo), 0) as target_semilla,
+        COALESCE(SUM(meta_faena), 0) as target_faena,
+        COALESCE(SUM(meta_clavis), 0) as target_clavis,
+        COALESCE(SUM(meta_cropprotection), 0) as target_cropprotection,
+        COALESCE(SUM(meta_cosecha), 0) as target_cosecha,
+        COALESCE(SUM(monto_objetivo_mxn), 0.0) as target_monto
+      FROM metas_ventas
+      WHERE ciclo_agricola = ? AND activo = 1
+    `;
+    const targetsParams = [ciclo];
+    if (req.user.nivel_rol === 'Asesor') {
+      targetsSql += ' AND asesor_id = ?';
+      targetsParams.push(req.user.id);
+    }
+    const targetsRes = await db.get(targetsSql, targetsParams);
+
+    const goals_progress = [
+      { category: 'Semilla', target: targetsRes ? targetsRes.target_semilla : 0, real: realRes ? realRes.real_semilla : 0, unit: 'bolsas' },
+      { category: 'Agroquímicos (Faena)', target: targetsRes ? targetsRes.target_faena : 0, real: realRes ? realRes.real_faena : 0, unit: 'L/kg' },
+      { category: 'Agroquímicos (Clavis)', target: targetsRes ? targetsRes.target_clavis : 0, real: realRes ? realRes.real_clavis : 0, unit: 'L/kg' },
+      { category: 'Agroquímicos (Crop Protection)', target: targetsRes ? targetsRes.target_cropprotection : 0, real: realRes ? realRes.real_cropprotection : 0, unit: 'L/kg' },
+      { category: 'Cosecha', target: targetsRes ? targetsRes.target_cosecha : 0, real: realRes ? realRes.real_cosecha : 0, unit: 'toneladas' }
+    ];
+
+    // 8. Performance cards for active advisors
     const performanceSql = `
       SELECT 
         a.id, 
@@ -986,12 +1055,13 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       LEFT JOIN (
         SELECT asesor_id, COUNT(*) as quote_count 
         FROM cotizaciones 
+        WHERE ciclo_agricola = ?
         GROUP BY asesor_id
       ) q ON q.asesor_id = a.id
       LEFT JOIN (
         SELECT asesor_id, SUM(total_mxn) as sales_total 
         FROM cotizaciones 
-        WHERE estatus IN ('Vendido', 'Entregado') 
+        WHERE estatus IN ('Vendido', 'Entregado') AND ciclo_agricola = ?
         GROUP BY asesor_id
       ) s ON s.asesor_id = a.id
       LEFT JOIN (
@@ -1006,12 +1076,31 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'
       ORDER BY sales_total DESC, a.nombre ASC
     `;
-    const performance = await db.all(performanceSql);
-    
+    const performance = await db.all(performanceSql, [ciclo, ciclo]);
+
+    // Backward compatible
+    let visitsSql = `
+      SELECT a.nombre as adviser, count(v.id) as count
+      FROM asesores a
+      LEFT JOIN crm_visitas v ON v.asesor_id = a.id
+      WHERE a.activo = 1
+    `;
+    const visitsParams = [];
+    if (req.user.nivel_rol === 'Asesor') {
+      visitsSql += ' AND a.id = ?';
+      visitsParams.push(req.user.id);
+    }
+    visitsSql += ' GROUP BY a.id ORDER BY count DESC';
+    const visits = await db.all(visitsSql, visitsParams);
+
     res.json({
-      total_clients: clientsCount ? clientsCount.count : 0,
-      active_quotes: quotesCount ? quotesCount.count : 0,
-      total_sales_mxn: salesTotal ? salesTotal.total : 0.0,
+      total_clients: clientsCount ? Number(clientsCount.count) : 0,
+      promesa_sales_mxn: Number(promesa_sales_mxn),
+      contado_sales_mxn: Number(contado_sales_mxn),
+      credito_sales_mxn: Number(credito_sales_mxn),
+      recuperado_sales_mxn: Number(recuperado_sales_mxn),
+      total_sales_mxn: Number(total_sales_mxn),
+      goals_progress,
       advisers_visits: visits,
       advisers_performance: performance
     });
@@ -1324,7 +1413,16 @@ app.post('/api/metas', authenticateToken, async (req, res) => {
   if (req.user.nivel_rol !== 'Administrador') {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
-  const { asesor_id, ciclo_agricola, monto_objetivo_mxn, bolsas_objetivo } = req.body;
+  const { 
+    asesor_id, 
+    ciclo_agricola, 
+    monto_objetivo_mxn, 
+    bolsas_objetivo,
+    meta_faena,
+    meta_clavis,
+    meta_cropprotection,
+    meta_cosecha
+  } = req.body;
   if (!asesor_id || !ciclo_agricola) {
     return res.status(400).json({ error: 'asesor_id and ciclo_agricola are required' });
   }
@@ -1339,15 +1437,36 @@ app.post('/api/metas', authenticateToken, async (req, res) => {
     if (existing) {
       await db.run(`
         UPDATE metas_ventas
-        SET monto_objetivo_mxn = ?, bolsas_objetivo = ?
+        SET monto_objetivo_mxn = ?, bolsas_objetivo = ?,
+            meta_faena = ?, meta_clavis = ?, meta_cropprotection = ?, meta_cosecha = ?
         WHERE id = ?
-      `, [Number(monto_objetivo_mxn) || 0.0, Number(bolsas_objetivo) || 0, existing.id]);
+      `, [
+        Number(monto_objetivo_mxn) || 0.0, 
+        Number(bolsas_objetivo) || 0,
+        Number(meta_faena) || 0.0,
+        Number(meta_clavis) || 0.0,
+        Number(meta_cropprotection) || 0.0,
+        Number(meta_cosecha) || 0.0,
+        existing.id
+      ]);
       res.json({ message: 'Meta updated successfully' });
     } else {
       await db.run(`
-        INSERT INTO metas_ventas (asesor_id, ciclo_agricola, monto_objetivo_mxn, bolsas_objetivo)
-        VALUES (?, ?, ?, ?)
-      `, [asesor_id, ciclo_agricola, Number(monto_objetivo_mxn) || 0.0, Number(bolsas_objetivo) || 0]);
+        INSERT INTO metas_ventas (
+          asesor_id, ciclo_agricola, monto_objetivo_mxn, bolsas_objetivo,
+          meta_faena, meta_clavis, meta_cropprotection, meta_cosecha
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        asesor_id, 
+        ciclo_agricola, 
+        Number(monto_objetivo_mxn) || 0.0, 
+        Number(bolsas_objetivo) || 0,
+        Number(meta_faena) || 0.0,
+        Number(meta_clavis) || 0.0,
+        Number(meta_cropprotection) || 0.0,
+        Number(meta_cosecha) || 0.0
+      ]);
       res.status(201).json({ message: 'Meta created successfully' });
     }
   } catch (err) {
