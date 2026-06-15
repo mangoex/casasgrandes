@@ -159,23 +159,11 @@
             </div>
           </div>
           
-          <!-- Right side: Visits ranking / Adviser Agenda -->
+          <!-- Right side: Visits ranking / Adviser Agenda / Advisor Performance Cards -->
           <div class="card">
-            <h3 id="dashboard-visits-title" style="margin-bottom: 20px;">Seguimiento y Visitas por Asesor</h3>
-            <div id="dashboard-visits-container" class="table-container" style="border: none; box-shadow: none; margin-bottom: 0;">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Asesor</th>
-                    <th style="text-align: right;">Visitas en Campo</th>
-                  </tr>
-                </thead>
-                <tbody id="adviser-visits-tbody">
-                  <tr>
-                    <td colspan="2" style="text-align: center; color: var(--text-light);">Cargando...</td>
-                  </tr>
-                </tbody>
-              </table>
+            <h3 id="dashboard-visits-title" style="margin-bottom: 20px;">Desempeño de Asesores Activos</h3>
+            <div id="dashboard-visits-container" style="margin-bottom: 0;">
+              <div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando...</div>
             </div>
           </div>
         </div>
@@ -924,13 +912,14 @@
                     <th>Email</th>
                     <th>Teléfono</th>
                     <th>Rol</th>
+                    <th>Calificación</th>
                     <th>Estatus</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody id="admin-asesores-tbody">
                   <tr>
-                    <td colspan="7" style="text-align: center; color: var(--text-light);">Cargando...</td>
+                    <td colspan="8" style="text-align: center; color: var(--text-light);">Cargando...</td>
                   </tr>
                 </tbody>
               </table>
@@ -1219,9 +1208,15 @@
               </select>
             </div>
           </div>
-          <div class="form-group">
-            <label for="asesor-password" id="asesor-password-label">Contraseña</label>
-            <input type="password" id="asesor-password" class="form-input" placeholder="Dejar vacío para usar 'password123'">
+          <div class="input-grid">
+            <div class="form-group">
+              <label for="asesor-calificacion">Calificación Promedio (1.0 - 5.0)</label>
+              <input type="number" id="asesor-calificacion" class="form-input" min="1.0" max="5.0" step="0.1" placeholder="ej. 4.8">
+            </div>
+            <div class="form-group">
+              <label for="asesor-password" id="asesor-password-label">Contraseña</label>
+              <input type="password" id="asesor-password" class="form-input" placeholder="Dejar vacío para usar 'password123'">
+            </div>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top: 10px;" id="asesor-submit-btn">Registrar Asesor</button>
         </form>

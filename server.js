@@ -364,7 +364,7 @@ app.get('/api/cuentas-clave', authenticateToken, async (req, res) => {
 
 app.get('/api/asesores', authenticateToken, async (req, res) => {
   try {
-    let query = 'SELECT id, nombre, usuario, nivel_rol, email, telefono, activo, cumpleanos FROM asesores';
+    let query = 'SELECT id, nombre, usuario, nivel_rol, email, telefono, activo, cumpleanos, calificacion FROM asesores';
     const params = [];
     if (req.user.nivel_rol !== 'Administrador') {
       query += ' WHERE activo = 1';
@@ -382,7 +382,7 @@ app.post('/api/asesores', authenticateToken, async (req, res) => {
   if (req.user.nivel_rol !== 'Administrador') {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
-  const { nombre, usuario, nivel_rol, email, telefono, cumpleanos, password } = req.body;
+  const { nombre, usuario, nivel_rol, email, telefono, cumpleanos, password, calificacion } = req.body;
   if (!nombre || !usuario || !nivel_rol || !email) {
     return res.status(400).json({ error: 'Missing required advisor fields' });
   }
@@ -393,10 +393,11 @@ app.post('/api/asesores', authenticateToken, async (req, res) => {
     }
     const rawPassword = password || 'password123';
     const password_hash = await bcrypt.hash(rawPassword, 10);
+    const califVal = (calificacion === undefined || calificacion === null || calificacion === '') ? 5.0 : Number(calificacion);
     const result = await db.run(`
-      INSERT INTO asesores (nombre, usuario, nivel_rol, email, telefono, cumpleanos, password_hash, activo)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-    `, [nombre.trim(), usuario.trim(), nivel_rol, email.trim(), telefono || null, cumpleanos || null, password_hash]);
+      INSERT INTO asesores (nombre, usuario, nivel_rol, email, telefono, cumpleanos, password_hash, activo, calificacion)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+    `, [nombre.trim(), usuario.trim(), nivel_rol, email.trim(), telefono || null, cumpleanos || null, password_hash, califVal]);
     res.status(201).json({ id: result.id, message: 'Advisor registered successfully' });
   } catch (err) {
     console.error(err);
@@ -409,7 +410,7 @@ app.put('/api/asesores/:id', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
   const { id } = req.params;
-  const { nombre, usuario, nivel_rol, email, telefono, cumpleanos, activo, password } = req.body;
+  const { nombre, usuario, nivel_rol, email, telefono, cumpleanos, activo, password, calificacion } = req.body;
   if (!nombre || !usuario || !nivel_rol || !email) {
     return res.status(400).json({ error: 'Missing required advisor fields' });
   }
@@ -428,12 +429,13 @@ app.put('/api/asesores/:id', authenticateToken, async (req, res) => {
     }
 
     const activeVal = (activo === undefined || activo === null) ? adv.activo : (activo ? 1 : 0);
+    const califVal = (calificacion === undefined || calificacion === null || calificacion === '') ? adv.calificacion : Number(calificacion);
 
     await db.run(`
       UPDATE asesores
-      SET nombre = ?, usuario = ?, nivel_rol = ?, email = ?, telefono = ?, cumpleanos = ?, password_hash = ?, activo = ?
+      SET nombre = ?, usuario = ?, nivel_rol = ?, email = ?, telefono = ?, cumpleanos = ?, password_hash = ?, activo = ?, calificacion = ?
       WHERE id = ?
-    `, [nombre.trim(), usuario.trim(), nivel_rol, email.trim(), telefono || null, cumpleanos || null, passwordHash, activeVal, id]);
+    `, [nombre.trim(), usuario.trim(), nivel_rol, email.trim(), telefono || null, cumpleanos || null, passwordHash, activeVal, califVal, id]);
     res.json({ message: 'Advisor updated successfully' });
   } catch (err) {
     console.error(err);
@@ -944,7 +946,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
     const quotesCount = await db.get(quotesSql, params);
     const salesTotal = await db.get(salesSql, params);
     
-    // Visits by adviser
+    // Visits by adviser (keeping it for backward compatibility or potential uses)
     let visitsSql = `
       SELECT a.nombre as adviser, count(v.id) as count
       FROM asesores a
@@ -958,12 +960,60 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
     }
     visitsSql += ' GROUP BY a.id ORDER BY count DESC';
     const visits = await db.all(visitsSql, visitsParams);
+
+    // Fetch active advisors performance metrics
+    const performanceSql = `
+      SELECT 
+        a.id, 
+        a.nombre, 
+        a.usuario, 
+        a.email, 
+        a.telefono, 
+        COALESCE(a.calificacion, 5.0) as calificacion,
+        COALESCE(c.client_count, 0) as client_count,
+        COALESCE(q.quote_count, 0) as quote_count,
+        COALESCE(s.sales_total, 0.0) as sales_total,
+        COALESCE(p.plan_completed, 0) as plan_completed,
+        COALESCE(p.plan_expired, 0) as plan_expired,
+        COALESCE(p.plan_total, 0) as plan_total
+      FROM asesores a
+      LEFT JOIN (
+        SELECT asesor_id, COUNT(*) as client_count 
+        FROM clientes 
+        WHERE activo = 1 
+        GROUP BY asesor_id
+      ) c ON c.asesor_id = a.id
+      LEFT JOIN (
+        SELECT asesor_id, COUNT(*) as quote_count 
+        FROM cotizaciones 
+        GROUP BY asesor_id
+      ) q ON q.asesor_id = a.id
+      LEFT JOIN (
+        SELECT asesor_id, SUM(total_mxn) as sales_total 
+        FROM cotizaciones 
+        WHERE estatus IN ('Vendido', 'Entregado') 
+        GROUP BY asesor_id
+      ) s ON s.asesor_id = a.id
+      LEFT JOIN (
+        SELECT 
+          asesor_id, 
+          COUNT(*) as plan_total,
+          SUM(CASE WHEN realizada = 1 THEN 1 ELSE 0 END) as plan_completed,
+          SUM(CASE WHEN realizada = 3 THEN 1 ELSE 0 END) as plan_expired
+        FROM planificacion_semanal 
+        GROUP BY asesor_id
+      ) p ON p.asesor_id = a.id
+      WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'
+      ORDER BY sales_total DESC, a.nombre ASC
+    `;
+    const performance = await db.all(performanceSql);
     
     res.json({
       total_clients: clientsCount ? clientsCount.count : 0,
       active_quotes: quotesCount ? quotesCount.count : 0,
       total_sales_mxn: salesTotal ? salesTotal.total : 0.0,
-      advisers_visits: visits
+      advisers_visits: visits,
+      advisers_performance: performance
     });
   } catch (err) {
     console.error(err);

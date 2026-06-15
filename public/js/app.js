@@ -320,6 +320,24 @@ document.getElementById('logout-btn').addEventListener('click', (e) => {
 // DASHBOARD LOGIC
 // -------------------------------------------------------------
 async function loadDashboardData() {
+  const getInitials = (name) => {
+    if (!name) return 'A';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  };
+
+  const getAvatarColor = (name) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const h = Math.abs(hash % 360);
+    return `hsl(${h}, 65%, 45%)`;
+  };
+
   try {
     const res = await fetch(`${API_URL}/api/dashboard/stats`, { headers: getHeaders() });
     const stats = await res.json();
@@ -537,39 +555,72 @@ async function loadDashboardData() {
       visitsContainer.innerHTML = timelineHtml;
       
     } else {
-      // Admin or Coordinator: show ranking table
-      visitsTitle.textContent = 'Seguimiento y Visitas por Asesor';
+      // Admin or Coordinator: show active advisor performance cards
+      visitsTitle.textContent = 'Desempeño de Asesores Activos';
       
-      let tableHtml = `
-        <table>
-          <thead>
-            <tr>
-              <th>Asesor</th>
-              <th style="text-align: right;">Visitas en Campo</th>
-            </tr>
-          </thead>
-          <tbody id="adviser-visits-tbody">
-      `;
-      
-      if (!stats.advisers_visits || stats.advisers_visits.length === 0) {
-        tableHtml += `<tr><td colspan="2" style="text-align: center; color: var(--text-light);">No hay visitas registradas.</td></tr>`;
+      if (!stats.advisers_performance || stats.advisers_performance.length === 0) {
+        visitsContainer.innerHTML = `<div style="text-align: center; color: var(--text-light); padding: 30px;">No hay asesores comerciales activos registrados.</div>`;
       } else {
-        stats.advisers_visits.forEach(v => {
-          tableHtml += `
-            <tr>
-              <td><strong>${v.adviser}</strong></td>
-              <td style="text-align: right; font-weight: 600; color: var(--primary);">${v.count}</td>
-            </tr>
+        let cardsHtml = `<div class="advisor-cards-container">`;
+        stats.advisers_performance.forEach(adv => {
+          // Calculate compliance percentage
+          let compliance = 100;
+          const plansEvaluated = adv.plan_completed + adv.plan_expired;
+          if (plansEvaluated > 0) {
+            compliance = Math.round((adv.plan_completed / plansEvaluated) * 100);
+          } else if (adv.plan_total === 0) {
+            compliance = null; // No visits planned
+          }
+          
+          let complianceLabel = compliance !== null ? `${compliance}%` : 'N/A';
+          let complianceClass = 'badge-success';
+          if (compliance !== null) {
+            if (compliance < 50) complianceClass = 'badge-danger';
+            else if (compliance < 80) complianceClass = 'badge-warning';
+          } else {
+            complianceClass = 'badge-secondary';
+          }
+          
+          const ratingVal = Number(adv.calificacion) || 5.0;
+          const nameInitials = getInitials(adv.nombre);
+          const avatarColor = getAvatarColor(adv.nombre);
+          
+          cardsHtml += `
+            <div class="advisor-performance-card">
+              <div class="advisor-card-header">
+                <div class="advisor-avatar" style="background-color: ${avatarColor};">${nameInitials}</div>
+                <div class="advisor-meta-info">
+                  <div class="advisor-name-row">
+                    <span class="advisor-card-name">${adv.nombre}</span>
+                    <span class="advisor-card-rating">⭐ ${ratingVal.toFixed(1)}</span>
+                  </div>
+                  <span class="advisor-card-email">${adv.email || 'Sin correo'}</span>
+                </div>
+              </div>
+              <div class="advisor-metrics-grid">
+                <div class="advisor-metric-item">
+                  <span class="advisor-metric-label">Ventas</span>
+                  <span class="advisor-metric-value sales">$${Number(adv.sales_total).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                </div>
+                <div class="advisor-metric-item">
+                  <span class="advisor-metric-label">Clientes</span>
+                  <span class="advisor-metric-value">${adv.client_count}</span>
+                </div>
+                <div class="advisor-metric-item">
+                  <span class="advisor-metric-label">Cumplimiento</span>
+                  <span class="advisor-metric-value"><span class="badge ${complianceClass}">${complianceLabel}</span></span>
+                </div>
+                <div class="advisor-metric-item">
+                  <span class="advisor-metric-label">Cotizaciones</span>
+                  <span class="advisor-metric-value">${adv.quote_count}</span>
+                </div>
+              </div>
+            </div>
           `;
         });
+        cardsHtml += `</div>`;
+        visitsContainer.innerHTML = cardsHtml;
       }
-      
-      tableHtml += `
-          </tbody>
-        </table>
-      `;
-      
-      visitsContainer.innerHTML = tableHtml;
     }
     
   } catch (err) {
@@ -1684,7 +1735,7 @@ async function loadAdminData() {
 async function loadAdminAsesores() {
   const tbody = document.getElementById('admin-asesores-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">Cargando...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-light);">Cargando...</td></tr>';
   
   try {
     const res = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
@@ -1692,7 +1743,7 @@ async function loadAdminAsesores() {
     
     tbody.innerHTML = '';
     if (allAdminAsesores.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No hay asesores registrados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No hay asesores registrados.</td></tr>';
       return;
     }
     
@@ -1700,6 +1751,7 @@ async function loadAdminAsesores() {
       const activeText = a.activo === 1 ? 'Activo' : 'Inactivo';
       const activeBadge = a.activo === 1 ? 'badge-success' : 'badge-danger';
       const tel = a.telefono || '-';
+      const ratingVal = Number(a.calificacion) || 5.0;
       
       tbody.innerHTML += `
         <tr style="${a.activo === 0 ? 'background-color: #f8fafc; opacity: 0.75;' : ''}">
@@ -1708,6 +1760,7 @@ async function loadAdminAsesores() {
           <td>${a.email}</td>
           <td>${tel}</td>
           <td><span class="badge" style="background-color: ${a.nivel_rol === 'Administrador' ? '#eff6ff' : '#f1f5f9'}; color: ${a.nivel_rol === 'Administrador' ? '#1d4ed8' : '#475569'}; border-color: ${a.nivel_rol === 'Administrador' ? '#bfdbfe' : '#e2e8f0'};">${a.nivel_rol}</span></td>
+          <td>⭐ ${ratingVal.toFixed(1)}</td>
           <td><span class="badge ${activeBadge}">${activeText}</span></td>
           <td>
             <div style="display: flex; gap: 8px;">
@@ -1722,7 +1775,7 @@ async function loadAdminAsesores() {
       `;
     });
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger);">Error al cargar asesores: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger);">Error al cargar asesores: ${err.message}</td></tr>`;
   }
 }
 
@@ -1786,6 +1839,7 @@ if (document.getElementById('btn-open-asesor-modal')) {
     document.getElementById('asesor-password-label').textContent = 'Contraseña';
     document.getElementById('asesor-password').placeholder = 'Dejar vacío para usar "password123"';
     document.getElementById('asesor-status').value = '1';
+    document.getElementById('asesor-calificacion').value = '5.0';
     
     openModal('add-asesor-modal');
   });
@@ -1803,6 +1857,7 @@ window.openEditAsesorModal = function(id) {
   document.getElementById('asesor-phone').value = a.telefono || '';
   document.getElementById('asesor-cumpleanos').value = a.cumpleanos || '';
   document.getElementById('asesor-status').value = a.activo.toString();
+  document.getElementById('asesor-calificacion').value = a.calificacion !== undefined && a.calificacion !== null ? a.calificacion : '5.0';
   document.getElementById('asesor-password').value = '';
   
   document.getElementById('asesor-modal-title').textContent = 'Editar Asesor';
@@ -1825,6 +1880,7 @@ document.getElementById('add-asesor-form').addEventListener('submit', async (e) 
     telefono: document.getElementById('asesor-phone').value.trim() || null,
     cumpleanos: document.getElementById('asesor-cumpleanos').value || null,
     activo: document.getElementById('asesor-status').value === '1',
+    calificacion: document.getElementById('asesor-calificacion').value ? Number(document.getElementById('asesor-calificacion').value) : 5.0,
     password: document.getElementById('asesor-password').value || null
   };
   

@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS asesores (
     telefono TEXT,
     cumpleanos TEXT,
     password_hash TEXT NOT NULL,
-    activo INTEGER DEFAULT 1
+    activo INTEGER DEFAULT 1,
+    calificacion REAL DEFAULT 5.0
 )
 """)
 

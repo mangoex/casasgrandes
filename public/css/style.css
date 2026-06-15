@@ -1948,3 +1948,116 @@ tr:hover td {
   }
 }
 
+/* Advisor Performance Cards (Premium Aesthetics) */
+.advisor-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.advisor-performance-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.advisor-performance-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+}
+
+.advisor-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.advisor-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+.advisor-meta-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.advisor-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.advisor-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.advisor-card-rating {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.advisor-card-email {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 1px;
+}
+
+.advisor-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.advisor-metric-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.advisor-metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.advisor-metric-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.advisor-metric-value.sales {
+  color: var(--success);
+}
+
+

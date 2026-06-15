@@ -47,9 +47,8 @@ async function runTests() {
     // Test Case 2: 1 bag of A-7573 Acceleron in 'Precio JUL-SEP15' (12% off)
     const prod2 = await db.get("SELECT * FROM productos WHERE producto = 'A-7573 Acceleron'");
     console.log(`\nProduct 2 found: ${prod2.producto} | List Price: ${prod2.list_price_mxn}`);
-    console.log(`Season: ${season.actividad} | Discount: ${season.descuento_porcentaje}% | Action: ${season.estado_operacion}`);
-
-    const discount = season.descuento_porcentaje;
+    const discount = season.descuento_percentage !== undefined ? season.descuento_percentage : season.descuento_porcentaje;
+    console.log(`Season: ${season.actividad} | Discount: ${discount}% | Action: ${season.estado_operacion}`);
     let seasonPrice = prod2.list_price_mxn;
     if (season.estado_operacion === 'Restar') {
       seasonPrice = prod2.list_price_mxn * (1 - discount / 100.0);
