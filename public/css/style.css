@@ -2129,4 +2129,26 @@ tr:hover td {
   transform: translateY(-2px);
 }
 
+/* Highlight pulse animation for navigated cards */
+.kanban-card.highlight-pulse {
+  animation: cardHighlightPulse 2.5s ease-in-out;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 15px rgba(39, 174, 96, 0.6) !important;
+}
+
+@keyframes cardHighlightPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7);
+    background-color: rgba(39, 174, 96, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(39, 174, 96, 0);
+    background-color: rgba(39, 174, 96, 0.15);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(39, 174, 96, 0);
+    background-color: rgba(39, 174, 96, 0.05);
+  }
+}
+
 

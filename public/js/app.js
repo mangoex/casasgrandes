@@ -923,7 +923,7 @@ function renderKanbanBoard(quotesList) {
       if (e.target.closest('.kanban-arrow-btn') || e.target.closest('button')) {
         return;
       }
-      loadClientCRMDetails(q.cliente_id);
+      showQuoteDetails(q.id);
     });
     
     // Build items summary label
@@ -1036,6 +1036,128 @@ async function loadClientCRMDetails(clientId) {
     openModal('client-detail-modal');
   } catch (err) {
     console.error('Failed to load client details:', err);
+  }
+}
+
+window.showQuoteDetails = async function(quoteId) {
+  try {
+    // 1. Find the quote in allQuotes or fetch it if not found
+    let quote = allQuotes.find(q => q.id === Number(quoteId));
+    if (!quote) {
+      // Fetch specifically if not found in cache
+      const res = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
+      if (res.ok) {
+        allQuotes = await res.json();
+        quote = allQuotes.find(q => q.id === Number(quoteId));
+      }
+    }
+
+    if (!quote) {
+      alert('No se encontró la cotización especificada.');
+      return;
+    }
+
+    // 2. Render details fields
+    document.getElementById('quote-detail-folio').textContent = quote.folio_cotizacion || '-';
+    document.getElementById('quote-detail-cliente').textContent = quote.cliente_nombre || '-';
+    document.getElementById('quote-detail-asesor').textContent = quote.asesor_nombre || '-';
+    document.getElementById('quote-detail-fecha').textContent = quote.fecha_creacion || '-';
+    document.getElementById('quote-detail-ciclo').textContent = quote.ciclo_agricola || '-';
+    document.getElementById('quote-detail-condiciones').textContent = quote.condiciones_pago || '-';
+    document.getElementById('quote-detail-financiera').textContent = quote.financiera || 'Ninguna';
+    document.getElementById('quote-detail-notas').textContent = quote.notas || 'Sin notas adicionales.';
+
+    // Status Badge
+    const statusBadge = document.getElementById('quote-detail-estatus');
+    statusBadge.textContent = quote.estatus;
+    statusBadge.className = 'badge';
+    
+    // Setup badge color
+    if (quote.estatus === 'Borrador') {
+      statusBadge.style.background = 'rgba(52, 152, 219, 0.2)';
+      statusBadge.style.color = '#3498db';
+    } else if (quote.estatus === 'Autorizada' || quote.estatus === 'Cotizado') {
+      statusBadge.style.background = 'rgba(46, 204, 113, 0.2)';
+      statusBadge.style.color = '#2ecc71';
+    } else if (quote.estatus === 'Vendido') {
+      statusBadge.style.background = 'rgba(241, 196, 15, 0.2)';
+      statusBadge.style.color = '#f1c40f';
+    } else {
+      statusBadge.style.background = 'rgba(149, 165, 166, 0.2)';
+      statusBadge.style.color = '#95a5a6';
+    }
+
+    // 3. Render products table
+    const productsBody = document.getElementById('quote-detail-products-body');
+    productsBody.innerHTML = '';
+    
+    if (!quote.items || quote.items.length === 0) {
+      productsBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-light); padding: 12px;">Sin productos en esta cotización.</td></tr>`;
+    } else {
+      quote.items.forEach(item => {
+        const subtotal = item.cantidad * item.precio_neto_unitario;
+        productsBody.innerHTML += `
+          <tr>
+            <td style="padding: 8px; border-bottom: 1px solid var(--border);">${item.producto_nombre}</td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: center;">${item.cantidad}</td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: right;">$${parseFloat(item.precio_lista_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: right;">$${parseFloat(item.precio_neto_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: right; font-weight: 500;">$${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        `;
+      });
+    }
+
+    // Render total
+    document.getElementById('quote-detail-total').textContent = `$${parseFloat(quote.total_mxn).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+
+    // 4. Action button "Autorizar" visibility
+    const authBtn = document.getElementById('btn-authorize-quote');
+    const isBorrador = quote.estatus === 'Borrador' || quote.estatus === 'Pendiente Autorización';
+    const hasPermission = user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador';
+
+    if (isBorrador && hasPermission) {
+      authBtn.style.display = 'inline-flex';
+      authBtn.onclick = async () => {
+        if (confirm(`¿Está seguro que desea autorizar la cotización con Folio ${quote.folio_cotizacion}?`)) {
+          await authorizeQuote(quote.id);
+        }
+      };
+    } else {
+      authBtn.style.display = 'none';
+    }
+
+    openModal('quote-detail-modal');
+  } catch (err) {
+    console.error('Failed to show quote details:', err);
+    alert('Error al mostrar los detalles de la cotización: ' + err.message);
+  }
+};
+
+async function authorizeQuote(quoteId) {
+  try {
+    const res = await fetch(`${API_URL}/api/cotizaciones/${quoteId}/status`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ estatus: 'Autorizada' })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to authorize quote');
+    }
+    
+    closeModal('quote-detail-modal');
+    
+    // Reload CRM Board
+    await loadCRMBoardData();
+    
+    // Reload Outreach panel if open
+    if (document.getElementById('outreach-quotes-tbody')) {
+      await loadOutreachPanel();
+    }
+  } catch (err) {
+    alert(`Error al autorizar: ${err.message}`);
   }
 }
 
@@ -4203,13 +4325,14 @@ async function loadOutreachPanel() {
     outreachQuotes.forEach(q => {
       html += `
         <tr>
-          <td><strong>${q.folio_cotizacion}</strong></td>
+          <td><a href="javascript:void(0)" onclick="showQuoteDetails('${q.id}')" style="color: var(--accent); font-weight: 700; text-decoration: none;">${q.folio_cotizacion}</a></td>
           <td>${q.cliente_nombre || q.cliente_id}</td>
           <td>${q.asesor_nombre || 'Sin asignar'}</td>
           <td style="text-align: right; font-weight: 600;">$${parseFloat(q.total_mxn).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</td>
           <td><span class="badge" style="background: rgba(52, 152, 219, 0.2); color: #3498db; padding: 2px 8px; border-radius: 10px; font-size: 11px;">${q.estatus}</span></td>
-          <td>
-            <button class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 12px;" onclick="viewQuoteInCRM('${q.id}')">👁️ Ver en Kanban</button>
+          <td style="display: flex; gap: 6px;">
+            <button class="btn btn-primary" style="width: auto; padding: 4px 10px; font-size: 12px; margin: 0; background: var(--accent); border-color: var(--accent);" onclick="showQuoteDetails('${q.id}')">👁️ Ver Detalle</button>
+            <button class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 12px; margin: 0;" onclick="viewQuoteInCRM('${q.id}')">📋 Ver en Kanban</button>
           </td>
         </tr>
       `;
@@ -4222,10 +4345,22 @@ async function loadOutreachPanel() {
   }
 }
 
-function viewQuoteInCRM(quoteId) {
-  // Switch to CRM View and highlight or show the Kanban board
+window.viewQuoteInCRM = function(quoteId) {
+  // Switch to CRM View
   const crmTab = document.querySelector('.nav-links [data-target="crm-view"]');
   if (crmTab) crmTab.click();
+  
+  // Wait a bit for board render, then scroll to it and highlight it
+  setTimeout(() => {
+    const card = document.getElementById(`quote-card-${quoteId}`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('highlight-pulse');
+      setTimeout(() => {
+        card.classList.remove('highlight-pulse');
+      }, 3000);
+    }
+  }, 400);
 }
 
 async function loadIALogs() {

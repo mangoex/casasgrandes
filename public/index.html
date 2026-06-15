@@ -1248,6 +1248,66 @@
   </section>
 
   <!-- =========================================================
+       2.5 MODAL POPUP (QUOTE DETAIL & AUTHORIZATION)
+       ========================================================= -->
+  <div id="quote-detail-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 700px;">
+      <div class="modal-header">
+        <h2 id="quote-detail-title">Detalle de Cotización</h2>
+        <button class="modal-close" onclick="closeModal('quote-detail-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-grid-details" style="margin-bottom: 20px;">
+          <div><strong>Folio:</strong> <span id="quote-detail-folio">-</span></div>
+          <div><strong>Cliente:</strong> <span id="quote-detail-cliente">-</span></div>
+          <div><strong>Asesor:</strong> <span id="quote-detail-asesor">-</span></div>
+          <div><strong>Fecha Creación:</strong> <span id="quote-detail-fecha">-</span></div>
+          <div><strong>Ciclo Agrícola:</strong> <span id="quote-detail-ciclo">-</span></div>
+          <div><strong>Condiciones de Pago:</strong> <span id="quote-detail-condiciones">-</span></div>
+          <div><strong>Estatus:</strong> <span id="quote-detail-estatus" class="badge">-</span></div>
+          <div><strong>Financiera:</strong> <span id="quote-detail-financiera">-</span></div>
+        </div>
+
+        <h4 style="margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px;">Productos Cotizados</h4>
+        <div style="overflow-x: auto; margin-bottom: 20px;">
+          <table class="table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+              <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+                <th style="padding: 8px;">Producto</th>
+                <th style="padding: 8px; text-align: center;">Cantidad</th>
+                <th style="padding: 8px; text-align: right;">Precio Lista</th>
+                <th style="padding: 8px; text-align: right;">Precio Neto</th>
+                <th style="padding: 8px; text-align: right;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody id="quote-detail-products-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+            <tfoot>
+              <tr style="border-top: 2px solid var(--border); font-weight: bold;">
+                <td colspan="4" style="padding: 10px; text-align: right;">Total Estimado:</td>
+                <td id="quote-detail-total" style="padding: 10px; text-align: right; color: var(--accent);">0.00 MXN</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+          <strong>Notas:</strong>
+          <p id="quote-detail-notas" style="background: var(--bg-hover); padding: 12px; border-radius: var(--radius); font-size: 13px; margin-top: 6px; color: var(--text); border-left: 3px solid var(--border); line-height: 1.4;">-</p>
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+          <button id="btn-authorize-quote" class="btn btn-primary" style="display: none; width: auto; background: var(--accent); border-color: var(--accent); font-weight: 600; gap: 6px; align-items: center;">
+            ✔️ Autorizar Cotización
+          </button>
+          <button class="btn btn-secondary" style="width: auto; margin-top: 0;" onclick="closeModal('quote-detail-modal')">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
        3. MODAL POPUPS (CLIENT DETAIL & VISIT LOGS)
        ========================================================= -->
   <div id="client-detail-modal" class="modal-overlay">
