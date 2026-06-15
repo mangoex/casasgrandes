@@ -135,36 +135,34 @@
           </div>
         </div>
 
-        <div class="dashboard-tables-grid" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; margin-top: 30px;">
-          <!-- Left side: Recent orders -->
-          <div class="card">
-            <h3 style="margin-bottom: 20px;">Últimas Cotizaciones y Ventas</h3>
-            <div class="table-container" style="border: none; box-shadow: none; margin-bottom: 0;">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Folio</th>
-                    <th>Cliente</th>
-                    <th id="th-asesor">Asesor</th>
-                    <th>Total</th>
-                    <th>Estatus</th>
-                  </tr>
-                </thead>
-                <tbody id="recent-orders-tbody">
-                  <tr>
-                    <td colspan="5" style="text-align: center; color: var(--text-light);">Cargando...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+        <!-- Row 1: Advisor Performance Cards / Personal Agenda -->
+        <div class="card" style="margin-top: 30px; margin-bottom: 30px;">
+          <h3 id="dashboard-visits-title" style="margin-bottom: 20px;">Desempeño de Asesores Activos</h3>
+          <div id="dashboard-visits-container" style="margin-bottom: 0;">
+            <div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando...</div>
           </div>
-          
-          <!-- Right side: Visits ranking / Adviser Agenda / Advisor Performance Cards -->
-          <div class="card">
-            <h3 id="dashboard-visits-title" style="margin-bottom: 20px;">Desempeño de Asesores Activos</h3>
-            <div id="dashboard-visits-container" style="margin-bottom: 0;">
-              <div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando...</div>
-            </div>
+        </div>
+
+        <!-- Row 2: Recent Quotes and Sales -->
+        <div class="card" style="margin-top: 30px;">
+          <h3 style="margin-bottom: 20px;">Últimas Cotizaciones y Ventas</h3>
+          <div class="table-container" style="border: none; box-shadow: none; margin-bottom: 0;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Folio</th>
+                  <th>Cliente</th>
+                  <th id="th-asesor">Asesor</th>
+                  <th>Total</th>
+                  <th>Estatus</th>
+                </tr>
+              </thead>
+              <tbody id="recent-orders-tbody">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--text-light);">Cargando...</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
