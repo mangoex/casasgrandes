@@ -932,6 +932,7 @@
           <button id="tab-admin-asesores" class="btn btn-secondary active" style="width: auto; padding: 8px 20px; font-size: 14px;">👥 Asesores</button>
           <button id="tab-admin-productos" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🌾 Productos</button>
           <button id="tab-admin-metas" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🎯 Metas Comerciales</button>
+          <button id="tab-admin-ciclos" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">📅 Ciclos Agrícolas</button>
         </div>
 
         <!-- 1. Asesores panel -->
@@ -998,29 +999,100 @@
 
         <!-- 3. Metas panel -->
         <div id="panel-admin-metas" class="admin-panel" style="display: none;">
+          <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 0; flex-wrap: wrap; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="metas-ciclo-select" style="font-weight: 600; font-size: 14px; white-space: nowrap;">Ciclo Agrícola:</label>
+                <select id="metas-ciclo-select" class="form-input" style="width: 200px; padding: 6px 12px; margin: 0;"></select>
+              </div>
+              <div style="display: flex; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px; background: rgba(0, 0, 0, 0.05);">
+                <button id="btn-subtab-metas-globales" class="btn btn-secondary active" style="width: auto; padding: 6px 16px; font-size: 13px; border: 0; margin: 0;">Metas Globales</button>
+                <button id="btn-subtab-metas-asesores" class="btn btn-secondary" style="width: auto; padding: 6px 16px; font-size: 13px; border: 0; margin: 0;">Asignación a Asesores</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sub-panel Metas Globales -->
+          <div id="subpanel-metas-globales" class="metas-subpanel">
+            <div class="card">
+              <div class="flex-header" style="margin-bottom: 20px;">
+                <h3>Metas de Venta Globales por Producto</h3>
+                <button id="btn-open-meta-global-modal" class="btn btn-primary" style="width: auto; padding: 8px 20px;">➕ Configurar Meta Global</button>
+              </div>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Categoría</th>
+                      <th style="text-align: right;">Cantidad Objetivo (Bolsas/L)</th>
+                      <th style="text-align: right;">Monto Objetivo (MXN)</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-metas-globales-tbody">
+                    <tr>
+                      <td colspan="5" style="text-align: center; color: var(--text-light);">Seleccione un ciclo agrícola para cargar metas.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sub-panel Asignación a Asesores -->
+          <div id="subpanel-metas-asesores" class="metas-subpanel" style="display: none;">
+            <div class="card">
+              <div class="flex-header" style="margin-bottom: 20px;">
+                <h3>Metas de Venta Asignadas por Asesor</h3>
+                <button id="btn-open-meta-modal" class="btn btn-primary" style="width: auto; padding: 8px 20px;">➕ Configurar Meta Manual</button>
+              </div>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Asesor</th>
+                      <th>Ciclo Agrícola</th>
+                      <th style="text-align: right;">Meta Económica (MXN)</th>
+                      <th style="text-align: right;">Meta Semilla</th>
+                      <th style="text-align: right;">Meta Faena</th>
+                      <th style="text-align: right;">Meta Clavis</th>
+                      <th style="text-align: right;">Meta Crop Prot.</th>
+                      <th style="text-align: right;">Meta Cosecha</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-metas-tbody">
+                    <tr>
+                      <td colspan="9" style="text-align: center; color: var(--text-light);">Cargando...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Ciclos panel -->
+        <div id="panel-admin-ciclos" class="admin-panel" style="display: none;">
           <div class="card">
             <div class="flex-header" style="margin-bottom: 20px;">
-              <h3>Administrar Metas de Venta</h3>
-              <button id="btn-open-meta-modal" class="btn btn-primary" style="width: auto; padding: 8px 20px;">➕ Configurar Meta</button>
+              <h3>Administrar Catálogo de Ciclos Agrícolas</h3>
+              <button id="btn-open-ciclo-modal" class="btn btn-primary" style="width: auto; padding: 8px 20px;">➕ Registrar Ciclo</button>
             </div>
             <div class="table-container">
               <table>
                 <thead>
                   <tr>
-                    <th>Asesor</th>
-                    <th>Ciclo Agrícola</th>
-                    <th style="text-align: right;">Meta Económica (MXN)</th>
-                    <th style="text-align: right;">Meta Semilla</th>
-                    <th style="text-align: right;">Meta Faena</th>
-                    <th style="text-align: right;">Meta Clavis</th>
-                    <th style="text-align: right;">Meta Crop Prot.</th>
-                    <th style="text-align: right;">Meta Cosecha</th>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Estatus</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
-                <tbody id="admin-metas-tbody">
+                <tbody id="admin-ciclos-tbody">
                   <tr>
-                    <td colspan="9" style="text-align: center; color: var(--text-light);">Cargando...</td>
+                    <td colspan="4" style="text-align: center; color: var(--text-light);">Cargando...</td>
                   </tr>
                 </tbody>
               </table>
@@ -1136,9 +1208,13 @@
 
         <!-- 1. CEO Tab content -->
         <div id="panel-ia-ceo" class="ia-panel active">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center; flex-wrap: wrap; gap: 12px;">
             <h3 style="margin: 0;">Propuesta de Metas de Ventas</h3>
-            <button id="btn-run-ceo" class="btn btn-secondary" style="width: auto; display: flex; align-items: center; gap: 6px;">⚡ Ejecutar CEO Agent Ahora</button>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <label for="ia-ceo-ciclo-select" style="font-weight: 500; font-size: 14px; margin: 0;">Ciclo Agrícola:</label>
+              <select id="ia-ceo-ciclo-select" class="form-input" style="width: 180px; padding: 6px 12px; margin: 0;"></select>
+              <button id="btn-run-ceo" class="btn btn-secondary" style="width: auto; display: flex; align-items: center; gap: 6px; margin: 0;">⚡ Ejecutar CEO Agent</button>
+            </div>
           </div>
           
           <div id="ceo-proposal-container">
@@ -1735,10 +1811,7 @@
           <div class="input-grid">
             <div class="form-group">
               <label for="meta-ciclo">Ciclo Agrícola</label>
-               <select id="meta-ciclo" class="form-input" required>
-                 <option value="O-I 2026">Otoño-Invierno (O-I 2026)</option>
-                 <option value="P-V 2026">Primavera-Verano (P-V 2026)</option>
-               </select>
+               <select id="meta-ciclo" class="form-input" required></select>
             </div>
             <div class="form-group">
               <label for="meta-bags">Meta (Bolsas de Semilla)</label>
@@ -1770,6 +1843,65 @@
             <input type="number" step="0.01" id="meta-amount" class="form-input" placeholder="0.00" min="0" required>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Guardar Meta</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="add-meta-global-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2 id="meta-global-modal-title">Configurar Meta de Venta Global</h2>
+        <button class="modal-close" onclick="closeModal('add-meta-global-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="add-meta-global-form">
+          <input type="hidden" id="meta-global-id">
+          <div class="form-group">
+            <label for="meta-global-ciclo">Ciclo Agrícola</label>
+            <select id="meta-global-ciclo" class="form-input" required></select>
+          </div>
+          <div class="form-group">
+            <label for="meta-global-producto">Producto</label>
+            <select id="meta-global-producto" class="form-input" required></select>
+          </div>
+          <div class="input-grid">
+            <div class="form-group">
+              <label for="meta-global-cantidad">Cantidad Objetivo (Bolsas/L)</label>
+              <input type="number" step="0.1" id="meta-global-cantidad" class="form-input" placeholder="0.0" min="0" required>
+            </div>
+            <div class="form-group">
+              <label for="meta-global-monto">Monto Objetivo (MXN)</label>
+              <input type="number" step="0.01" id="meta-global-monto" class="form-input" placeholder="0.00" min="0" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Guardar Meta Global</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="add-ciclo-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 400px;">
+      <div class="modal-header">
+        <h2 id="ciclo-modal-title">Registrar Ciclo Agrícola</h2>
+        <button class="modal-close" onclick="closeModal('add-ciclo-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="add-ciclo-form">
+          <input type="hidden" id="ciclo-id">
+          <div class="form-group">
+            <label for="ciclo-nombre">Nombre del Ciclo</label>
+            <input type="text" id="ciclo-nombre" class="form-input" placeholder="Ej: P-V 2026" required>
+          </div>
+          <div class="form-group">
+            <label for="ciclo-activo">Estatus</label>
+            <select id="ciclo-activo" class="form-input">
+              <option value="1">Activo</option>
+              <option value="0">Inactivo</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Guardar Ciclo</button>
         </form>
       </div>
     </div>

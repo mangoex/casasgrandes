@@ -87,6 +87,8 @@ async function runMigration() {
     await db.run('DROP TABLE IF EXISTS crm_agentes_config CASCADE');
     await db.run('DROP TABLE IF EXISTS crm_agentes_logs CASCADE');
     await db.run('DROP TABLE IF EXISTS crm_ceo_propuestas CASCADE');
+    await db.run('DROP TABLE IF EXISTS metas_globales CASCADE');
+    await db.run('DROP TABLE IF EXISTS ciclos CASCADE');
 
     // 2. Create tables using Postgres SERIAL
     console.log('Creating tables...');
@@ -314,13 +316,41 @@ async function runMigration() {
     `);
 
     await db.run(`
+      CREATE TABLE ciclos (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(50) UNIQUE NOT NULL,
+        activo INTEGER DEFAULT 1,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE metas_globales (
+        id SERIAL PRIMARY KEY,
+        ciclo_id INTEGER REFERENCES ciclos(id) ON DELETE CASCADE,
+        producto_id INTEGER REFERENCES productos(id) ON DELETE CASCADE,
+        cantidad_objetivo REAL DEFAULT 0.0,
+        monto_objetivo_mxn REAL DEFAULT 0.0,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(ciclo_id, producto_id)
+      )
+    `);
+
+    await db.run(`
       CREATE TABLE crm_ceo_propuestas (
         id SERIAL PRIMARY KEY,
+        ciclo_id INTEGER REFERENCES ciclos(id) ON DELETE CASCADE,
         propuesta_json TEXT NOT NULL,
         propuesta_markdown TEXT NOT NULL,
         estatus TEXT DEFAULT 'Pendiente',
         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    await db.run(`
+      INSERT INTO ciclos (nombre, activo)
+      VALUES ('O-I 2026', 1), ('P-V 2026', 1)
+      ON CONFLICT (nombre) DO NOTHING
     `);
 
     await db.run(`

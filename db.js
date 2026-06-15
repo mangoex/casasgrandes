@@ -85,6 +85,40 @@ async function initSchema() {
         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Add ciclo_id column to crm_ceo_propuestas
+    await pool.query('ALTER TABLE crm_ceo_propuestas ADD COLUMN IF NOT EXISTS ciclo_id INTEGER');
+
+    // Create ciclos table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ciclos (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(50) UNIQUE NOT NULL,
+        activo INTEGER DEFAULT 1,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create metas_globales table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS metas_globales (
+        id SERIAL PRIMARY KEY,
+        ciclo_id INTEGER REFERENCES ciclos(id) ON DELETE CASCADE,
+        producto_id INTEGER REFERENCES productos(id) ON DELETE CASCADE,
+        cantidad_objetivo REAL DEFAULT 0.0,
+        monto_objetivo_mxn REAL DEFAULT 0.0,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(ciclo_id, producto_id)
+      )
+    `);
+
+    // Seed default cycles
+    await pool.query(`
+      INSERT INTO ciclos (nombre, activo)
+      VALUES ('O-I 2026', 1), ('P-V 2026', 1)
+      ON CONFLICT (nombre) DO NOTHING
+    `);
+
     await pool.query(`
       INSERT INTO crm_agentes_config (agente_id, nombre, activo, configuracion)
       VALUES 

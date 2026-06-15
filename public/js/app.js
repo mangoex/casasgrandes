@@ -61,6 +61,54 @@ function setupPlanningSelectionListeners() {
   }
 }
 
+// Load and populate cycles dynamically
+let allCycles = [];
+
+async function loadAllCycles() {
+  try {
+    const res = await fetch(`${API_URL}/api/ciclos`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch cycles');
+    allCycles = data;
+    
+    // Populate all cycle selects
+    const selects = [
+      'dashboard-ciclo-select',
+      'quote-ciclo',
+      'edit-quote-ciclo',
+      'meta-ciclo',
+      'metas-ciclo-select',
+      'meta-global-ciclo',
+      'ia-ceo-ciclo-select'
+    ];
+    
+    selects.forEach(id => {
+      const select = document.getElementById(id);
+      if (!select) return;
+      
+      const currentVal = select.value;
+      select.innerHTML = '';
+      
+      allCycles.forEach(c => {
+        const opt = document.createElement('option');
+        if (['metas-ciclo-select', 'meta-global-ciclo', 'ia-ceo-ciclo-select'].includes(id)) {
+          opt.value = c.id;
+        } else {
+          opt.value = c.nombre;
+        }
+        opt.textContent = c.nombre + (c.activo ? '' : ' (Inactivo)');
+        select.appendChild(opt);
+      });
+      
+      if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
+        select.value = currentVal;
+      }
+    });
+  } catch (err) {
+    console.error('Error loading cycles:', err);
+  }
+}
+
 // Initialize App Check Auth
 function initApp() {
   if (token && user) {
@@ -76,9 +124,12 @@ function showLoginView() {
   document.getElementById('app-view').style.display = 'none';
 }
 
-function showAppView() {
+async function showAppView() {
   document.getElementById('login-view').style.display = 'none';
   document.getElementById('app-view').style.display = 'grid';
+  
+  // Load cycles dynamically on boot
+  await loadAllCycles();
   
   // Set User Profile Display
   document.getElementById('user-display-name').textContent = user.nombre;
@@ -2131,6 +2182,7 @@ if (document.getElementById('tab-admin-asesores')) {
   document.getElementById('tab-admin-asesores').addEventListener('click', () => switchAdminTab('asesores'));
   document.getElementById('tab-admin-productos').addEventListener('click', () => switchAdminTab('productos'));
   document.getElementById('tab-admin-metas').addEventListener('click', () => switchAdminTab('metas'));
+  document.getElementById('tab-admin-ciclos').addEventListener('click', () => switchAdminTab('ciclos'));
 }
 
 function switchAdminTab(tabName) {
@@ -2138,9 +2190,11 @@ function switchAdminTab(tabName) {
   document.getElementById('tab-admin-asesores').classList.remove('active');
   document.getElementById('tab-admin-productos').classList.remove('active');
   document.getElementById('tab-admin-metas').classList.remove('active');
+  document.getElementById('tab-admin-ciclos').classList.remove('active');
   document.getElementById('panel-admin-asesores').style.display = 'none';
   document.getElementById('panel-admin-productos').style.display = 'none';
   document.getElementById('panel-admin-metas').style.display = 'none';
+  document.getElementById('panel-admin-ciclos').style.display = 'none';
   
   document.getElementById(`tab-admin-${tabName}`).classList.add('active');
   document.getElementById(`panel-admin-${tabName}`).style.display = 'block';
@@ -2155,6 +2209,8 @@ async function loadAdminData() {
     await loadAdminProductos();
   } else if (adminActiveTab === 'metas') {
     await loadAdminMetas();
+  } else if (adminActiveTab === 'ciclos') {
+    await loadAdminCiclos();
   }
 }
 
@@ -3062,22 +3118,123 @@ window.deletePlanActivity = async function(id) {
 // -------------------------------------------------------------
 let allAdminMetas = [];
 
+// SUBTABS FOR METAS AND CYCLES CO-ORDINATION
+if (document.getElementById('btn-subtab-metas-globales')) {
+  document.getElementById('btn-subtab-metas-globales').addEventListener('click', () => {
+    document.getElementById('btn-subtab-metas-globales').classList.add('active');
+    document.getElementById('btn-subtab-metas-asesores').classList.remove('active');
+    document.getElementById('subpanel-metas-globales').style.display = 'block';
+    document.getElementById('subpanel-metas-asesores').style.display = 'none';
+    loadAdminMetas();
+  });
+  
+  document.getElementById('btn-subtab-metas-asesores').addEventListener('click', () => {
+    document.getElementById('btn-subtab-metas-globales').classList.remove('active');
+    document.getElementById('btn-subtab-metas-asesores').classList.add('active');
+    document.getElementById('subpanel-metas-globales').style.display = 'none';
+    document.getElementById('subpanel-metas-asesores').style.display = 'block';
+    loadAdminMetas();
+  });
+}
+
+if (document.getElementById('metas-ciclo-select')) {
+  document.getElementById('metas-ciclo-select').addEventListener('change', () => {
+    loadAdminMetas();
+  });
+}
+
+let allGlobalMetas = [];
 async function loadAdminMetas() {
+  const select = document.getElementById('metas-ciclo-select');
+  if (!select) return;
+  
+  // Try to default to first cycle if select is empty on render
+  if (select.children.length === 0 && allCycles.length > 0) {
+    // Populate select if it was not done yet
+    select.innerHTML = '';
+    allCycles.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre + (c.activo ? '' : ' (Inactivo)');
+      select.appendChild(opt);
+    });
+  }
+
+  const cicloId = select.value;
+  if (!cicloId) {
+    const tbodyGlobal = document.getElementById('admin-metas-globales-tbody');
+    if (tbodyGlobal) tbodyGlobal.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-light);">No hay ciclos configurados. Crea uno primero en la pestaña Ciclos.</td></tr>';
+    const tbodyAsesores = document.getElementById('admin-metas-tbody');
+    if (tbodyAsesores) tbodyAsesores.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">No hay ciclos configurados.</td></tr>';
+    return;
+  }
+
+  const isGlobalActive = document.getElementById('btn-subtab-metas-globales')?.classList.contains('active');
+  
+  if (isGlobalActive) {
+    await loadGlobalMetas(cicloId);
+  } else {
+    await loadAdvisorMetas(cicloId);
+  }
+}
+
+async function loadGlobalMetas(cicloId) {
+  const tbody = document.getElementById('admin-metas-globales-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-light);">Cargando metas globales...</td></tr>';
+  
+  try {
+    const res = await fetch(`${API_URL}/api/metas-globales?ciclo_id=${cicloId}`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch global goals');
+    allGlobalMetas = data;
+    
+    tbody.innerHTML = '';
+    if (allGlobalMetas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-light);">No hay metas globales configuradas para este ciclo.</td></tr>';
+      return;
+    }
+    
+    allGlobalMetas.forEach(m => {
+      const amountVal = Number(m.monto_objetivo_mxn) || 0.0;
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${m.producto}</strong></td>
+          <td>${m.tipo_categoria}</td>
+          <td style="text-align: right; font-weight: 600;">${m.cantidad_objetivo}</td>
+          <td style="text-align: right; font-weight: 600;">$${amountVal.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td>
+          <td>
+            <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 12px; margin: 0;" onclick="openEditGlobalMetaModal(${m.id})">Editar</button>
+            <button class="btn btn-danger" style="width: auto; padding: 4px 8px; font-size: 12px; margin: 0; background: var(--danger);" onclick="deleteGlobalMeta(${m.id})">Eliminar</button>
+          </td>
+        </tr>
+      `;
+    });
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger);">Error: ${err.message}</td></tr>`;
+  }
+}
+
+async function loadAdvisorMetas(cicloId) {
   const tbody = document.getElementById('admin-metas-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">Cargando...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">Cargando metas de asesores...</td></tr>';
+  
+  // Find cycle name for this ID
+  const cicloObj = allCycles.find(c => String(c.id) === String(cicloId));
+  const cicloNombre = cicloObj ? cicloObj.nombre : '';
   
   try {
     const res = await fetch(`${API_URL}/api/metas`, { headers: getHeaders() });
     const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to fetch metas');
-    }
-    allAdminMetas = data;
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch metas');
+    
+    // Filter metas by the chosen cycle name
+    allAdminMetas = data.filter(m => m.ciclo_agricola === cicloNombre);
     
     tbody.innerHTML = '';
-    if (!Array.isArray(allAdminMetas) || allAdminMetas.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">No hay metas comerciales configuradas.</td></tr>';
+    if (allAdminMetas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">No hay metas asignadas a asesores para este ciclo.</td></tr>';
       return;
     }
     
@@ -3104,10 +3261,119 @@ async function loadAdminMetas() {
   }
 }
 
+// Global Metas CRUD Events
+if (document.getElementById('btn-open-meta-global-modal')) {
+  document.getElementById('btn-open-meta-global-modal').addEventListener('click', async () => {
+    document.getElementById('add-meta-global-form').reset();
+    document.getElementById('meta-global-id').value = '';
+    document.getElementById('meta-global-modal-title').textContent = 'Configurar Meta Global';
+    
+    const currentCicloId = document.getElementById('metas-ciclo-select').value;
+    document.getElementById('meta-global-ciclo').value = currentCicloId;
+    
+    await loadGlobalMetaProductSelect();
+    openModal('add-meta-global-modal');
+  });
+}
+
+async function loadGlobalMetaProductSelect() {
+  const select = document.getElementById('meta-global-producto');
+  if (!select) return;
+  select.innerHTML = '<option value="">Cargando productos...</option>';
+  
+  try {
+    const res = await fetch(`${API_URL}/api/productos`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load products');
+    
+    select.innerHTML = '<option value="" disabled selected>Seleccione un producto</option>';
+    data.forEach(p => {
+      if (p.activo) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.producto} (${p.tipo_categoria})`;
+        select.appendChild(opt);
+      }
+    });
+  } catch (err) {
+    select.innerHTML = `<option value="">Error: ${err.message}</option>`;
+  }
+}
+
+window.openEditGlobalMetaModal = async function(id) {
+  const m = allGlobalMetas.find(x => x.id === id);
+  if (!m) return;
+  
+  await loadGlobalMetaProductSelect();
+  
+  document.getElementById('meta-global-id').value = m.id;
+  document.getElementById('meta-global-ciclo').value = m.ciclo_id;
+  document.getElementById('meta-global-producto').value = m.producto_id;
+  document.getElementById('meta-global-cantidad').value = m.cantidad_objetivo;
+  document.getElementById('meta-global-monto').value = m.monto_objetivo_mxn;
+  
+  document.getElementById('meta-global-modal-title').textContent = 'Editar Meta Global';
+  openModal('add-meta-global-modal');
+};
+
+document.getElementById('add-meta-global-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const payload = {
+    ciclo_id: Number(document.getElementById('meta-global-ciclo').value),
+    producto_id: Number(document.getElementById('meta-global-producto').value),
+    cantidad_objetivo: Number(document.getElementById('meta-global-cantidad').value) || 0.0,
+    monto_objetivo_mxn: Number(document.getElementById('meta-global-monto').value) || 0.0
+  };
+  
+  try {
+    const res = await fetch(`${API_URL}/api/metas-globales`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save global meta');
+    
+    closeModal('add-meta-global-modal');
+    await loadAdminMetas();
+    alert('Meta global guardada exitosamente.');
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+window.deleteGlobalMeta = async function(id) {
+  if (!confirm('¿Está seguro de eliminar esta meta global?')) return;
+  try {
+    const res = await fetch(`${API_URL}/api/metas-globales/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete global goal');
+    
+    await loadAdminMetas();
+    alert('Meta global eliminada exitosamente.');
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+// Advisor Metas Manual Modal Events
 if (document.getElementById('btn-open-meta-modal')) {
   document.getElementById('btn-open-meta-modal').addEventListener('click', async () => {
     document.getElementById('add-meta-form').reset();
     document.getElementById('meta-modal-title').textContent = 'Configurar Meta Comercial';
+    
+    // Pre-select current cycle name
+    const currentCicloId = document.getElementById('metas-ciclo-select').value;
+    const currentCicloObj = allCycles.find(c => String(c.id) === String(currentCicloId));
+    if (currentCicloObj) {
+      document.getElementById('meta-ciclo').value = currentCicloObj.nombre;
+    }
+    
     await loadMetaAdvisorSelect();
     openModal('add-meta-modal');
   });
@@ -3123,7 +3389,7 @@ async function loadMetaAdvisorSelect() {
     
     select.innerHTML = '';
     advisers.forEach(a => {
-      if (a.activo === 1) {
+      if (a.activo === 1 && a.nivel_rol === 'Asesor') {
         select.innerHTML += `<option value="${a.id}">${a.nombre}</option>`;
       }
     });
@@ -3182,6 +3448,118 @@ document.getElementById('add-meta-form').addEventListener('submit', async (e) =>
     alert(err.message);
   }
 });
+
+// Ciclos Catalog CRUD logic
+let allAdminCiclos = [];
+
+async function loadAdminCiclos() {
+  const tbody = document.getElementById('admin-ciclos-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-light);">Cargando ciclos...</td></tr>';
+  
+  try {
+    const res = await fetch(`${API_URL}/api/ciclos`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch cycles');
+    allAdminCiclos = data;
+    
+    tbody.innerHTML = '';
+    if (allAdminCiclos.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No hay ciclos agrícolas registrados.</td></tr>';
+      return;
+    }
+    
+    allAdminCiclos.forEach(c => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${c.id}</td>
+          <td><strong>${c.nombre}</strong></td>
+          <td>
+            <span class="badge ${c.activo ? 'badge-success' : 'badge-secondary'}" style="background: ${c.activo ? 'rgba(46, 204, 113, 0.2)' : 'rgba(127, 140, 141, 0.2)'}; color: ${c.activo ? '#2ecc71' : '#7f8c8d'}; border: 1px solid ${c.activo ? 'rgba(46, 204, 113, 0.4)' : 'rgba(127, 140, 141, 0.4)'}; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
+              ${c.activo ? 'Activo' : 'Inactivo'}
+            </span>
+          </td>
+          <td>
+            <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 12px; margin: 0;" onclick="openEditCicloModal(${c.id})">Editar</button>
+            <button class="btn btn-danger" style="width: auto; padding: 4px 8px; font-size: 12px; margin: 0; background: var(--danger);" onclick="deleteCiclo(${c.id})">Eliminar</button>
+          </td>
+        </tr>
+      `;
+    });
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger);">Error: ${err.message}</td></tr>`;
+  }
+}
+
+if (document.getElementById('btn-open-ciclo-modal')) {
+  document.getElementById('btn-open-ciclo-modal').addEventListener('click', () => {
+    document.getElementById('add-ciclo-form').reset();
+    document.getElementById('ciclo-id').value = '';
+    document.getElementById('ciclo-modal-title').textContent = 'Registrar Ciclo Agrícola';
+    openModal('add-ciclo-modal');
+  });
+}
+
+window.openEditCicloModal = function(id) {
+  const c = allAdminCiclos.find(x => x.id === id);
+  if (!c) return;
+  
+  document.getElementById('ciclo-id').value = c.id;
+  document.getElementById('ciclo-nombre').value = c.nombre;
+  document.getElementById('ciclo-activo').value = c.activo;
+  
+  document.getElementById('ciclo-modal-title').textContent = 'Editar Ciclo Agrícola';
+  openModal('add-ciclo-modal');
+};
+
+document.getElementById('add-ciclo-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('ciclo-id').value;
+  const nombre = document.getElementById('ciclo-nombre').value.trim();
+  const activo = Number(document.getElementById('ciclo-activo').value);
+  
+  const url = id ? `${API_URL}/api/ciclos/${id}` : `${API_URL}/api/ciclos`;
+  const method = id ? 'PUT' : 'POST';
+  
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: getHeaders(),
+      body: JSON.stringify({ nombre, activo })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save cycle');
+    
+    closeModal('add-ciclo-modal');
+    await loadAllCycles(); // Refresh dropdowns across app
+    if (adminActiveTab === 'ciclos') {
+      await loadAdminCiclos();
+    }
+    alert('Ciclo agrícola guardado exitosamente.');
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+window.deleteCiclo = async function(id) {
+  if (!confirm('¿Está seguro de eliminar este ciclo agrícola? Se eliminarán todas las metas globales asociadas.')) return;
+  try {
+    const res = await fetch(`${API_URL}/api/ciclos/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete cycle');
+    
+    await loadAllCycles(); // Refresh dropdowns across app
+    if (adminActiveTab === 'ciclos') {
+      await loadAdminCiclos();
+    }
+    alert('Ciclo agrícola eliminado exitosamente.');
+  } catch (err) {
+    alert(err.message);
+  }
+};
 
 // -------------------------------------------------------------
 // CLIENTS & AGRICULTORES CATALOG LOGIC
@@ -4446,6 +4824,18 @@ async function loadCEOPanel() {
   const container = document.getElementById('ceo-proposal-container');
   if (!container) return;
   
+  // Populate the select dropdown for CEO cycle if it's empty
+  const select = document.getElementById('ia-ceo-ciclo-select');
+  if (select && select.children.length === 0 && allCycles.length > 0) {
+    select.innerHTML = '';
+    allCycles.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre;
+      select.appendChild(opt);
+    });
+  }
+  
   try {
     const res = await fetch('/api/agentes/ceo/propuesta', {
       method: 'GET',
@@ -4459,7 +4849,7 @@ async function loadCEOPanel() {
       container.innerHTML = `
         <div class="card" style="text-align: center; padding: 40px; color: var(--text-light);">
           <p style="font-size: 16px; margin-bottom: 15px;">No hay propuestas de metas pendientes en este momento.</p>
-          <p style="font-size: 13px;">Haz clic en el botón "Ejecutar CEO Agent Ahora" para analizar los datos del sistema y generar una propuesta de metas.</p>
+          <p style="font-size: 13px;">Haz clic en el botón "Ejecutar CEO Agent" para analizar los datos del sistema y generar una propuesta de metas.</p>
         </div>
       `;
       return;
@@ -4468,11 +4858,17 @@ async function loadCEOPanel() {
     // Parse proposal.propuesta_markdown
     const mdHtml = simpleMarkdownToHtml(proposal.propuesta_markdown);
     
+    let cycleNameStr = `PV ${new Date(proposal.creado_en).getFullYear()}`;
+    if (proposal.ciclo_id) {
+      const cyc = allCycles.find(c => String(c.id) === String(proposal.ciclo_id));
+      if (cyc) cycleNameStr = cyc.nombre;
+    }
+    
     container.innerHTML = `
       <div class="card" style="margin-bottom: 20px; border-left: 4px solid var(--primary);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
           <div>
-            <h4 style="margin: 0; font-size: 16px; color: var(--text);">Propuesta de Metas - Ciclo PV ${new Date(proposal.creado_en).getFullYear()}</h4>
+            <h4 style="margin: 0; font-size: 16px; color: var(--text);">Propuesta de Metas - Ciclo ${cycleNameStr}</h4>
             <small style="color: var(--text-light);">Generado el: ${new Date(proposal.creado_en).toLocaleString('es-MX')}</small>
           </div>
           <span class="badge badge-warning" style="background: rgba(243, 156, 18, 0.2); color: #f39c12; border: 1px solid rgba(243, 156, 18, 0.4); padding: 4px 10px; border-radius: 12px; font-size: 12px;">Pendiente de Aprobación</span>
@@ -4881,13 +5277,20 @@ function bindIAViewEventListeners() {
   const runCeoBtn = document.getElementById('btn-run-ceo');
   if (runCeoBtn) {
     runCeoBtn.addEventListener('click', async () => {
+      const select = document.getElementById('ia-ceo-ciclo-select');
+      const cicloId = select ? select.value : '';
+      if (!cicloId) {
+        alert('Por favor, seleccione un ciclo agrícola.');
+        return;
+      }
+      
       runCeoBtn.disabled = true;
       runCeoBtn.innerText = '🤖 CEO Generando metas...';
       try {
         const res = await fetch('/api/agentes/ejecutar', {
           method: 'POST',
           headers: getHeaders(),
-          body: JSON.stringify({ agente_id: 'ceo' })
+          body: JSON.stringify({ agente_id: 'ceo', ciclo_id: Number(cicloId) })
         });
         if (!res.ok) {
           const errData = await res.json();
@@ -4899,7 +5302,7 @@ function bindIAViewEventListeners() {
         alert(`Error al ejecutar CEO: ${err.message}`);
       } finally {
         runCeoBtn.disabled = false;
-        runCeoBtn.innerText = '⚡ Ejecutar CEO Agent Ahora';
+        runCeoBtn.innerText = '⚡ Ejecutar CEO Agent';
       }
     });
   }

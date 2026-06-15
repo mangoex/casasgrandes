@@ -463,6 +463,126 @@ app.delete('/api/asesores/:id', authenticateToken, async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// CATALOGO DE CICLOS & METAS GLOBALES API
+// -------------------------------------------------------------
+
+app.get('/api/ciclos', authenticateToken, async (req, res) => {
+  try {
+    const rows = await db.all('SELECT * FROM ciclos ORDER BY creado_en DESC');
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener los ciclos agrícolas' });
+  }
+});
+
+app.post('/api/ciclos', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Permisos insuficientes para administrar ciclos' });
+  }
+  const { nombre, activo } = req.body;
+  if (!nombre) {
+    return res.status(400).json({ error: 'El nombre del ciclo es requerido' });
+  }
+  try {
+    const result = await db.run('INSERT INTO ciclos (nombre, activo) VALUES (?, ?) ON CONFLICT (nombre) DO NOTHING', [nombre, activo !== undefined ? activo : 1]);
+    res.status(201).json({ id: result.id, nombre, activo: activo !== undefined ? activo : 1 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al registrar el ciclo agrícola' });
+  }
+});
+
+app.put('/api/ciclos/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Permisos insuficientes para administrar ciclos' });
+  }
+  const { id } = req.params;
+  const { nombre, activo } = req.body;
+  try {
+    await db.run('UPDATE ciclos SET nombre = ?, activo = ? WHERE id = ?', [nombre, activo, id]);
+    res.json({ message: 'Ciclo agrícola actualizado correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al actualizar el ciclo agrícola' });
+  }
+});
+
+app.delete('/api/ciclos/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Permisos de administrador requeridos' });
+  }
+  const { id } = req.params;
+  try {
+    await db.run('DELETE FROM ciclos WHERE id = ?', [id]);
+    res.json({ message: 'Ciclo agrícola eliminado correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al eliminar el ciclo agrícola' });
+  }
+});
+
+app.get('/api/metas-globales', authenticateToken, async (req, res) => {
+  const { ciclo_id } = req.query;
+  try {
+    let query = `
+      SELECT mg.*, p.producto, p.tipo_categoria, p.list_price_mxn 
+      FROM metas_globales mg
+      JOIN productos p ON mg.producto_id = p.id
+    `;
+    const params = [];
+    if (ciclo_id) {
+      query += ' WHERE mg.ciclo_id = ?';
+      params.push(ciclo_id);
+    }
+    query += ' ORDER BY p.producto ASC';
+    const rows = await db.all(query, params);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener las metas globales' });
+  }
+});
+
+app.post('/api/metas-globales', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Permisos insuficientes para administrar metas globales' });
+  }
+  const { ciclo_id, producto_id, cantidad_objetivo, monto_objetivo_mxn } = req.body;
+  if (!ciclo_id || !producto_id) {
+    return res.status(400).json({ error: 'El ciclo y el producto son requeridos' });
+  }
+  try {
+    await db.run(`
+      INSERT INTO metas_globales (ciclo_id, producto_id, cantidad_objetivo, monto_objetivo_mxn)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT (ciclo_id, producto_id) 
+      DO UPDATE SET 
+        cantidad_objetivo = EXCLUDED.cantidad_objetivo,
+        monto_objetivo_mxn = EXCLUDED.monto_objetivo_mxn
+    `, [ciclo_id, producto_id, cantidad_objetivo || 0.0, monto_objetivo_mxn || 0.0]);
+    res.json({ success: true, message: 'Meta global configurada correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al configurar la meta global' });
+  }
+});
+
+app.delete('/api/metas-globales/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Permisos de administrador requeridos' });
+  }
+  const { id } = req.params;
+  try {
+    await db.run('DELETE FROM metas_globales WHERE id = ?', [id]);
+    res.json({ message: 'Meta global eliminada correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al eliminar la meta global' });
+  }
+});
+
+// -------------------------------------------------------------
 // QUOTING & CALCULATING ENGINE
 // -------------------------------------------------------------
 
@@ -2046,25 +2166,26 @@ app.post('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (r
 });
 
 app.post('/api/agentes/ejecutar', authenticateToken, authorizeAgentAdmin, async (req, res) => {
-  const { agente_id } = req.body;
+  const { agente_id, ciclo_id } = req.body;
   try {
     const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
     const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
     const provider = globalConfig.provider || 'gemini';
+    let apiKey = '';
 
     if (provider === 'openrouter') {
-      const apiKey = globalConfig.openrouter_api_key || process.env.OPENROUTER_API_KEY;
+      apiKey = globalConfig.openrouter_api_key || process.env.OPENROUTER_API_KEY;
       if (!apiKey) {
         return res.status(400).json({ error: 'OPENROUTER_API_KEY no configurada. Configure su API Key antes de ejecutar los agentes.' });
       }
     } else {
-      const apiKey = globalConfig.gemini_api_key || process.env.GEMINI_API_KEY;
+      apiKey = globalConfig.gemini_api_key || process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(400).json({ error: 'GEMINI_API_KEY no configurada. Configure su API Key antes de ejecutar los agentes.' });
       }
     }
 
-    const result = await agentsService.executeAgent(agente_id);
+    const result = await agentsService.executeAgent(agente_id, apiKey, ciclo_id);
     res.json({ success: true, result });
   } catch (err) {
     console.error(`Error executing agent manually: ${err.message}`);
@@ -2102,9 +2223,13 @@ app.post('/api/agentes/ceo/aplicar', authenticateToken, authorizeAgentAdmin, asy
 
     const goals = JSON.parse(proposal.propuesta_json);
     const today = new Date();
-    // Default cycle PV 2026 or parse from current context
-    const currentYear = today.getFullYear();
-    const ciclo = `PV ${currentYear}`;
+    let ciclo = `PV ${today.getFullYear()}`;
+    if (proposal.ciclo_id) {
+      const dbCiclo = await db.get('SELECT nombre FROM ciclos WHERE id = ?', [proposal.ciclo_id]);
+      if (dbCiclo) {
+        ciclo = dbCiclo.nombre;
+      }
+    }
 
     for (const g of goals) {
       // Check if advisor has meta for this cycle

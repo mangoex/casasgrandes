@@ -153,28 +153,122 @@ async function calculateQuotePrice(productId, quantity, seasonId, clientKeyAccou
 // -------------------------------------------------------------
 // 1. CEO AGENT
 // -------------------------------------------------------------
-async function runCEOAgent(customApiKey) {
-  await writeLog('ceo', 'info', 'Iniciando ejecución del CEO Agent...');
+async function runCEOAgent(customApiKey, cicloId) {
+  await writeLog('ceo', 'info', `Iniciando ejecución del CEO Agent para el ciclo ID: ${cicloId || 'defecto'}...`);
   
   try {
+    let cicloNombre = 'General';
+    let globalGoals = [];
     
+    if (cicloId) {
+      const dbCiclo = await db.get("SELECT * FROM ciclos WHERE id = ?", [cicloId]);
+      if (dbCiclo) {
+        cicloNombre = dbCiclo.nombre;
+      }
+      globalGoals = await db.all(`
+        SELECT mg.*, p.producto, p.tipo_categoria, p.list_price_mxn 
+        FROM metas_globales mg
+        JOIN productos p ON mg.producto_id = p.id
+        WHERE mg.ciclo_id = ?
+      `, [cicloId]);
+    } else {
+      // Find the latest active cycle as default fallback
+      const dbCiclo = await db.get("SELECT * FROM ciclos WHERE activo = 1 ORDER BY creado_en DESC LIMIT 1");
+      if (dbCiclo) {
+        cicloId = dbCiclo.id;
+        cicloNombre = dbCiclo.nombre;
+        globalGoals = await db.all(`
+          SELECT mg.*, p.producto, p.tipo_categoria, p.list_price_mxn 
+          FROM metas_globales mg
+          JOIN productos p ON mg.producto_id = p.id
+          WHERE mg.ciclo_id = ?
+        `, [cicloId]);
+      }
+    }
+
     // Fetch current system data
     const advisors = await db.all("SELECT id, nombre, email, activo FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
-    const products = await db.all("SELECT id, producto, tipo_categoria, list_price_mxn FROM productos WHERE activo = 1");
-    const clients = await db.all("SELECT id, nombre, asesor_id, estado_status FROM clientes WHERE activo = 1");
+    const clients = await db.all("SELECT id, nombre, asesor_id, estado_status, superficie_text FROM clientes WHERE activo = 1");
     
-    // Fetch historical sales stats per advisor
-    const salesStats = await db.all(`
-      SELECT 
-        a.id as asesor_id,
-        a.nombre,
-        COALESCE(SUM(CASE WHEN q.estatus IN ('Vendido', 'Entregado') THEN q.total_mxn ELSE 0 END), 0) as ventas_historicas_mxn,
-        COUNT(q.id) as cotizaciones_totales
-      FROM asesores a
-      LEFT JOIN cotizaciones q ON q.asesor_id = a.id
-      WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'
-      GROUP BY a.id, a.nombre
-    `);
+    // Categorize global goals
+    let totalGlobalSemilla = 0;
+    let totalGlobalFaena = 0;
+    let totalGlobalClavis = 0;
+    let totalGlobalCropProtection = 0;
+    let totalGlobalCosecha = 0;
+    let totalGlobalMontoMXN = 0;
+
+    globalGoals.forEach(g => {
+      totalGlobalMontoMXN += g.monto_objetivo_mxn || 0.0;
+      const cat = g.tipo_categoria || '';
+      const name = g.producto || '';
+      const qty = g.cantidad_objetivo || 0.0;
+
+      if (cat === 'Híbrido') {
+        totalGlobalSemilla += qty;
+      } else if (cat === 'Agroquímico' && name.toLowerCase().includes('faena')) {
+        totalGlobalFaena += qty;
+      } else if (cat === 'Agroquímico' && name.toLowerCase().includes('clavis')) {
+        totalGlobalClavis += qty;
+      } else if (cat === 'Agroquímico') {
+        totalGlobalCropProtection += qty;
+      } else if (cat === 'Fertilizante') {
+        totalGlobalCosecha += qty;
+      }
+    });
+
+    const totalsGlobales = {
+      ciclo: cicloNombre,
+      monto_total_mxn: totalGlobalMontoMXN,
+      semilla_bolsas: totalGlobalSemilla,
+      faena_litros: totalGlobalFaena,
+      clavis_litros: totalGlobalClavis,
+      crop_protection_litros: totalGlobalCropProtection,
+      cosecha_litros: totalGlobalCosecha
+    };
+
+    // Build advisors stats with potential (assigned clients, total surface area, historical sales)
+    const advisorsData = [];
+    for (const adv of advisors) {
+      // Get historical sales (overall)
+      const salesOverall = await db.get(`
+        SELECT 
+          COALESCE(SUM(total_mxn), 0) as total_mxn,
+          COUNT(id) as total_cotizaciones
+        FROM cotizaciones 
+        WHERE asesor_id = ? AND estatus IN ('Vendido', 'Entregado')
+      `, [adv.id]);
+
+      // Get historical sales for the specific cycle
+      const salesCycle = await db.get(`
+        SELECT 
+          COALESCE(SUM(total_mxn), 0) as total_mxn
+        FROM cotizaciones 
+        WHERE asesor_id = ? AND ciclo_agricola = ? AND estatus IN ('Vendido', 'Entregado')
+      `, [adv.id, cicloNombre]);
+
+      // Get advisor's clients and sum their surface area
+      const advClients = clients.filter(c => c.asesor_id === adv.id);
+      let totalSurface = 0;
+      advClients.forEach(c => {
+        if (c.superficie_text) {
+          const num = parseFloat(c.superficie_text.replace(/[^0-9.]/g, ''));
+          if (!isNaN(num)) {
+            totalSurface += num;
+          }
+        }
+      });
+
+      advisorsData.push({
+        asesor_id: adv.id,
+        nombre: adv.nombre,
+        ventas_historicas_totales_mxn: salesOverall?.total_mxn || 0,
+        ventas_ciclo_actual_mxn: salesCycle?.total_mxn || 0,
+        total_clientes: advClients.length,
+        superficie_total_hectareas: totalSurface,
+        clientes: advClients.map(c => ({ nombre: c.nombre, status: c.estado_status, superficie: c.superficie_text }))
+      });
+    }
 
     // Fetch config for CEO to see custom instructions
     const configRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'ceo'");
@@ -183,41 +277,63 @@ async function runCEOAgent(customApiKey) {
 
     // Build the payload for Gemini
     const dataContext = {
-      asesores: salesStats,
-      productos: products.map(p => ({ id: p.id, nombre: p.producto, categoria: p.tipo_categoria, precio: p.list_price_mxn })),
-      total_clientes: clients.length,
-      clientes_sin_asesor: clients.filter(c => !c.asesor_id).length,
+      ciclo_agricola: cicloNombre,
+      metas_globales_empresa: totalsGlobales,
+      metas_globales_por_producto: globalGoals.map(g => ({
+        producto: g.producto,
+        categoria: g.tipo_categoria,
+        cantidad_objetivo: g.cantidad_objetivo,
+        monto_objetivo_mxn: g.monto_objetivo_mxn
+      })),
+      desempeno_y_potencial_asesores: advisorsData,
       instrucciones_adicionales: customPrompt
     };
 
     const prompt = `
-Eres el CEO Agent de AgriSales Pro. Tu rol es analizar las metas generales de la empresa, la lista de asesores activos, el portafolio de productos y el desempeño histórico para proponer metas individuales de ventas y visitas para el ciclo agrícola actual.
+Eres el CEO Agent de AgriSales Pro. Tu rol es analizar las metas generales de la empresa para el ciclo agrícola "${cicloNombre}", y proponer una distribución inteligente de estas metas entre los asesores de ventas activos.
 
 Aquí tienes los datos del sistema en tiempo real:
 ${JSON.stringify(dataContext, null, 2)}
 
-Tu objetivo es formular una propuesta detallada que asigne:
-1. Una meta de ventas totales en Pesos Mexicanos (MXN) para cada asesor.
-2. Una meta de visitas de campo para cada asesor.
-3. Metas específicas por categorías clave para cada asesor (Faena, Clavis, Crop Protection, Cosecha).
+Tu objetivo es formular una propuesta detallada de asignación de metas individuales para cada asesor. Debes calcular:
+1. "monto_objetivo_mxn": Meta de ventas totales en pesos (MXN) para el asesor.
+2. "bolsas_objetivo": Meta de Semilla (en bolsas, correspondiente a la categoría Híbrido).
+3. "meta_faena": Meta de Faena (en litros, correspondiente a Agroquímicos con Faena).
+4. "meta_clavis": Meta de Clavis (en litros, correspondiente a Agroquímicos con Clavis).
+5. "meta_cropprotection": Meta de Crop Protection (en litros, correspondiente a Agroquímicos que NO son Faena ni Clavis).
+6. "meta_cosecha": Meta de Cosecha (en litros, correspondiente a Fertilizantes).
+
+REGLAS DE DISTRIBUCIÓN:
+- La SUMA de las metas asignadas a todos los asesores para cada indicador debe ser exactamente (o lo más cercano posible a) las metas globales de la empresa:
+  * Suma de monto_objetivo_mxn de los asesores = ${totalGlobalMontoMXN} MXN
+  * Suma de bolsas_objetivo de los asesores = ${totalGlobalSemilla} bolsas
+  * Suma de meta_faena de los asesores = ${totalGlobalFaena} litros/kg
+  * Suma de meta_clavis de los asesores = ${totalGlobalClavis} litros/kg
+  * Suma de meta_cropprotection de los asesores = ${totalGlobalCropProtection} litros/kg
+  * Suma de meta_cosecha de los asesores = ${totalGlobalCosecha} litros/kg
+- Distribuye las metas basándote proporcionalmente en el potencial y capacidad de cada asesor:
+  * Considera la superficie total de hectáreas asignadas (asesores con más hectáreas tienen mayor potencial).
+  * Considera el número de clientes y su estatus.
+  * Considera el desempeño histórico de ventas totales.
+  * Si un asesor no tiene historial, asígnale una meta mínima realista en base a su superficie/clientes.
 
 Por favor, genera tu respuesta estructurada en dos partes:
 
-Parte 1: Un reporte ejecutivo detallado en formato Markdown explicativo con justificaciones de por qué estás proponiendo estas metas a cada asesor, incluyendo tablas comparativas.
+Parte 1: Un reporte ejecutivo detallado en formato Markdown explicativo en español, justificando de forma analítica cómo y por qué distribuiste las metas de esta manera a cada asesor (mencionando su superficie asignada y ventas previas), incluyendo tablas comparativas.
 Parte 2: Una sección final con los datos estructurados en formato JSON puro dentro de un bloque de código markdown marcado con \`\`\`json y \`\`\`. El JSON debe ser un arreglo de objetos con el siguiente formato:
 [
   {
     "asesor_id": 1,
     "monto_objetivo_mxn": 500000,
     "bolsas_objetivo": 100,
-    "meta_faena": 150000,
-    "meta_clavis": 50000,
-    "meta_cropprotection": 200000,
-    "meta_cosecha": 100000
+    "meta_faena": 150,
+    "meta_clavis": 50,
+    "meta_cropprotection": 200,
+    "meta_cosecha": 120
   }
 ]
 
-Asegúrate de que las metas propuestas sean retadoras pero realistas, basadas en el historial de ventas del asesor si está disponible (de lo contrario, pon metas iniciales promedio).
+Asegúrate de que el bloque JSON sea válido y contenga exactamente un objeto para cada uno de los asesores listados en los datos. No agregues texto extra dentro del bloque de código json.
 `;
 
     const textResponse = await generateText(prompt, customApiKey);
@@ -234,14 +350,14 @@ Asegúrate de que las metas propuestas sean retadoras pero realistas, basadas en
     // Filter out the JSON block from the markdown presentation if desired, or keep it.
     const markdownReport = textResponse.replace(/```json[\s\S]*?```/, '').trim();
 
-    // Save proposal to db
+    // Save proposal to db, including ciclo_id
     await db.run(
-      'INSERT INTO crm_ceo_propuestas (propuesta_json, propuesta_markdown, estatus) VALUES (?, ?, ?)',
-      [JSON.stringify(goalsArray), markdownReport, 'Pendiente']
+      'INSERT INTO crm_ceo_propuestas (ciclo_id, propuesta_json, propuesta_markdown, estatus) VALUES (?, ?, ?, ?)',
+      [cicloId, JSON.stringify(goalsArray), markdownReport, 'Pendiente']
     );
 
     await updateLastExecution('ceo');
-    await writeLog('ceo', 'success', 'Propuesta de metas generada con éxito.', { report: markdownReport, goals: goalsArray });
+    await writeLog('ceo', 'success', 'Propuesta de metas generada con éxito basándose en metas globales.', { report: markdownReport, goals: goalsArray });
     return { success: true, report: markdownReport, goals: goalsArray };
 
   } catch (err) {
@@ -513,12 +629,12 @@ Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos e
 // -------------------------------------------------------------
 // GENERAL RUNNER AND SCHEDULER
 // -------------------------------------------------------------
-async function executeAgent(agentId, customApiKey) {
+async function executeAgent(agentId, customApiKey, cicloId) {
   // Read config to verify if active (for scheduled runs, manual execution bypasses the active check)
   const config = await db.get("SELECT activo FROM crm_agentes_config WHERE agente_id = ?", [agentId]);
   
   if (agentId === 'ceo') {
-    return await runCEOAgent(customApiKey);
+    return await runCEOAgent(customApiKey, cicloId);
   } else if (agentId === 'coordinador') {
     return await runCoordinatorAgent(customApiKey);
   } else if (agentId === 'outreach') {
