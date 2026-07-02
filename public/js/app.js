@@ -4013,7 +4013,10 @@ window.renderAsignacionBoard = function(advisors) {
       
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-          <strong style="font-size: 13px; color: var(--text-dark);">${c.nombre}</strong>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" class="assign-client-checkbox" value="${c.id}" onchange="updateAssignBulkAction()">
+            <strong style="font-size: 13px; color: var(--text-dark);">${c.nombre}</strong>
+          </div>
           <button class="btn btn-secondary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; line-height: 1;" onclick="showAISuggestion(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="Recomendación IA">🤖 IA</button>
         </div>
         <div style="font-size: 11px; color: var(--text-light); margin: 4px 0;">📍 ${c.ubicacion || 'Sin ubicación'} | 📐 ${c.superficie_text || '-'}</div>
@@ -4025,6 +4028,12 @@ window.renderAsignacionBoard = function(advisors) {
       unassignedList.appendChild(card);
     });
   }
+
+  // Reset bulk actions state when rendering
+  const selectAllCb = document.getElementById('assign-select-all');
+  if (selectAllCb) selectAllCb.checked = false;
+  if (typeof updateAssignBulkAction === 'function') updateAssignBulkAction();
+
   
   // Render column 2: Biddable Pool with bids
   biddableList.innerHTML = '';

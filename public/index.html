@@ -814,9 +814,17 @@
         <div class="assign-grid" style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 24px; min-height: 500px;">
           <!-- Column 1: Unassigned Clients -->
           <div class="card" style="padding: 16px; display: flex; flex-direction: column;">
-            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-              <h4 style="margin: 0; font-weight: 700;">Agricultores sin Asesor</h4>
-              <span class="badge badge-info" id="assign-unassigned-count">0</span>
+            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h4 style="margin: 0; font-weight: 700;">Agricultores sin Asesor</h4>
+                <span class="badge badge-info" id="assign-unassigned-count">0</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; width: 100%; justify-content: space-between;">
+                <label style="margin: 0; font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="assign-select-all" onchange="toggleSelectAllUnassigned(this.checked)"> Seleccionar todos
+                </label>
+                <button class="btn btn-primary" id="assign-bulk-biddable-btn" style="width: auto; padding: 4px 10px; font-size: 11px; margin: 0; background: var(--warning); border-color: var(--warning); display: none;" onclick="makeSelectedBiddable()">🔔 Hacer Disponibles (<span id="assign-selected-count">0</span>)</button>
+              </div>
             </div>
             <div id="assign-unassigned-list" style="flex: 1; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 12px; padding: 4px;">
               <div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando...</div>
