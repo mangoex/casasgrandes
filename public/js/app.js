@@ -3565,6 +3565,7 @@ window.deleteCiclo = async function(id) {
 // CLIENTS & AGRICULTORES CATALOG LOGIC
 // -------------------------------------------------------------
 let allCatalogClients = [];
+let selectedCatalogClientIds = new Set();
 let catalogAdvisorsLoaded = false;
 let catalogEventsBound = false;
 
@@ -3584,9 +3585,85 @@ function bindCatalogClientEvents() {
       renderCatalogClientes();
     });
   }
+
+  const selectAll = document.getElementById('catalog-select-all-clients');
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      const visibleIds = getFilteredCatalogClients().map(c => c.id);
+      if (selectAll.checked) {
+        visibleIds.forEach(id => selectedCatalogClientIds.add(id));
+      } else {
+        visibleIds.forEach(id => selectedCatalogClientIds.delete(id));
+      }
+      renderCatalogClientes();
+    });
+  }
+
+  const bulkDeleteBtn = document.getElementById('btn-delete-selected-clients');
+  if (bulkDeleteBtn) {
+    bulkDeleteBtn.addEventListener('click', deleteSelectedCatalogClients);
+  }
   
   catalogEventsBound = true;
 }
+
+function getFilteredCatalogClients() {
+  if (!Array.isArray(allCatalogClients)) return [];
+
+  const searchInput = document.getElementById('catalog-client-search');
+  const advisorSelect = document.getElementById('catalog-client-advisor-filter');
+  const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+  const advisorFilter = advisorSelect ? advisorSelect.value : 'ALL';
+  let filtered = allCatalogClients;
+
+  if (searchTerm) {
+    filtered = filtered.filter(c =>
+      c.nombre.toLowerCase().includes(searchTerm) ||
+      (c.ubicacion && c.ubicacion.toLowerCase().includes(searchTerm)) ||
+      (c.contacto && c.contacto.toLowerCase().includes(searchTerm))
+    );
+  }
+
+  if (user.nivel_rol !== 'Asesor' && advisorFilter !== 'ALL') {
+    filtered = filtered.filter(c => c.asesor_id === Number(advisorFilter));
+  }
+
+  return filtered;
+}
+
+function updateCatalogSelectionControls(visibleClients = getFilteredCatalogClients()) {
+  const isAdmin = user?.nivel_rol === 'Administrador';
+  const selectAll = document.getElementById('catalog-select-all-clients');
+  const bulkDeleteBtn = document.getElementById('btn-delete-selected-clients');
+  const selectedCount = document.getElementById('selected-clients-count');
+  const visibleIds = visibleClients.map(c => c.id);
+  const checkedVisibleCount = visibleIds.filter(id => selectedCatalogClientIds.has(id)).length;
+
+  if (selectAll) {
+    selectAll.style.display = isAdmin ? '' : 'none';
+    selectAll.checked = visibleIds.length > 0 && checkedVisibleCount === visibleIds.length;
+    selectAll.indeterminate = checkedVisibleCount > 0 && checkedVisibleCount < visibleIds.length;
+    selectAll.disabled = visibleIds.length === 0;
+  }
+
+  if (bulkDeleteBtn) {
+    bulkDeleteBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    bulkDeleteBtn.disabled = selectedCatalogClientIds.size === 0;
+  }
+
+  if (selectedCount) {
+    selectedCount.textContent = selectedCatalogClientIds.size;
+  }
+}
+
+window.toggleCatalogClientSelection = function(clientId, checked) {
+  if (checked) {
+    selectedCatalogClientIds.add(clientId);
+  } else {
+    selectedCatalogClientIds.delete(clientId);
+  }
+  updateCatalogSelectionControls();
+};
 
 async function loadCatalogClientAdvisorOptions() {
   const filterSelect = document.getElementById('catalog-client-advisor-filter');
@@ -3618,6 +3695,7 @@ window.loadClientesCatalog = async function() {
   if (thCatalogAsesor) {
     thCatalogAsesor.style.display = user.nivel_rol === 'Asesor' ? 'none' : '';
   }
+  updateCatalogSelectionControls([]);
   
   try {
     bindCatalogClientEvents();
@@ -3641,6 +3719,9 @@ window.loadClientesCatalog = async function() {
     }
     
     allCatalogClients = data;
+    selectedCatalogClientIds = new Set(
+      [...selectedCatalogClientIds].filter(id => allCatalogClients.some(c => c.id === id))
+    );
     renderCatalogClientes();
   } catch (err) {
     console.error('Failed to load client catalog:', err);
@@ -3659,24 +3740,9 @@ window.renderCatalogClientes = function() {
     return;
   }
   
-  const searchTerm = document.getElementById('catalog-client-search').value.toLowerCase().trim();
-  const advisorFilter = document.getElementById('catalog-client-advisor-filter').value;
-  
   tbody.innerHTML = '';
-  
-  let filtered = allCatalogClients;
-  
-  if (searchTerm) {
-    filtered = filtered.filter(c => 
-      c.nombre.toLowerCase().includes(searchTerm) || 
-      (c.ubicacion && c.ubicacion.toLowerCase().includes(searchTerm)) ||
-      (c.contacto && c.contacto.toLowerCase().includes(searchTerm))
-    );
-  }
-  
-  if (user.nivel_rol !== 'Asesor' && advisorFilter !== 'ALL') {
-    filtered = filtered.filter(c => c.asesor_id === Number(advisorFilter));
-  }
+  const filtered = getFilteredCatalogClients();
+  updateCatalogSelectionControls(filtered);
   
   if (filtered.length === 0) {
     const cols = user.nivel_rol === 'Asesor' ? 8 : 9;
@@ -3687,10 +3753,22 @@ window.renderCatalogClientes = function() {
   let catalogHtml = '';
   filtered.forEach(c => {
     let badgeClass = c.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
+    const isSelected = selectedCatalogClientIds.has(c.id);
+    const selectionControl = user.nivel_rol === 'Administrador'
+      ? `<input type="checkbox" class="catalog-row-checkbox" ${isSelected ? 'checked' : ''} title="Seleccionar agricultor" aria-label="Seleccionar agricultor" onchange="toggleCatalogClientSelection(${c.id}, this.checked)">`
+      : '';
+    const deleteButton = user.nivel_rol === 'Administrador'
+      ? `<button class="btn btn-secondary icon-action-btn danger" title="Borrar agricultor" aria-label="Borrar agricultor" onclick="deleteCatalogClient(${c.id})">🗑️</button>`
+      : '';
     
     catalogHtml += `
       <tr>
-        <td><strong>${c.nombre}</strong></td>
+        <td>
+          <div class="catalog-name-cell">
+            <strong>${c.nombre}</strong>
+            ${selectionControl}
+          </div>
+        </td>
         ${user.nivel_rol !== 'Asesor' ? `<td>${c.asesor_nombre || 'Sin Asesor'}</td>` : ''}
         <td>${c.cuenta_clave_nombre || '-'}</td>
         <td>${c.contacto || '-'}</td>
@@ -3699,7 +3777,10 @@ window.renderCatalogClientes = function() {
         <td>${c.superficie_text || '-'}</td>
         <td><span class="badge ${badgeClass}">${c.estado_status}</span></td>
         <td style="text-align: center;">
-          <button class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 11px;" onclick="editCatalogClient(${c.id})">✏️ Editar</button>
+          <div class="catalog-row-actions">
+            <button class="btn btn-secondary icon-action-btn" title="Editar agricultor" aria-label="Editar agricultor" onclick="editCatalogClient(${c.id})">✏️</button>
+            ${deleteButton}
+          </div>
         </td>
       </tr>
     `;
@@ -3724,6 +3805,58 @@ window.editCatalogClient = async function(clientId) {
   await loadCRMClientFormConfig(c.cuenta_clave_id, c.asesor_id);
   openModal('add-client-modal');
 };
+
+window.deleteCatalogClient = async function(clientId) {
+  const c = allCatalogClients.find(x => x.id === clientId);
+  if (!c) return;
+
+  const confirmed = confirm(`¿Borrar al agricultor "${c.nombre}"?\n\nSe ocultará del catálogo y se rechazarán sus pujas pendientes.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`${API_URL}/api/clientes/${clientId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete client');
+
+    selectedCatalogClientIds.delete(clientId);
+    await loadClientesCatalog();
+    alert('Agricultor borrado con éxito.');
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+async function deleteSelectedCatalogClients() {
+  const ids = [...selectedCatalogClientIds];
+  if (ids.length === 0) return;
+
+  const confirmed = confirm(`¿Borrar ${ids.length} agricultor${ids.length === 1 ? '' : 'es'} seleccionado${ids.length === 1 ? '' : 's'}?\n\nSe ocultarán del catálogo y se rechazarán sus pujas pendientes.`);
+  if (!confirmed) return;
+
+  const bulkDeleteBtn = document.getElementById('btn-delete-selected-clients');
+  if (bulkDeleteBtn) bulkDeleteBtn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_URL}/api/clientes/bulk-delete`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ ids })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete clients');
+
+    selectedCatalogClientIds.clear();
+    await loadClientesCatalog();
+    const deletedCount = data.deleted || ids.length;
+    alert(`${deletedCount} agricultor${deletedCount === 1 ? '' : 'es'} borrado${deletedCount === 1 ? '' : 's'} con éxito.`);
+  } catch (err) {
+    alert(err.message);
+    updateCatalogSelectionControls();
+  }
+}
 
 // -------------------------------------------------------------
 // CLIENT ASSIGNMENT & BIDDING (PUJAS) LOGIC
@@ -5378,5 +5511,3 @@ function bindIAViewEventListeners() {
     });
   }
 }
-
-

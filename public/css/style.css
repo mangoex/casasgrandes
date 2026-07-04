@@ -193,6 +193,17 @@ body {
   transform: translateY(-1px);
 }
 
+.btn-danger {
+  background-color: var(--danger);
+  color: white;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.18);
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+  transform: translateY(-1px);
+}
+
 .error-message {
   background-color: #fee2e2;
   border: 1px solid #fca5a5;
@@ -433,6 +444,60 @@ tr:last-child td {
 
 tr:hover td {
   background-color: #f8fafc;
+}
+
+.catalog-name-header,
+.catalog-name-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 170px;
+}
+
+.catalog-name-cell strong {
+  min-width: 0;
+}
+
+.catalog-row-checkbox {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.catalog-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.icon-action-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+}
+
+.icon-action-btn.danger {
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+.icon-action-btn.danger:hover {
+  background-color: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.catalog-bulk-delete {
+  width: auto;
+  min-width: 58px;
+  height: 42px;
+  padding: 8px 12px;
+  margin: 0;
 }
 
 /* Badges styling */
@@ -2150,5 +2215,4 @@ tr:hover td {
     background-color: rgba(39, 174, 96, 0.05);
   }
 }
-
 

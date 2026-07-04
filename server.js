@@ -175,6 +175,59 @@ app.put('/api/clientes/:id', authenticateToken, async (req, res) => {
   }
 });
 
+app.delete('/api/clientes/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+
+  const { id } = req.params;
+  try {
+    const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [id]);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
+    await db.run('UPDATE clientes SET activo = 0, disponible_para_puja = 0 WHERE id = ?', [id]);
+    await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND estatus = 'Pendiente'", [id]);
+    res.json({ message: 'Client deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete client' });
+  }
+});
+
+app.post('/api/clientes/bulk-delete', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+
+  const ids = Array.isArray(req.body?.ids)
+    ? req.body.ids.map(Number).filter(id => Number.isInteger(id) && id > 0)
+    : [];
+
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'Client ids are required' });
+  }
+
+  try {
+    const placeholders = ids.map((_, index) => `$${index + 1}`).join(', ');
+    const deleted = await db.pool.query(
+      `UPDATE clientes
+       SET activo = 0, disponible_para_puja = 0
+       WHERE activo = 1 AND id IN (${placeholders})`,
+      ids
+    );
+    await db.pool.query(
+      `UPDATE crm_pujas
+       SET estatus = 'Rechazada'
+       WHERE estatus = 'Pendiente' AND cliente_id IN (${placeholders})`,
+      ids
+    );
+    res.json({ message: 'Clients deleted successfully', deleted: deleted.rowCount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete clients' });
+  }
+});
+
 // CRM VISIT LOGS
 app.get('/api/clientes/:id/visitas', authenticateToken, async (req, res) => {
   const { id } = req.params;

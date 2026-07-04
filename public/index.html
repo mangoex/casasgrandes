@@ -455,6 +455,9 @@
               <select id="catalog-client-advisor-filter" class="form-input admin-or-coordinator-only" style="width: 220px; margin: 0; display: none;">
                 <option value="ALL">Todos los Asesores</option>
               </select>
+              <button id="btn-delete-selected-clients" class="btn btn-danger catalog-bulk-delete admin-only" title="Borrar agricultores seleccionados" aria-label="Borrar agricultores seleccionados" style="display: none;">
+                🗑️ <span id="selected-clients-count">0</span>
+              </button>
               <button id="btn-catalog-open-client-modal" class="btn btn-primary" style="width: auto; padding: 8px 16px; margin: 0;">👤 Registrar Cliente</button>
             </div>
           </div>
@@ -470,7 +473,12 @@
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
+                  <th>
+                    <div class="catalog-name-header">
+                      <span>Nombre</span>
+                      <input type="checkbox" id="catalog-select-all-clients" class="catalog-row-checkbox admin-only" title="Seleccionar todos los agricultores visibles" aria-label="Seleccionar todos los agricultores visibles" style="display: none;">
+                    </div>
+                  </th>
                   <th id="th-catalog-asesor">Asesor</th>
                   <th>Cuenta Clave</th>
                   <th>Contacto</th>
