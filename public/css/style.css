@@ -224,6 +224,7 @@ body {
   display: grid;
   grid-template-columns: 280px 1fr;
   min-height: 100vh;
+  transition: grid-template-columns 0.25s ease;
 }
 
 /* Sidebar Navigation */
@@ -237,6 +238,33 @@ aside {
   position: sticky;
   top: 0;
   height: 100vh;
+  transition: width 0.25s ease, padding 0.25s ease;
+}
+
+.sidebar-toggle {
+  display: none;
+  position: absolute;
+  top: 24px;
+  right: -16px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: var(--primary);
+  color: white;
+  font-size: 26px;
+  line-height: 1;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+  z-index: 20;
+  transition: var(--transition);
+}
+
+.sidebar-toggle:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
 }
 
 .brand {
@@ -320,6 +348,96 @@ aside {
 
 .btn-logout:hover {
   color: #fca5a5;
+}
+
+@media (min-width: 1001px) {
+  .sidebar-toggle {
+    display: inline-flex;
+  }
+
+  .app-wrapper.sidebar-collapsed {
+    grid-template-columns: 88px 1fr;
+  }
+
+  .app-wrapper.sidebar-collapsed aside {
+    padding: 35px 16px;
+    align-items: center;
+  }
+
+  .app-wrapper.sidebar-collapsed .sidebar-toggle {
+    transform: rotate(180deg);
+  }
+
+  .app-wrapper.sidebar-collapsed .sidebar-toggle:hover {
+    transform: rotate(180deg) translateY(1px);
+  }
+
+  .app-wrapper.sidebar-collapsed .brand {
+    width: 100%;
+    padding-left: 0;
+    text-align: center;
+  }
+
+  .app-wrapper.sidebar-collapsed .brand h2 {
+    font-size: 0;
+    letter-spacing: 0;
+  }
+
+  .app-wrapper.sidebar-collapsed .brand h2::before {
+    content: "AP";
+    font-size: 20px;
+    font-weight: 800;
+    color: white;
+  }
+
+  .app-wrapper.sidebar-collapsed .nav-links {
+    width: 100%;
+    align-items: center;
+  }
+
+  .app-wrapper.sidebar-collapsed .nav-item {
+    width: 100%;
+  }
+
+  .app-wrapper.sidebar-collapsed .nav-item a {
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    font-size: 0;
+    margin: 0 auto;
+  }
+
+  .app-wrapper.sidebar-collapsed .nav-item .icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .app-wrapper.sidebar-collapsed .user-profile {
+    width: 100%;
+    padding: 20px 0 0;
+    text-align: center;
+  }
+
+  .app-wrapper.sidebar-collapsed .user-profile h4,
+  .app-wrapper.sidebar-collapsed .user-profile p {
+    display: none;
+  }
+
+  .app-wrapper.sidebar-collapsed .btn-logout {
+    width: 52px;
+    height: 52px;
+    justify-content: center;
+    gap: 0;
+    font-size: 0;
+    margin: 0 auto;
+    border-radius: var(--radius);
+  }
+
+  .app-wrapper.sidebar-collapsed .btn-logout span {
+    font-size: 20px;
+  }
 }
 
 /* Main Panel Frame */
@@ -2215,4 +2333,3 @@ tr:hover td {
     background-color: rgba(39, 174, 96, 0.05);
   }
 }
-

@@ -279,6 +279,27 @@ async function showAppView() {
       });
     });
   }
+
+  // Desktop sidebar collapse controls
+  const appView = document.getElementById('app-view');
+  const sidebarToggle = document.getElementById('sidebar-collapse-toggle');
+  if (appView && sidebarToggle) {
+    const activeSidebarToggle = sidebarToggle.cloneNode(true);
+    sidebarToggle.parentNode.replaceChild(activeSidebarToggle, sidebarToggle);
+    const savedCollapsed = localStorage.getItem('agrisalesSidebarCollapsed') === 'true';
+    appView.classList.toggle('sidebar-collapsed', savedCollapsed);
+    activeSidebarToggle.setAttribute('aria-expanded', String(!savedCollapsed));
+    activeSidebarToggle.setAttribute('title', savedCollapsed ? 'Expandir menú' : 'Contraer menú');
+    activeSidebarToggle.setAttribute('aria-label', savedCollapsed ? 'Expandir menú' : 'Contraer menú');
+
+    activeSidebarToggle.addEventListener('click', () => {
+      const collapsed = appView.classList.toggle('sidebar-collapsed');
+      localStorage.setItem('agrisalesSidebarCollapsed', String(collapsed));
+      activeSidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+      activeSidebarToggle.setAttribute('title', collapsed ? 'Expandir menú' : 'Contraer menú');
+      activeSidebarToggle.setAttribute('aria-label', collapsed ? 'Expandir menú' : 'Contraer menú');
+    });
+  }
   
   // Load Default Dashboard View
   switchView('dashboard-view', 'Tablero General');
