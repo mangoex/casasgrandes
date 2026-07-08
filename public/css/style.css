@@ -2333,3 +2333,108 @@ tr:hover td {
     background-color: rgba(39, 174, 96, 0.05);
   }
 }
+
+/* =============================================================
+   PROGRAMACIÓN VIEW STYLES (ETAPAS & PRECIOS MENSUALES)
+   ============================================================= */
+
+.programacion-grid {
+  display: grid;
+  grid-template-columns: 1fr 2.5fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .programacion-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stage-header-col {
+  vertical-align: bottom !important;
+  padding: 10px 6px !important;
+  text-align: center;
+  min-width: 80px;
+}
+
+.stage-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+.stage-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 2px var(--surface), 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.stage-header-text {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-light);
+  letter-spacing: 0.5px;
+  display: inline-block;
+  max-width: 70px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline-cell {
+  padding: 6px !important;
+  text-align: center;
+  position: relative;
+  vertical-align: middle !important;
+  background-color: rgba(248, 250, 252, 0.25);
+  border-left: 1px solid var(--border) !important;
+  min-width: 80px;
+}
+
+.timeline-bar {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  position: relative;
+  transition: var(--transition);
+  animation: barGrow 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.timeline-bar:hover {
+  transform: scale(1.05);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.timeline-bar-text {
+  font-size: 9px;
+  font-weight: 800;
+  color: #1e293b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  padding: 0 4px;
+}
+
+@keyframes barGrow {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+

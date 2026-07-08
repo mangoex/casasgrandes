@@ -127,6 +127,32 @@ async function initSchema() {
         ('outreach', 'Outreach Agent', 0, '{"prompt_adicional": "", "frecuencia_horas": 12}')
       ON CONFLICT (agente_id) DO NOTHING
     `);
+
+    // Create crm_etapas_programacion table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_etapas_programacion (
+        id SERIAL PRIMARY KEY,
+        clave VARCHAR(50) UNIQUE NOT NULL,
+        nombre VARCHAR(100) NOT NULL,
+        fecha_inicio DATE NOT NULL,
+        fecha_fin DATE NOT NULL,
+        color VARCHAR(20) NOT NULL
+      )
+    `);
+
+    // Create crm_precios_mensuales table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_precios_mensuales (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+        mes INTEGER NOT NULL CHECK (mes >= 1 AND mes <= 12),
+        precio REAL DEFAULT 0.0,
+        promo_dinero REAL DEFAULT 0.0,
+        promo_porcentaje REAL DEFAULT 0.0,
+        UNIQUE(producto_id, mes)
+      )
+    `);
+
     console.log('PostgreSQL schema auto-updates checked/applied successfully.');
   } catch (err) {
     console.error('Error checking/applying PostgreSQL schema updates:', err.message);

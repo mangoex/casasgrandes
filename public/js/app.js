@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initApp();
   setupPlanningSelectionListeners();
   bindIAViewEventListeners();
+  bindProgramacionEventListeners();
 });
 
 function setupPlanningSelectionListeners() {
@@ -343,6 +344,8 @@ function switchView(viewId, title) {
     loadAdvisorAssignmentView();
   } else if (viewId === 'ia-view') {
     loadIAViewData();
+  } else if (viewId === 'programacion-view') {
+    loadProgramacionView();
   }
 }
 
@@ -5530,5 +5533,399 @@ function bindIAViewEventListeners() {
     refreshLogsBtn.addEventListener('click', () => {
       loadIALogs();
     });
+  }
+}
+
+// =============================================================
+// PROGRAMACIÓN VIEW (PRECIOS Y ETAPAS) FRONTEND
+// =============================================================
+let programacionStages = [];
+let programacionProducts = [];
+let selectedProgramacionProductId = '';
+
+async function loadProgramacionView() {
+  const isWritable = ['Administrador', 'Coordinador'].includes(user.nivel_rol);
+
+  // Toggle form accessibility
+  const formEl = document.getElementById('etapa-form');
+  const btnSavePrecios = document.getElementById('btn-save-precios');
+  if (formEl) {
+    if (isWritable) {
+      formEl.style.display = 'block';
+    } else {
+      formEl.style.display = 'none';
+      const descEl = document.getElementById('programacion-stages-card').querySelector('p');
+      if (descEl) descEl.textContent = 'Vista de solo lectura de las etapas activas en el ciclo.';
+    }
+  }
+  if (btnSavePrecios) {
+    btnSavePrecios.style.display = isWritable ? 'inline-block' : 'none';
+  }
+
+  // Load active products first
+  await loadProgramacionProducts();
+  
+  // Load registered stages
+  await loadProgramacionStages();
+
+  // Populate products select
+  const productSelect = document.getElementById('programacion-product-select');
+  if (productSelect) {
+    productSelect.innerHTML = '<option value="">-- Seleccione un Producto --</option>';
+    programacionProducts.forEach(prod => {
+      const opt = document.createElement('option');
+      opt.value = prod.id;
+      opt.textContent = `${prod.producto} (${prod.tipo_categoria})`;
+      if (parseInt(selectedProgramacionProductId) === prod.id) {
+        opt.selected = true;
+      }
+      productSelect.appendChild(opt);
+    });
+  }
+
+  // Render main timeline table
+  renderProgramacionTable();
+}
+
+async function loadProgramacionProducts() {
+  try {
+    const res = await fetch('/api/productos', {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al cargar productos');
+    programacionProducts = await res.json();
+  } catch (err) {
+    console.error('Error in loadProgramacionProducts:', err);
+  }
+}
+
+async function loadProgramacionStages() {
+  try {
+    const res = await fetch('/api/programacion/etapas', {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al cargar etapas');
+    programacionStages = await res.json();
+    renderStagesList();
+  } catch (err) {
+    console.error('Error in loadProgramacionStages:', err);
+  }
+}
+
+function renderStagesList() {
+  const tbody = document.getElementById('etapas-list-tbody');
+  if (!tbody) return;
+
+  if (programacionStages.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-light);">No hay etapas registradas</td></tr>';
+    return;
+  }
+
+  const isWritable = ['Administrador', 'Coordinador'].includes(user.nivel_rol);
+
+  tbody.innerHTML = '';
+  programacionStages.forEach(etapa => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge" style="background-color: ${etapa.color}22; color: ${etapa.color}; border: 1px solid ${etapa.color}; font-weight: bold; font-size: 11px;">${etapa.clave}</span></td>
+      <td><strong>${etapa.nombre}</strong></td>
+      <td style="font-size: 12px; color: var(--text-light);">
+        ${etapa.fecha_inicio} <br/> al ${etapa.fecha_fin}
+      </td>
+      <td style="text-align: right;">
+        ${isWritable ? `
+          <button class="btn-icon" onclick="editEtapa(${etapa.id})" title="Editar" style="color: var(--info); font-size: 14px; margin-right: 6px; background: none; border: none; cursor: pointer;">✏️</button>
+          <button class="btn-icon" onclick="deleteEtapa(${etapa.id})" title="Eliminar" style="color: var(--danger); font-size: 14px; background: none; border: none; cursor: pointer;">🗑️</button>
+        ` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Global functions for inline click handling
+window.editEtapa = function(id) {
+  const stage = programacionStages.find(s => s.id === id);
+  if (!stage) return;
+
+  document.getElementById('etapa-id').value = stage.id;
+  document.getElementById('etapa-clave').value = stage.clave;
+  document.getElementById('etapa-nombre').value = stage.nombre;
+  document.getElementById('etapa-inicio').value = stage.fecha_inicio;
+  document.getElementById('etapa-fin').value = stage.fecha_fin;
+  document.getElementById('etapa-color').value = stage.color;
+
+  document.getElementById('btn-save-etapa').innerText = 'Actualizar Etapa';
+  document.getElementById('btn-cancel-etapa').style.display = 'inline-block';
+};
+
+window.deleteEtapa = async function(id) {
+  if (!confirm('¿Está seguro de que desea eliminar esta etapa?')) return;
+  try {
+    const res = await fetch(`/api/programacion/etapas/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Error al eliminar etapa');
+    }
+    await loadProgramacionStages();
+    renderProgramacionTable();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+};
+
+// Pricing programming table loader
+async function loadMonthlyPricingTable(productId) {
+  if (!productId) {
+    const tbody = document.getElementById('programacion-table-tbody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-light); padding: 40px;">Por favor, seleccione un producto para ver su programación mensual.</td></tr>';
+    }
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/programacion/precios?producto_id=${productId}`, {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al cargar la programación de precios');
+    const prices = await res.json();
+    renderProgramacionTableContent(prices);
+  } catch (err) {
+    console.error('Error loading monthly pricing table:', err);
+  }
+}
+
+// Month names list
+const monthNames = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+// Helper to check if a month overlaps with stage dates (assuming year 2026 for consistency with local time)
+function checkMonthOverlap(monthIndex, startStr, endStr) {
+  const start = new Date(startStr);
+  const end = new Date(endStr);
+  
+  // Create start/end range for the month
+  const year = 2026;
+  const monthStart = new Date(year, monthIndex, 1);
+  const monthEnd = new Date(year, monthIndex + 1, 0); // Last day of month
+
+  return start <= monthEnd && end >= monthStart;
+}
+
+function renderProgramacionTable() {
+  // Update table headers to include active stages
+  const headerRow = document.getElementById('programacion-header-row');
+  if (!headerRow) return;
+
+  // Clear existing dynamic columns
+  while (headerRow.children.length > 4) {
+    headerRow.removeChild(headerRow.lastChild);
+  }
+
+  // Inject stages as column headers
+  programacionStages.forEach(etapa => {
+    const th = document.createElement('th');
+    th.className = 'stage-header-col';
+    th.innerHTML = `
+      <div class="stage-header-wrapper" title="${etapa.nombre} (${etapa.fecha_inicio} - ${etapa.fecha_fin})">
+        <span class="stage-color-dot" style="background-color: ${etapa.color};"></span>
+        <span class="stage-header-text">${etapa.clave}</span>
+      </div>
+    `;
+    headerRow.appendChild(th);
+  });
+
+  // Reload current product if selected
+  if (selectedProgramacionProductId) {
+    loadMonthlyPricingTable(selectedProgramacionProductId);
+  } else {
+    const tbody = document.getElementById('programacion-table-tbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="${4 + programacionStages.length}" style="text-align: center; color: var(--text-light); padding: 40px;">Por favor, seleccione un producto para ver su programación mensual.</td></tr>`;
+    }
+  }
+}
+
+function renderProgramacionTableContent(prices) {
+  const tbody = document.getElementById('programacion-table-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+  const isWritable = ['Administrador', 'Coordinador'].includes(user.nivel_rol);
+
+  monthNames.forEach((monthName, idx) => {
+    const monthNum = idx + 1;
+    const priceData = prices.find(p => p.mes === monthNum) || { precio: 0.0, promo_dinero: 0.0, promo_porcentaje: 0.0 };
+
+    const tr = document.createElement('tr');
+    
+    // Base month and inputs cells
+    tr.innerHTML = `
+      <td style="font-weight: 600; color: var(--text);">${monthName}</td>
+      <td>
+        <input type="number" step="0.01" class="form-input pricing-input" data-month="${monthNum}" data-field="precio" value="${priceData.precio}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; width: 100%;">
+      </td>
+      <td>
+        <input type="number" step="0.01" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_dinero" value="${priceData.promo_dinero}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--accent); width: 100%;">
+      </td>
+      <td>
+        <input type="number" step="0.01" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_porcentaje" value="${priceData.promo_porcentaje}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--success); width: 100%;">
+      </td>
+    `;
+
+    // Dynamic timeline cells for each stage
+    programacionStages.forEach(etapa => {
+      const td = document.createElement('td');
+      td.className = 'timeline-cell';
+      
+      const active = checkMonthOverlap(idx, etapa.fecha_inicio, etapa.fecha_fin);
+      if (active) {
+        // Render colored block in cell
+        td.innerHTML = `
+          <div class="timeline-bar" style="background-color: ${etapa.color}dd; border-left: 4px solid ${etapa.color};" title="${etapa.nombre}: ${etapa.fecha_inicio} a ${etapa.fecha_fin}">
+            <span class="timeline-bar-text">${etapa.clave}</span>
+          </div>
+        `;
+      }
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+async function saveMonthlyPricing() {
+  if (!selectedProgramacionProductId) {
+    alert('Por favor seleccione un producto primero.');
+    return;
+  }
+
+  const inputs = document.querySelectorAll('.pricing-input');
+  const preciosMap = {};
+
+  inputs.forEach(input => {
+    const month = parseInt(input.getAttribute('data-month'));
+    const field = input.getAttribute('data-field');
+    const val = parseFloat(input.value) || 0.0;
+
+    if (!preciosMap[month]) {
+      preciosMap[month] = { mes: month };
+    }
+    preciosMap[month][field] = val;
+  });
+
+  const preciosArray = Object.values(preciosMap).sort((a, b) => a.mes - b.mes);
+
+  const btn = document.getElementById('btn-save-precios');
+  btn.disabled = true;
+  btn.innerText = '💾 Guardando...';
+
+  try {
+    const res = await fetch('/api/programacion/precios', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        producto_id: parseInt(selectedProgramacionProductId),
+        precios: preciosArray
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Error al guardar los precios');
+    }
+
+    alert('Programación mensual guardada con éxito.');
+    await loadMonthlyPricingTable(selectedProgramacionProductId);
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '💾 Guardar Cambios';
+  }
+}
+
+// Bind Programación View event listeners
+function bindProgramacionEventListeners() {
+  const form = document.getElementById('etapa-form');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const id = document.getElementById('etapa-id').value;
+      const clave = document.getElementById('etapa-clave').value;
+      const nombre = document.getElementById('etapa-nombre').value;
+      const fecha_inicio = document.getElementById('etapa-inicio').value;
+      const fecha_fin = document.getElementById('etapa-fin').value;
+      const color = document.getElementById('etapa-color').value;
+
+      const btn = document.getElementById('btn-save-etapa');
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/programacion/etapas', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({
+            id: id ? parseInt(id) : undefined,
+            clave,
+            nombre,
+            fecha_inicio,
+            fecha_fin,
+            color
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Error al guardar etapa');
+        }
+
+        form.reset();
+        document.getElementById('etapa-id').value = '';
+        document.getElementById('btn-cancel-etapa').style.display = 'none';
+        btn.innerText = 'Guardar Etapa';
+
+        await loadProgramacionStages();
+        renderProgramacionTable();
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
+  const cancelBtn = document.getElementById('btn-cancel-etapa');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      const form = document.getElementById('etapa-form');
+      if (form) form.reset();
+      document.getElementById('etapa-id').value = '';
+      cancelBtn.style.display = 'none';
+      document.getElementById('btn-save-etapa').innerText = 'Guardar Etapa';
+    });
+  }
+
+  const productSelect = document.getElementById('programacion-product-select');
+  if (productSelect) {
+    productSelect.addEventListener('change', (e) => {
+      selectedProgramacionProductId = e.target.value;
+      loadMonthlyPricingTable(selectedProgramacionProductId);
+    });
+  }
+
+  const savePreciosBtn = document.getElementById('btn-save-precios');
+  if (savePreciosBtn) {
+    savePreciosBtn.addEventListener('click', saveMonthlyPricing);
   }
 }

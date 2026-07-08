@@ -2345,6 +2345,132 @@ app.get('/api/agentes/coordinador/seguimientos', authenticateToken, authorizeAge
   }
 });
 
+// -------------------------------------------------------------
+// PROGRAMACIÓN (ETAPAS & PRECIOS MENSUALES) ENDPOINTS
+// -------------------------------------------------------------
+
+app.get('/api/programacion/etapas', authenticateToken, async (req, res) => {
+  try {
+    const rows = await db.all('SELECT * FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch stages' });
+  }
+});
+
+app.post('/api/programacion/etapas', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Admin or Coordinator privileges required' });
+  }
+  const { id, clave, nombre, fecha_inicio, fecha_fin, color } = req.body;
+  if (!clave || !nombre || !fecha_inicio || !fecha_fin || !color) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+  try {
+    if (id) {
+      await db.run(
+        'UPDATE crm_etapas_programacion SET clave = ?, nombre = ?, fecha_inicio = ?, fecha_fin = ?, color = ? WHERE id = ?',
+        [clave.trim(), nombre.trim(), fecha_inicio, fecha_fin, color, id]
+      );
+      res.json({ success: true, message: 'Stage updated successfully' });
+    } else {
+      const existing = await db.get('SELECT id FROM crm_etapas_programacion WHERE clave = ?', [clave.trim()]);
+      if (existing) {
+        return res.status(400).json({ error: 'A stage with this key already exists' });
+      }
+      await db.run(
+        'INSERT INTO crm_etapas_programacion (clave, nombre, fecha_inicio, fecha_fin, color) VALUES (?, ?, ?, ?, ?)',
+        [clave.trim(), nombre.trim(), fecha_inicio, fecha_fin, color]
+      );
+      res.status(201).json({ success: true, message: 'Stage created successfully' });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save stage' });
+  }
+});
+
+app.delete('/api/programacion/etapas/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Admin or Coordinator privileges required' });
+  }
+  const { id } = req.params;
+  try {
+    await db.run('DELETE FROM crm_etapas_programacion WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Stage deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete stage' });
+  }
+});
+
+app.get('/api/programacion/precios', authenticateToken, async (req, res) => {
+  const { producto_id } = req.query;
+  if (!producto_id) {
+    return res.status(400).json({ error: 'producto_id is required' });
+  }
+  try {
+    const prod = await db.get('SELECT list_price_mxn FROM productos WHERE id = ?', [producto_id]);
+    if (!prod) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    const listPrice = prod.list_price_mxn;
+
+    const rows = await db.all(
+      'SELECT * FROM crm_precios_mensuales WHERE producto_id = ? ORDER BY mes ASC',
+      [producto_id]
+    );
+
+    const prices = [];
+    for (let m = 1; m <= 12; m++) {
+      const existing = rows.find(r => r.mes === m);
+      if (existing) {
+        prices.push(existing);
+      } else {
+        prices.push({
+          producto_id: parseInt(producto_id),
+          mes: m,
+          precio: listPrice,
+          promo_dinero: 0.0,
+          promo_porcentaje: 0.0
+        });
+      }
+    }
+    res.json(prices);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch monthly pricing' });
+  }
+});
+
+app.post('/api/programacion/precios', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Admin or Coordinator privileges required' });
+  }
+  const { producto_id, precios } = req.body;
+  if (!producto_id || !Array.isArray(precios) || precios.length !== 12) {
+    return res.status(400).json({ error: 'producto_id and an array of 12 months of prices are required' });
+  }
+  try {
+    for (const row of precios) {
+      const { mes, precio, promo_dinero, promo_porcentaje } = row;
+      if (mes < 1 || mes > 12) continue;
+      await db.run(
+        `INSERT INTO crm_precios_mensuales (producto_id, mes, precio, promo_dinero, promo_porcentaje)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (producto_id, mes)
+         DO UPDATE SET precio = EXCLUDED.precio, promo_dinero = EXCLUDED.promo_dinero, promo_porcentaje = EXCLUDED.promo_porcentaje`,
+        [producto_id, mes, precio || 0.0, promo_dinero || 0.0, promo_porcentaje || 0.0]
+      );
+    }
+    res.json({ success: true, message: 'Monthly pricing saved successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save monthly pricing' });
+  }
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`Casas Grandes Sales Management Server running on port ${PORT}`);

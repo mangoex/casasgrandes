@@ -66,6 +66,11 @@
             <span class="icon">📅</span> Planificación
           </a>
         </li>
+        <li class="nav-item" data-target="programacion-view">
+          <a href="#">
+            <span class="icon">📆</span> Programación
+          </a>
+        </li>
         <li class="nav-item" data-target="cotizador-view">
           <a href="#">
             <span class="icon">📝</span> Cotizador
@@ -806,6 +811,108 @@
         </div>
       </div>
 
+      <!-- F. PROGRAMACIÓN VIEW (PRECIOS Y ETAPAS) -->
+      <div id="programacion-view" class="view-section">
+        <div class="programacion-grid">
+          <!-- Panel Izquierdo: Gestión de Etapas -->
+          <div class="card" id="programacion-stages-card">
+            <h3>Gestión de Etapas</h3>
+            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 20px;">
+              Crea y edita etapas temporales para el ciclo de ventas. Las etapas se visualizarán en el calendario mensual.
+            </p>
+            <form id="etapa-form" style="margin-bottom: 24px;">
+              <input type="hidden" id="etapa-id">
+              <div class="form-group">
+                <label for="etapa-clave">Clave de Etapa</label>
+                <input type="text" id="etapa-clave" class="form-input" placeholder="ej. SIEM-OI" required>
+              </div>
+              <div class="form-group">
+                <label for="etapa-nombre">Nombre de Etapa</label>
+                <input type="text" id="etapa-nombre" class="form-input" placeholder="ej. Siembra Otoño-Invierno" required>
+              </div>
+              <div class="form-group">
+                <label for="etapa-inicio">Fecha Inicio</label>
+                <input type="date" id="etapa-inicio" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label for="etapa-fin">Fecha Fin</label>
+                <input type="date" id="etapa-fin" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label for="etapa-color">Color de Etapa (Pastel)</label>
+                <select id="etapa-color" class="form-input" required>
+                  <option value="#f87171" style="background-color: #fee2e2;">Rojo Claro</option>
+                  <option value="#fb923c" style="background-color: #ffedd5;">Naranja Claro</option>
+                  <option value="#facc15" style="background-color: #fef9c3;">Amarillo Claro</option>
+                  <option value="#4ade80" style="background-color: #d1fae5;">Verde Claro</option>
+                  <option value="#60a5fa" style="background-color: #dbeafe;">Azul Claro</option>
+                  <option value="#a78bfa" style="background-color: #ede9fe;">Morado Claro</option>
+                  <option value="#ec4899" style="background-color: #fce7f3;">Rosa Claro</option>
+                </select>
+              </div>
+              <button type="submit" id="btn-save-etapa" class="btn btn-primary" style="margin-top: 10px;">Guardar Etapa</button>
+              <button type="button" id="btn-cancel-etapa" class="btn btn-secondary" style="margin-top: 10px; display: none;">Cancelar</button>
+            </form>
+
+            <h4 style="margin-bottom: 12px; font-weight: 600;">Etapas Registradas</h4>
+            <div class="table-container" style="border: none; box-shadow: none; margin-bottom: 0; max-height: 300px; overflow-y: auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Clave</th>
+                    <th>Nombre</th>
+                    <th>Inicio / Fin</th>
+                    <th style="width: 50px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="etapas-list-tbody">
+                  <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-light);">No hay etapas registradas</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Panel Derecho: Calendario de Precios y Gantt Vertical -->
+          <div class="card" id="programacion-calendar-card">
+            <div class="flex-header" style="margin-bottom: 20px;">
+              <div>
+                <h3 style="margin: 0;">Calendario de Precios y Promociones</h3>
+                <p style="margin: 0; font-size: 13px; color: var(--text-light);">Configure el precio base y las promociones aplicables para cada mes.</p>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <select id="programacion-product-select" class="form-input" style="width: 250px;">
+                  <option value="">-- Seleccione un Producto --</option>
+                </select>
+                <button id="btn-save-precios" class="btn btn-primary" style="width: auto;">💾 Guardar Cambios</button>
+              </div>
+            </div>
+
+            <div class="table-container" id="programacion-table-container" style="overflow-x: auto;">
+              <table id="programacion-table">
+                <thead>
+                  <tr id="programacion-header-row">
+                    <th>Mes</th>
+                    <th style="width: 130px;">Precio Base ($)</th>
+                    <th style="width: 130px;">Promoción ($)</th>
+                    <th style="width: 130px;">Promoción (%)</th>
+                    <!-- Dynamic stage headers will be injected here -->
+                  </tr>
+                </thead>
+                <tbody id="programacion-table-tbody">
+                  <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-light); padding: 40px;">
+                      Por favor, seleccione un producto para ver su programación mensual.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- G. CLIENT ASSIGNMENT VIEW (ADMIN ONLY) -->
       <div id="asignacion-view" class="view-section">
         <div class="card" style="margin-bottom: 24px;">
@@ -1326,6 +1433,9 @@
       </div>
       <div class="mobile-nav-item" data-target="planeacion-view">
         <span class="mobile-nav-icon">📅</span>
+      </div>
+      <div class="mobile-nav-item" data-target="programacion-view">
+        <span class="mobile-nav-icon">📆</span>
       </div>
       <div class="mobile-nav-item" data-target="cotizador-view">
         <span class="mobile-nav-icon">📝</span>
