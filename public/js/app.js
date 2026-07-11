@@ -3595,10 +3595,10 @@ let catalogAdvisorsLoaded = false;
 let catalogEventsBound = false;
 
 const ADVISOR_STAGE_DEFINITIONS = [
-  { code: 'C', label: 'Cosecha', matcher: season => /cosecha/i.test(season.actividad || '') },
-  { code: 'DP', label: 'Descuento preventa', matcher: season => /precio/i.test(season.actividad || '') && !/pv|cosecha/i.test(season.actividad || '') },
-  { code: 'DV', label: 'Descuento PV', matcher: season => /precio\s*pv|pv/i.test(season.actividad || '') },
-  { code: 'A', label: 'Apartado', matcher: season => /apartado/i.test(season.actividad || '') }
+  { code: 'C', label: 'Cosecha', matcher: stage => normalizeStageText(stage).includes('cosecha') || normalizeStageKey(stage) === 'C' },
+  { code: 'DV', label: 'Desarrollo Vegetativo', matcher: stage => normalizeStageText(stage).includes('vegetativo') || normalizeStageKey(stage) === 'DV' },
+  { code: 'DR', label: 'Desarrollo Reproductivo', matcher: stage => normalizeStageText(stage).includes('reproductivo') || normalizeStageKey(stage) === 'DR' },
+  { code: 'V', label: 'Venta', matcher: stage => normalizeStageText(stage).includes('venta') || normalizeStageKey(stage) === 'V' }
 ];
 
 function escapeAttribute(value) {
@@ -3607,6 +3607,18 @@ function escapeAttribute(value) {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function normalizeStageText(stage) {
+  return `${stage?.clave || ''} ${stage?.nombre || ''}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function normalizeStageKey(stage) {
+  return String(stage?.clave || '').trim().toUpperCase();
 }
 
 function parseCatalogDate(value) {
@@ -3643,18 +3655,19 @@ function isSeasonActiveByDate(season) {
 
 async function loadCatalogStageStates() {
   try {
-    const res = await fetch(`${API_URL}/api/temporadas`, { headers: getHeaders() });
-    const seasons = await res.json();
-    if (!res.ok || !Array.isArray(seasons)) throw new Error('Failed to load seasons');
+    const res = await fetch(`${API_URL}/api/programacion/etapas`, { headers: getHeaders() });
+    const stages = await res.json();
+    if (!res.ok || !Array.isArray(stages)) throw new Error('Failed to load programming stages');
 
     catalogStageStates = ADVISOR_STAGE_DEFINITIONS.map(stage => {
-      const matchingSeasons = seasons.filter(stage.matcher);
-      const activeSeason = matchingSeasons.find(isSeasonActiveByDate);
+      const matchingStages = stages.filter(stage.matcher);
+      const activeStage = matchingStages.find(isSeasonActiveByDate);
       return {
         ...stage,
-        active: Boolean(activeSeason),
-        title: activeSeason
-          ? `${stage.label}: activo (${activeSeason.actividad})`
+        active: Boolean(activeStage),
+        color: activeStage?.color || '#10b981',
+        title: activeStage
+          ? `${stage.label}: activo (${activeStage.nombre})`
           : `${stage.label}: fuera de fecha activa`
       };
     });
@@ -3663,6 +3676,7 @@ async function loadCatalogStageStates() {
     catalogStageStates = ADVISOR_STAGE_DEFINITIONS.map(stage => ({
       ...stage,
       active: false,
+      color: '#94a3b8',
       title: `${stage.label}: sin datos de fecha`
     }));
   }
@@ -3672,12 +3686,12 @@ function renderAdvisorStageButtons() {
   if (user?.nivel_rol !== 'Asesor') return '';
   const stages = catalogStageStates.length > 0
     ? catalogStageStates
-    : ADVISOR_STAGE_DEFINITIONS.map(stage => ({ ...stage, active: false, title: `${stage.label}: cargando` }));
+    : ADVISOR_STAGE_DEFINITIONS.map(stage => ({ ...stage, active: false, color: '#94a3b8', title: `${stage.label}: cargando` }));
 
   return `
     <div class="advisor-stage-buttons" aria-label="Etapas activas">
       ${stages.map(stage => `
-        <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" disabled>${stage.code}</button>
+        <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" ${stage.active ? `style="--stage-color: ${escapeAttribute(stage.color)};"` : ''} title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" disabled>${stage.code}</button>
       `).join('')}
     </div>
   `;

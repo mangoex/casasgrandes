@@ -231,13 +231,14 @@ body {
 aside {
   background-color: var(--primary-dark);
   color: white;
-  padding: 35px 24px;
+  padding: 32px 24px 18px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255,255,255,0.04);
   position: sticky;
   top: 0;
   height: 100vh;
+  overflow: hidden;
   transition: width 0.25s ease, padding 0.25s ease;
 }
 
@@ -268,8 +269,9 @@ aside {
 }
 
 .brand {
-  margin-bottom: 45px;
+  margin-bottom: 32px;
   padding-left: 8px;
+  flex: 0 0 auto;
 }
 
 .brand h2 {
@@ -286,15 +288,23 @@ aside {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  flex-grow: 1;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+  scrollbar-width: none;
+}
+
+.nav-links::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-item a {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 13px 18px;
+  padding: 11px 18px;
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
   font-weight: 500;
@@ -317,7 +327,8 @@ aside {
 
 /* User profile details widget at bottom sidebar */
 .user-profile {
-  padding: 24px 8px 0;
+  flex: 0 0 auto;
+  padding: 14px 8px 0;
   border-top: 1px solid rgba(255,255,255,0.06);
 }
 
@@ -329,7 +340,7 @@ aside {
 .user-profile p {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.45);
-  margin-bottom: 14px;
+  margin-bottom: 4px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -344,7 +355,7 @@ aside {
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
-  padding: 10px 0;
+  padding: 6px 0;
   transition: var(--transition);
 }
 
@@ -618,10 +629,10 @@ tr:hover td {
 }
 
 .advisor-stage-btn.active {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--stage-color, var(--primary));
+  border-color: var(--stage-color, var(--primary));
   color: white;
-  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.18);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.16);
 }
 
 .advisor-stage-btn.inactive {
@@ -2488,4 +2499,3 @@ tr:hover td {
     opacity: 1;
   }
 }
-
