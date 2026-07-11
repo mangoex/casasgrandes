@@ -3590,8 +3590,98 @@ window.deleteCiclo = async function(id) {
 // -------------------------------------------------------------
 let allCatalogClients = [];
 let selectedCatalogClientIds = new Set();
+let catalogStageStates = [];
 let catalogAdvisorsLoaded = false;
 let catalogEventsBound = false;
+
+const ADVISOR_STAGE_DEFINITIONS = [
+  { code: 'C', label: 'Cosecha', matcher: season => /cosecha/i.test(season.actividad || '') },
+  { code: 'DP', label: 'Descuento preventa', matcher: season => /precio/i.test(season.actividad || '') && !/pv|cosecha/i.test(season.actividad || '') },
+  { code: 'DV', label: 'Descuento PV', matcher: season => /precio\s*pv|pv/i.test(season.actividad || '') },
+  { code: 'A', label: 'Apartado', matcher: season => /apartado/i.test(season.actividad || '') }
+];
+
+function escapeAttribute(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function parseCatalogDate(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  }
+
+  const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slash) {
+    return new Date(Number(slash[3]), Number(slash[1]) - 1, Number(slash[2]));
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isSeasonActiveByDate(season) {
+  const start = parseCatalogDate(season.fecha_inicio || season.Inicio || season.inicio);
+  const end = parseCatalogDate(season.fecha_fin || season.Fin || season.fin);
+  if (!start || !end) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  return today >= start && today <= end;
+}
+
+async function loadCatalogStageStates() {
+  try {
+    const res = await fetch(`${API_URL}/api/temporadas`, { headers: getHeaders() });
+    const seasons = await res.json();
+    if (!res.ok || !Array.isArray(seasons)) throw new Error('Failed to load seasons');
+
+    catalogStageStates = ADVISOR_STAGE_DEFINITIONS.map(stage => {
+      const matchingSeasons = seasons.filter(stage.matcher);
+      const activeSeason = matchingSeasons.find(isSeasonActiveByDate);
+      return {
+        ...stage,
+        active: Boolean(activeSeason),
+        title: activeSeason
+          ? `${stage.label}: activo (${activeSeason.actividad})`
+          : `${stage.label}: fuera de fecha activa`
+      };
+    });
+  } catch (err) {
+    console.error('Failed to load catalog stage states:', err);
+    catalogStageStates = ADVISOR_STAGE_DEFINITIONS.map(stage => ({
+      ...stage,
+      active: false,
+      title: `${stage.label}: sin datos de fecha`
+    }));
+  }
+}
+
+function renderAdvisorStageButtons() {
+  if (user?.nivel_rol !== 'Asesor') return '';
+  const stages = catalogStageStates.length > 0
+    ? catalogStageStates
+    : ADVISOR_STAGE_DEFINITIONS.map(stage => ({ ...stage, active: false, title: `${stage.label}: cargando` }));
+
+  return `
+    <div class="advisor-stage-buttons" aria-label="Etapas activas">
+      ${stages.map(stage => `
+        <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" disabled>${stage.code}</button>
+      `).join('')}
+    </div>
+  `;
+}
 
 function bindCatalogClientEvents() {
   if (catalogEventsBound) return;
@@ -3727,6 +3817,10 @@ window.loadClientesCatalog = async function() {
     if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') {
       await loadCatalogClientAdvisorOptions();
     }
+
+    if (user.nivel_rol === 'Asesor') {
+      await loadCatalogStageStates();
+    }
     
     const res = await fetch(`${API_URL}/api/clientes`, { headers: getHeaders() });
     const data = await res.json();
@@ -3784,14 +3878,14 @@ window.renderCatalogClientes = function() {
     const deleteButton = user.nivel_rol === 'Administrador'
       ? `<button class="btn btn-secondary icon-action-btn danger" title="Borrar agricultor" aria-label="Borrar agricultor" onclick="deleteCatalogClient(${c.id})">🗑️</button>`
       : '';
+    const nameContent = user.nivel_rol === 'Asesor'
+      ? `<div class="advisor-stage-name">${renderAdvisorStageButtons()}<strong>${c.nombre}</strong></div>`
+      : `<div class="catalog-name-cell"><strong>${c.nombre}</strong>${selectionControl}</div>`;
     
     catalogHtml += `
       <tr>
         <td>
-          <div class="catalog-name-cell">
-            <strong>${c.nombre}</strong>
-            ${selectionControl}
-          </div>
+          ${nameContent}
         </td>
         ${user.nivel_rol !== 'Asesor' ? `<td>${c.asesor_nombre || 'Sin Asesor'}</td>` : ''}
         <td>${c.cuenta_clave_nombre || '-'}</td>

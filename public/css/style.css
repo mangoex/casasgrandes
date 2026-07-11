@@ -339,15 +339,22 @@ aside {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: rgba(255, 255, 255, 0.5);
+  width: fit-content;
+  color: rgba(255, 255, 255, 0.72);
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
+  padding: 10px 0;
   transition: var(--transition);
 }
 
 .btn-logout:hover {
   color: #fca5a5;
+}
+
+.logout-icon {
+  font-size: 18px;
+  line-height: 1;
 }
 
 @media (min-width: 1001px) {
@@ -431,12 +438,17 @@ aside {
     justify-content: center;
     gap: 0;
     font-size: 0;
-    margin: 0 auto;
+    margin: 0;
     border-radius: var(--radius);
+    padding: 0;
   }
 
-  .app-wrapper.sidebar-collapsed .btn-logout span {
+  .app-wrapper.sidebar-collapsed .btn-logout .logout-icon {
     font-size: 20px;
+  }
+
+  .app-wrapper.sidebar-collapsed .btn-logout .logout-text {
+    display: none;
   }
 }
 
@@ -575,6 +587,45 @@ tr:hover td {
 
 .catalog-name-cell strong {
   min-width: 0;
+}
+
+.advisor-stage-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.advisor-stage-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 34px);
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.advisor-stage-btn {
+  width: 34px;
+  height: 30px;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  background: #f1f5f9;
+  color: var(--text-light);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+  cursor: default;
+}
+
+.advisor-stage-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.18);
+}
+
+.advisor-stage-btn.inactive {
+  opacity: 0.72;
 }
 
 .catalog-row-checkbox {
