@@ -905,8 +905,21 @@ tr:hover td {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   padding-bottom: 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.kanban-column-heading,
+.kanban-column-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kanban-column-heading {
+  flex: 1;
 }
 
 .kanban-column-title {
@@ -915,6 +928,41 @@ tr:hover td {
   color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.75px;
+}
+
+.kanban-select-all,
+.kanban-card-select {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.kanban-delete-selected {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  background: #fef2f2;
+  color: var(--danger);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 1;
+  transition: var(--transition);
+}
+
+.kanban-delete-selected:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.kanban-delete-selected:not(:disabled):hover {
+  border-color: #fca5a5;
+  transform: translateY(-1px);
 }
 
 .kanban-column-count {
@@ -963,15 +1011,11 @@ tr:hover td {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
 }
 
-.kanban-card-title button {
-  opacity: 0.4;
-  transition: var(--transition);
-}
-
-.kanban-card:hover .kanban-card-title button {
-  opacity: 1;
+.kanban-card-title span {
+  min-width: 0;
 }
 
 .kanban-card-desc {

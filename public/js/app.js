@@ -36,6 +36,8 @@ let activeClientId = null;
 let quoteItemsCount = 0;
 let allQuotes = [];
 let allClients = [];
+let selectedKanbanQuoteIds = new Set();
+let lastRenderedKanbanQuotes = [];
 let allProducts = [];
 let allSeasons = [];
 let currentPlanList = [];
@@ -47,9 +49,30 @@ let allMovements = [];
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
   setupPlanningSelectionListeners();
+  setupKanbanDeleteShortcut();
   bindIAViewEventListeners();
   bindProgramacionEventListeners();
 });
+
+function setupKanbanDeleteShortcut() {
+  document.addEventListener('keydown', (e) => {
+    const activeEl = document.activeElement;
+    const isTextInput = activeEl?.tagName === 'INPUT' && !['checkbox', 'radio', 'button'].includes(activeEl.type);
+    const isEditing = activeEl && (
+      isTextInput ||
+      activeEl.tagName === 'TEXTAREA' ||
+      activeEl.tagName === 'SELECT' ||
+      activeEl.isContentEditable
+    );
+
+    if (isEditing || !['Delete', 'Backspace'].includes(e.key)) return;
+    const activeView = document.querySelector('.view-section.active');
+    if (!activeView || activeView.id !== 'crm-view' || selectedKanbanQuoteIds.size === 0) return;
+
+    e.preventDefault();
+    deleteSelectedKanbanQuotes();
+  });
+}
 
 function setupPlanningSelectionListeners() {
   for (let i = 1; i <= 5; i++) {
@@ -965,6 +988,11 @@ async function loadCRMBoardData() {
 }
 
 function renderKanbanBoard(quotesList) {
+  lastRenderedKanbanQuotes = quotesList;
+  selectedKanbanQuoteIds = new Set(
+    [...selectedKanbanQuoteIds].filter(id => quotesList.some(q => Number(q.id) === Number(id)))
+  );
+
   const columns = {
     'Borrador': { el: document.getElementById('cards-prospecto'), countEl: document.getElementById('count-prospecto'), count: 0 },
     'Autorizada': { el: document.getElementById('cards-cotizado'), countEl: document.getElementById('count-cotizado'), count: 0 },
@@ -995,7 +1023,7 @@ function renderKanbanBoard(quotesList) {
     
     // single click to view detail modal (ignoring buttons)
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.kanban-arrow-btn') || e.target.closest('button')) {
+      if (e.target.closest('.kanban-arrow-btn') || e.target.closest('button') || e.target.closest('input')) {
         return;
       }
       showQuoteDetails(q.id);
@@ -1017,11 +1045,12 @@ function renderKanbanBoard(quotesList) {
     
     const prevLabel = prevLabels[status] || '';
     const nextLabel = nextLabels[status] || '';
+    const isSelected = selectedKanbanQuoteIds.has(Number(q.id));
     
     card.innerHTML = `
       <div class="kanban-card-title">
         <span>${q.cliente_nombre}</span>
-        <button style="background:none; border:none; cursor:pointer; font-size:12px;" onclick="loadClientCRMDetails(${q.cliente_id})">👁️</button>
+        <input type="checkbox" class="kanban-card-select" ${isSelected ? 'checked' : ''} title="Seleccionar cotización" aria-label="Seleccionar cotización" onchange="toggleKanbanQuoteSelection(${q.id}, this.checked, event)">
       </div>
       <div class="kanban-card-desc">${itemsSummary}</div>
       <div style="font-size:11px; color:var(--text-light); font-weight: 500;">Folio: ${q.folio_cotizacion}</div>
@@ -1042,7 +1071,97 @@ function renderKanbanBoard(quotesList) {
   Object.keys(columns).forEach(k => {
     columns[k].countEl.textContent = columns[k].count;
   });
+  updateKanbanSelectionControls();
 }
+
+function getVisibleKanbanQuotesByStatus(status) {
+  return lastRenderedKanbanQuotes.filter(q => {
+    let quoteStatus = q.estatus;
+    if (quoteStatus === 'Pendiente Autorización') quoteStatus = 'Borrador';
+    return quoteStatus === status;
+  });
+}
+
+function getSelectedKanbanQuotes(status = null) {
+  const visible = status ? getVisibleKanbanQuotesByStatus(status) : lastRenderedKanbanQuotes;
+  return visible.filter(q => selectedKanbanQuoteIds.has(Number(q.id)));
+}
+
+function updateKanbanSelectionControls() {
+  const columnConfig = {
+    Borrador: 'prospecto',
+    Autorizada: 'cotizado',
+    Vendido: 'cobrado',
+    Entregado: 'entregado'
+  };
+
+  Object.entries(columnConfig).forEach(([status, key]) => {
+    const checkbox = document.getElementById(`kanban-select-all-${key}`);
+    const deleteBtn = document.querySelector(`#col-${key} .kanban-delete-selected`);
+    const visible = getVisibleKanbanQuotesByStatus(status);
+    const selectedCount = visible.filter(q => selectedKanbanQuoteIds.has(Number(q.id))).length;
+
+    if (checkbox) {
+      checkbox.checked = visible.length > 0 && selectedCount === visible.length;
+      checkbox.indeterminate = selectedCount > 0 && selectedCount < visible.length;
+      checkbox.disabled = visible.length === 0;
+    }
+
+    if (deleteBtn) {
+      deleteBtn.disabled = selectedCount === 0;
+      deleteBtn.dataset.count = selectedCount;
+    }
+  });
+}
+
+window.toggleKanbanQuoteSelection = function(quoteId, checked, event) {
+  if (event) event.stopPropagation();
+  const numericId = Number(quoteId);
+  if (checked) {
+    selectedKanbanQuoteIds.add(numericId);
+  } else {
+    selectedKanbanQuoteIds.delete(numericId);
+  }
+  updateKanbanSelectionControls();
+};
+
+window.toggleKanbanColumnSelection = function(status, checked) {
+  getVisibleKanbanQuotesByStatus(status).forEach(q => {
+    const id = Number(q.id);
+    if (checked) {
+      selectedKanbanQuoteIds.add(id);
+    } else {
+      selectedKanbanQuoteIds.delete(id);
+    }
+  });
+  renderKanbanBoard(lastRenderedKanbanQuotes);
+};
+
+window.deleteSelectedKanbanQuotes = async function(status = null) {
+  const selectedQuotes = getSelectedKanbanQuotes(status);
+  if (selectedQuotes.length === 0) return;
+
+  const confirmed = confirm(`¿Borrar ${selectedQuotes.length} cotización${selectedQuotes.length === 1 ? '' : 'es'} seleccionada${selectedQuotes.length === 1 ? '' : 's'}?\n\nEsta acción no se puede deshacer y revertirá cualquier inventario afectado.`);
+  if (!confirmed) return;
+
+  try {
+    for (const quote of selectedQuotes) {
+      const res = await fetch(`${API_URL}/api/cotizaciones/${quote.id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `No se pudo borrar ${quote.folio_cotizacion}`);
+      selectedKanbanQuoteIds.delete(Number(quote.id));
+    }
+
+    await loadCRMBoardData();
+    alert(`${selectedQuotes.length} cotización${selectedQuotes.length === 1 ? '' : 'es'} borrada${selectedQuotes.length === 1 ? '' : 's'} con éxito.`);
+  } catch (err) {
+    alert(err.message);
+    await loadCRMBoardData();
+  }
+};
 
 // Unified Kanban Filter & Render
 window.filterAndRenderKanban = function() {

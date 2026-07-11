@@ -968,9 +968,6 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       if (q.asesor_id !== req.user.id) {
         return res.status(403).json({ error: 'Unauthorized to delete this quote' });
       }
-      if (q.estatus !== 'Borrador') {
-        return res.status(400).json({ error: 'Asesores can only delete draft quotes' });
-      }
     }
     
     // Check if stock is currently deducted and revert it

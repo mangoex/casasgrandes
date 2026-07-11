@@ -235,8 +235,14 @@
             <!-- Column 1: Prospecto -->
             <div class="kanban-column" id="col-prospecto" ondragover="allowDrop(event)" ondrop="drop(event, 'Borrador')">
               <div class="kanban-column-header">
-                <span class="kanban-column-title">Prospecto (Borrador)</span>
-                <span class="kanban-column-count" id="count-prospecto">0</span>
+                <div class="kanban-column-heading">
+                  <input type="checkbox" id="kanban-select-all-prospecto" class="kanban-select-all" title="Seleccionar todos en Prospecto" aria-label="Seleccionar todos en Prospecto" onchange="toggleKanbanColumnSelection('Borrador', this.checked)">
+                  <span class="kanban-column-title">Prospecto (Borrador)</span>
+                </div>
+                <div class="kanban-column-actions">
+                  <button class="kanban-delete-selected" title="Borrar seleccionados" aria-label="Borrar seleccionados" onclick="deleteSelectedKanbanQuotes('Borrador')">🗑️</button>
+                  <span class="kanban-column-count" id="count-prospecto">0</span>
+                </div>
               </div>
               <div class="kanban-cards-container" id="cards-prospecto"></div>
             </div>
@@ -244,8 +250,14 @@
             <!-- Column 2: Cotizado -->
             <div class="kanban-column" id="col-cotizado" ondragover="allowDrop(event)" ondrop="drop(event, 'Autorizada')">
               <div class="kanban-column-header">
-                <span class="kanban-column-title">Cotizado (Autorizada)</span>
-                <span class="kanban-column-count" id="count-cotizado">0</span>
+                <div class="kanban-column-heading">
+                  <input type="checkbox" id="kanban-select-all-cotizado" class="kanban-select-all" title="Seleccionar todos en Cotizado" aria-label="Seleccionar todos en Cotizado" onchange="toggleKanbanColumnSelection('Autorizada', this.checked)">
+                  <span class="kanban-column-title">Cotizado (Autorizada)</span>
+                </div>
+                <div class="kanban-column-actions">
+                  <button class="kanban-delete-selected" title="Borrar seleccionados" aria-label="Borrar seleccionados" onclick="deleteSelectedKanbanQuotes('Autorizada')">🗑️</button>
+                  <span class="kanban-column-count" id="count-cotizado">0</span>
+                </div>
               </div>
               <div class="kanban-cards-container" id="cards-cotizado"></div>
             </div>
@@ -253,8 +265,14 @@
             <!-- Column 3: Cobrado -->
             <div class="kanban-column" id="col-cobrado" ondragover="allowDrop(event)" ondrop="drop(event, 'Vendido')">
               <div class="kanban-column-header">
-                <span class="kanban-column-title">Cobrado (Vendido)</span>
-                <span class="kanban-column-count" id="count-cobrado">0</span>
+                <div class="kanban-column-heading">
+                  <input type="checkbox" id="kanban-select-all-cobrado" class="kanban-select-all" title="Seleccionar todos en Cobrado" aria-label="Seleccionar todos en Cobrado" onchange="toggleKanbanColumnSelection('Vendido', this.checked)">
+                  <span class="kanban-column-title">Cobrado (Vendido)</span>
+                </div>
+                <div class="kanban-column-actions">
+                  <button class="kanban-delete-selected" title="Borrar seleccionados" aria-label="Borrar seleccionados" onclick="deleteSelectedKanbanQuotes('Vendido')">🗑️</button>
+                  <span class="kanban-column-count" id="count-cobrado">0</span>
+                </div>
               </div>
               <div class="kanban-cards-container" id="cards-cobrado"></div>
             </div>
@@ -262,8 +280,14 @@
             <!-- Column 4: Entregado -->
             <div class="kanban-column" id="col-entregado" ondragover="allowDrop(event)" ondrop="drop(event, 'Entregado')">
               <div class="kanban-column-header">
-                <span class="kanban-column-title">Entregado</span>
-                <span class="kanban-column-count" id="count-entregado">0</span>
+                <div class="kanban-column-heading">
+                  <input type="checkbox" id="kanban-select-all-entregado" class="kanban-select-all" title="Seleccionar todos en Entregado" aria-label="Seleccionar todos en Entregado" onchange="toggleKanbanColumnSelection('Entregado', this.checked)">
+                  <span class="kanban-column-title">Entregado</span>
+                </div>
+                <div class="kanban-column-actions">
+                  <button class="kanban-delete-selected" title="Borrar seleccionados" aria-label="Borrar seleccionados" onclick="deleteSelectedKanbanQuotes('Entregado')">🗑️</button>
+                  <span class="kanban-column-count" id="count-entregado">0</span>
+                </div>
               </div>
               <div class="kanban-cards-container" id="cards-entregado"></div>
             </div>
