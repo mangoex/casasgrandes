@@ -639,6 +639,24 @@ tr:hover td {
   opacity: 0.72;
 }
 
+.plan-card-client {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.plan-card-client .advisor-stage-buttons {
+  grid-template-columns: repeat(4, 30px);
+  gap: 5px;
+}
+
+.plan-card-client .advisor-stage-btn {
+  width: 30px;
+  height: 28px;
+  font-size: 10px;
+}
+
 .catalog-row-checkbox {
   width: 18px;
   height: 18px;

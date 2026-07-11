@@ -2727,6 +2727,9 @@ async function loadPlaneacionView() {
   }
   
   await loadPlanClientOptions();
+  if (user.nivel_rol === 'Asesor') {
+    await loadCatalogStageStates();
+  }
   await loadWeeklySchedule();
 }
 
@@ -2869,7 +2872,10 @@ async function loadWeeklySchedule() {
             <input type="checkbox" class="card-select-checkbox" data-id="${p.id}" style="width: 15px; height: 15px; cursor: pointer; margin-top: 3px;">
             <div style="flex-grow: 1;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;">
-                <strong style="font-size: 13.5px; color: var(--text);">${p.cliente_nombre}</strong>
+                <div class="plan-card-client">
+                  ${renderAdvisorStageButtons()}
+                  <strong style="font-size: 13.5px; color: var(--text);">${p.cliente_nombre}</strong>
+                </div>
                 ${statusBadge}
               </div>
               <div style="font-size: 11px; color: var(--text-light); font-weight: 500;">Visita: ${p.fecha_programada.slice(5)}</div>
