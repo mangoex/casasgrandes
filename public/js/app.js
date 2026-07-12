@@ -1394,10 +1394,15 @@ window.toggleQuoteEditMode = async function(isEdit) {
       seasonSelect.innerHTML += `<option value="${s.id}">${s.actividad}${label}</option>`;
     });
     
-    // Match season
-    const firstDetail = activeQuote.items && activeQuote.items[0];
-    if (firstDetail && firstDetail.temporada_id) {
-      seasonSelect.value = firstDetail.temporada_id;
+    // Match season - force to 'Temporada (Precio Lleno)'
+    const defaultSeason = allSeasons.find(s => s.actividad === 'Temporada (Precio Lleno)');
+    if (defaultSeason) {
+      seasonSelect.value = defaultSeason.id;
+    } else {
+      const firstDetail = activeQuote.items && activeQuote.items[0];
+      if (firstDetail && firstDetail.temporada_id) {
+        seasonSelect.value = firstDetail.temporada_id;
+      }
     }
     
     // Populate product rows
@@ -1756,6 +1761,12 @@ async function loadCotizadorConfig() {
       const label = s.descuento_porcentaje > 0 ? ` (${sign}${s.descuento_porcentaje}%)` : '';
       seasonSelect.innerHTML += `<option value="${s.id}">${s.actividad}${label}</option>`;
     });
+    
+    // Auto-default to 'Temporada (Precio Lleno)' since campaign select is hidden
+    const defaultSeason = allSeasons.find(s => s.actividad === 'Temporada (Precio Lleno)');
+    if (defaultSeason) {
+      seasonSelect.value = defaultSeason.id;
+    }
     
     // Fetch products catalog
     const pRes = await fetch(`${API_URL}/api/productos`, { headers: getHeaders() });
