@@ -1877,7 +1877,7 @@ function getQuotePayload() {
     }
   });
   
-  return { client_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas };
+  return { client_id, cliente_id: client_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas };
 }
 
 // Debounced recalculation of quote
