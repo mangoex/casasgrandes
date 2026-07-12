@@ -2096,18 +2096,19 @@ function updateVirtualSheet(calc, payload) {
     const subtotalFinal = finalPrice * i.cantidad;
     grandTotalWithDiscounts += subtotalFinal;
     
-    // Build discount badge if advisor gave extra discount
-    const advisorBadge = advisorDiscount > 0
-      ? `<br><span style="font-size:9px; color:var(--accent); font-weight:600;">-$${advisorDiscount.toLocaleString('es-MX', { minimumFractionDigits: 0 })} desc. asesor</span>`
-      : '';
+    // Format advisor discount for the DCTO NETO column
+    const formattedDiscount = `-$${advisorDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+    const discountStyle = advisorDiscount > 0
+      ? 'color: var(--accent); font-weight: 600;'
+      : 'color: var(--text-light);';
     
     tbody.innerHTML += `
       <tr>
         <td><strong>${i.producto_nombre}</strong><br><span style="font-size: 9px; color: var(--text-light);">${i.tipo_categoria}</span></td>
         <td style="text-align: center; font-weight: 600;">${i.cantidad}</td>
         <td style="text-align: right;">$${listPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align: right; color: var(--danger); font-weight: 500;">-$${totalVolumeDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align: right; font-weight: 600;">$${finalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}${advisorBadge}</td>
+        <td style="text-align: right; ${discountStyle}">${formattedDiscount}</td>
+        <td style="text-align: right; font-weight: 600;">$${finalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
         <td style="text-align: right; font-weight: 700;">$${subtotalFinal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
       </tr>
     `;
