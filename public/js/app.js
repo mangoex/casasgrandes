@@ -2984,7 +2984,7 @@ async function loadWeeklySchedule() {
           if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
           if (p.realizada === 3) {
             reschedulePlanActivity(p);
-          } else if (p.realizada === 0) {
+          } else {
             openEditPlanModal(p);
           }
         });
@@ -3220,14 +3220,27 @@ document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
   document.getElementById('plan-form-id').value = '';
   document.getElementById('plan-date').value = new Date().toISOString().slice(0, 10);
   
+  // Clear stages container
+  const stagesContainer = document.getElementById('plan-modal-stages-container');
+  if (stagesContainer) stagesContainer.innerHTML = '';
+  
   const modalTitle = document.getElementById('plan-modal-title');
   if (modalTitle) modalTitle.textContent = 'Programar Nueva Visita';
   
   const submitBtn = document.getElementById('plan-submit-btn');
-  if (submitBtn) submitBtn.textContent = 'Programar Actividad';
+  if (submitBtn) {
+    submitBtn.style.display = 'inline-block';
+    submitBtn.textContent = 'Programar Actividad';
+  }
   
   const convertBtn = document.getElementById('btn-convert-to-prospect');
   if (convertBtn) convertBtn.style.display = 'none';
+  
+  // Re-enable all fields
+  const form = document.getElementById('add-plan-form');
+  form.querySelectorAll('.form-input').forEach(input => {
+    input.disabled = false;
+  });
   
   openModal('add-plan-modal');
 });
@@ -3240,16 +3253,42 @@ window.openEditPlanModal = function(p) {
   document.getElementById('plan-forecast-amount').value = p.pronostico_monto_mxn || 0;
   document.getElementById('plan-form-id').value = p.id;
   
+  // Render advisor stage buttons inside the modal
+  const stagesContainer = document.getElementById('plan-modal-stages-container');
+  if (stagesContainer) {
+    stagesContainer.innerHTML = renderAdvisorStageButtons();
+  }
+  
   const modalTitle = document.getElementById('plan-modal-title');
-  if (modalTitle) modalTitle.textContent = 'Editar Visita Programada';
-  
   const submitBtn = document.getElementById('plan-submit-btn');
-  if (submitBtn) submitBtn.textContent = 'Guardar Cambios';
-  
   const convertBtn = document.getElementById('btn-convert-to-prospect');
+  
+  const isConcluded = p.realizada === 1 || p.realizada === 2;
+  
+  if (modalTitle) {
+    if (p.realizada === 1) {
+      modalTitle.textContent = 'Detalle de Visita (Realizada)';
+    } else if (p.realizada === 2) {
+      modalTitle.textContent = 'Detalle de Visita (Cancelada)';
+    } else {
+      modalTitle.textContent = 'Editar Visita Programada';
+    }
+  }
+  
+  if (submitBtn) {
+    submitBtn.style.display = isConcluded ? 'none' : 'inline-block';
+    submitBtn.textContent = 'Guardar Cambios';
+  }
+  
   if (convertBtn) {
     convertBtn.style.display = p.realizada === 0 ? 'inline-block' : 'none';
   }
+  
+  // Disable fields if the visit has already been concluded
+  const form = document.getElementById('add-plan-form');
+  form.querySelectorAll('.form-input').forEach(input => {
+    input.disabled = isConcluded;
+  });
   
   openModal('add-plan-modal');
 };
