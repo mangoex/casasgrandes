@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 const agentsService = require('./agentsService');
+const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -639,13 +640,13 @@ app.delete('/api/metas-globales/:id', authenticateToken, async (req, res) => {
 // QUOTING & CALCULATING ENGINE
 // -------------------------------------------------------------
 
-function getVolumeMultiplier(qty) {
-  if (qty < 40) return 1.00;
-  if (qty < 60) return 0.95;
-  if (qty < 80) return 0.90;
-  if (qty < 90) return 0.85;
-  return 0.80;
-}
+// getVolumeMultiplier is imported from utils/pricing.js
+// The canonical volume discount scale (aligned with cotizador.py):
+//   < 40 bolsas  -> 1.00 (no discount)
+//   < 60 bolsas  -> 0.95 (5%)
+//   < 80 bolsas  -> 0.90 (10%)
+//   < 90 bolsas  -> 0.85 (15%)
+//   >= 90 bolsas -> 0.80 (20%)
 
 app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
   const { cliente_id, items, temporada_id, cuenta_clave_id } = req.body;
@@ -1060,14 +1061,7 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       calculatedRows.push({ item, prod });
     }
     
-    const getVolumeMultiplier = (totalBags) => {
-      if (totalBags >= 500) return 0.75;
-      if (totalBags >= 250) return 0.80;
-      if (totalBags >= 100) return 0.85;
-      if (totalBags >= 50) return 0.90;
-      if (totalBags >= 20) return 0.95;
-      return 1.00;
-    };
+    // Using canonical getVolumeMultiplier imported from utils/pricing.js
     
     const volMultiplier = getVolumeMultiplier(totalDiscountableSeeds);
     let grandTotal = 0.0;

@@ -4584,6 +4584,38 @@ window.assignClientDirectly = async function(clientId, advisorId, advisorName) {
 };
 
 // AI Matching Suggester
+// ---------------------------------------------------------------------------
+// AI Match Score – SINGLE SOURCE OF TRUTH (SDD §4.3 – Weight: 60/40)
+// Both the Suggestion modal and the Admin Decision modal MUST call this
+// function so that the same advisor/client pair always yields the same score.
+// ---------------------------------------------------------------------------
+/**
+ * Compute the AI Match Score (0-100) for an advisor/client pairing.
+ *
+ * For high-value clients (> $1,000,000 MXN historical purchases):
+ *   → Weight sales performance (60%) and visit compliance (40%)
+ * For regular clients:
+ *   → Weight calendar availability (60%) and visit compliance (40%)
+ *
+ * @param {number} salesScore       - Normalised sales score 0-100
+ * @param {number} complRate        - Visit compliance rate 0-100
+ * @param {number} availabilityScore - Normalised availability score 0-100
+ * @param {number} clientPurchase   - Client's total historical purchases in MXN
+ * @returns {number} Match score clamped to [10, 100]
+ */
+function computeAdvisorMatchScore(salesScore, complRate, availabilityScore, clientPurchase) {
+  let matchScore;
+  if (clientPurchase > 1000000) {
+    // High-value client: prioritise commercial track record
+    matchScore = Math.round((salesScore * 0.6) + (complRate * 0.4));
+  } else {
+    // Regular client: prioritise advisor availability and responsiveness
+    matchScore = Math.round((availabilityScore * 0.6) + (complRate * 0.4));
+  }
+  return Math.max(matchScore, 10);
+}
+
+
 window.showAISuggestion = function(clientId, clientName) {
   if (!user || (user.nivel_rol !== 'Administrador' && user.nivel_rol !== 'Coordinador')) {
     return;
@@ -4606,10 +4638,10 @@ window.showAISuggestion = function(clientId, clientName) {
     
     let matchScore = 0;
     let reasoning = '';
+    const score = computeAdvisorMatchScore(salesScore, complRate, availabilityScore, clientPurchase);
+    matchScore = score;
     
     if (clientPurchase > 1000000) {
-      matchScore = Math.round((salesScore * 0.6) + (complRate * 0.4));
-      
       const salesDesc = a.total_sales_mxn > 0 ? `$${(a.total_sales_mxn/1000000).toFixed(2)}M MXN` : 'sin ventas';
       if (salesScore >= 80 && complRate >= 80) {
         reasoning = `Excelente recomendación: Líder en ventas comerciales con ${salesDesc} y altísimo nivel de cumplimiento de visitas programadas (${Math.round(complRate)}%), idóneo para retener y desarrollar esta cuenta clave.`;
@@ -4619,8 +4651,6 @@ window.showAISuggestion = function(clientId, clientName) {
         reasoning = `Mantiene un volumen moderado de ventas (${salesDesc}) y cumplimiento de agenda del ${Math.round(complRate)}%. Opción secundaria viable.`;
       }
     } else {
-      matchScore = Math.round((availabilityScore * 0.6) + (complRate * 0.4));
-      
       const pendingDesc = a.pending_visits === 0 ? 'agenda totalmente libre (0 visitas pendientes)' : `${a.pending_visits} visitas pendientes en su agenda`;
       if (availabilityScore >= 80 && complRate >= 80) {
         reasoning = `Excelente recomendación: Tiene ${pendingDesc} y un cumplimiento sobresaliente de visitas del ${Math.round(complRate)}%, asegurando atención inmediata y constante.`;
@@ -4634,7 +4664,7 @@ window.showAISuggestion = function(clientId, clientName) {
     return {
       id: a.asesor_id,
       nombre: a.nombre,
-      score: Math.max(matchScore, 10),
+      score: matchScore,
       reasoning,
       stats: {
         sales: a.total_sales_mxn,
@@ -4732,13 +4762,8 @@ window.openAdminDecisionModal = function(clientId, clientName, clientPurchase) {
       const maxPending = Math.max(...allMatchingMetrics.advisors.map(ad => ad.pending_visits), 1);
       const availabilityScore = ((maxPending - pendingVisits) / maxPending) * 100;
       
-      let matchScore = 0;
-      if (clientPurchase > 1000000) {
-        matchScore = Math.round((salesScore * 0.5) + (complRate * 0.3) + (availabilityScore * 0.2));
-      } else {
-        matchScore = Math.round((availabilityScore * 0.5) + (complRate * 0.3) + (salesScore * 0.2));
-      }
-      matchScore = Math.max(matchScore, 10);
+      // Compute unified AI Match Score using the canonical computeAdvisorMatchScore function
+      const matchScore = computeAdvisorMatchScore(salesScore, complRate, availabilityScore, clientPurchase);
       
       const card = document.createElement('div');
       card.style.border = '1px solid var(--border)';

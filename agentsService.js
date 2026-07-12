@@ -1,5 +1,6 @@
 const db = require('./db');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { getVolumeMultiplier, calculateItemPricing } = require('./utils/pricing');
 
 let schedulerInterval = null;
 
@@ -95,59 +96,34 @@ async function updateLastExecution(agentId) {
   }
 }
 
-// Pricing Helper matching the existing system logic
-function getVolumeMultiplier(qty) {
-  if (qty < 40) return 1.00;
-  if (qty < 60) return 0.95;
-  if (qty < 80) return 0.90;
-  if (qty < 90) return 0.85;
-  return 0.80;
-}
+// getVolumeMultiplier and calculateItemPricing are imported from utils/pricing.js
+// See that module for the canonical discount scale and pricing formulas.
 
+/**
+ * calculateQuotePrice - Thin adapter that uses the centralized pricing engine.
+ * @param {number} productId
+ * @param {number} quantity
+ * @param {number|null} seasonId
+ * @param {number|null} clientKeyAccountTierId
+ * @returns {Promise<{netPrice: number, subtotal: number}>}
+ */
 async function calculateQuotePrice(productId, quantity, seasonId, clientKeyAccountTierId) {
-  const prod = await db.get("SELECT * FROM productos WHERE id = ?", [productId]);
-  const cc = clientKeyAccountTierId 
-    ? await db.get("SELECT * FROM cuentas_clave WHERE id = ?", [clientKeyAccountTierId]) 
+  const prod = await db.get('SELECT * FROM productos WHERE id = ?', [productId]);
+  const cc = clientKeyAccountTierId
+    ? await db.get('SELECT * FROM cuentas_clave WHERE id = ?', [clientKeyAccountTierId])
     : { descuento_mxn: 0.0 };
-  const season = seasonId 
-    ? await db.get("SELECT * FROM temporadas WHERE id = ?", [seasonId]) 
-    : { descuento_percentage: 0.0, estado_operacion: 'Sumar' };
+  const season = seasonId
+    ? await db.get('SELECT * FROM temporadas WHERE id = ?', [seasonId])
+    : null;
 
   if (!prod) return { netPrice: 0, subtotal: 0 };
 
-  const listPrice = prod.list_price_mxn;
-  let seasonPrice = listPrice;
+  const keyAccountDiscount = cc ? cc.descuento_mxn : 0.0;
+  // Volume multiplier needs the total quantity for seeds; here we use the single item quantity
+  // as the outreach agent creates single-item quotes for simplicity
+  const volMultiplier = getVolumeMultiplier(prod.descontar === 1 ? quantity : 0);
 
-  if (prod.tipo_categoria === 'chemical') {
-    seasonPrice = listPrice;
-  } else {
-    const discount = season.descuento_percentage !== undefined ? season.descuento_percentage : 0;
-    if (season.estado_operacion === 'Restar') {
-      seasonPrice = listPrice * (1 - discount / 100.0);
-    } else {
-      seasonPrice = listPrice * (1 + discount / 100.0);
-    }
-  }
-
-  let netPrice = 0;
-  if (prod.tipo_categoria === 'seed_discount' || prod.producto.includes('Acceleron') || prod.producto.includes('Poncho')) {
-    // Seed pricing logic
-    const baseUsd = prod.base_usd || (listPrice / 100);
-    const volMultiplier = getVolumeMultiplier(quantity);
-    const usdPriceForTier = Math.round((baseUsd * volMultiplier) * 100) / 100;
-    const mxnVolumePrice = Math.round(usdPriceForTier * 4.00 * 18.70); // TC = 18.70
-    netPrice = mxnVolumePrice - (cc ? cc.descuento_mxn : 0);
-  } else if (prod.tipo_categoria === 'chemical') {
-    netPrice = seasonPrice - (prod.descuento_fijo_quimicos || 0);
-  } else {
-    netPrice = Math.round(seasonPrice);
-  }
-
-  const subtotal = netPrice * quantity;
-  return {
-    netPrice,
-    subtotal
-  };
+  return calculateItemPricing(prod, quantity, volMultiplier, keyAccountDiscount, season);
 }
 
 // -------------------------------------------------------------
