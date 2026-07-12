@@ -1777,33 +1777,57 @@ async function loadCotizadorConfig() {
 function addQuoteItemRow() {
   quoteItemsCount++;
   const container = document.getElementById('items-builder-container');
-  
-  const div = document.createElement('div');
-  div.className = 'item-row';
-  div.id = `quote-item-row-${quoteItemsCount}`;
-  
+  const rowNum = quoteItemsCount;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'item-row-wrapper';
+  wrapper.id = `quote-item-row-${rowNum}`;
+
   let options = '<option value="">-- Selecciona un Producto --</option>';
   allProducts.forEach(p => {
     options += `<option value="${p.id}">${p.producto} ($${p.list_price_mxn.toLocaleString('es-MX')} MXN)</option>`;
   });
-  
-  div.innerHTML = `
-    <div class="form-group">
-      <label>Producto</label>
-      <select class="form-input item-product-select" required>${options}</select>
+
+  wrapper.innerHTML = `
+    <div class="item-row">
+      <div class="form-group">
+        <label>Producto</label>
+        <select class="form-input item-product-select" required>${options}</select>
+      </div>
+      <div class="form-group">
+        <label>Cantidad</label>
+        <input type="number" class="form-input item-qty-input" min="1" value="1" required>
+      </div>
+      <div class="form-group">
+        <label>Precio Base</label>
+        <input type="text" class="form-input item-calc-unit-price" style="background-color: var(--bg);" value="-" readonly>
+      </div>
+      <button type="button" class="btn-remove" onclick="removeQuoteItemRow(${rowNum})">🗑️</button>
     </div>
-    <div class="form-group">
-      <label>Cantidad</label>
-      <input type="number" class="form-input item-qty-input" min="1" value="1" required>
+    <!-- Fila de descuento asesor: visible solo cuando el producto tiene promo_dinero > 0 -->
+    <div class="item-discount-row" id="discount-row-${rowNum}" style="display:none;">
+      <div>
+        <label>🎚️ Descuento Asesor</label>
+        <input type="range" class="discount-slider item-discount-slider"
+               min="0" max="0" step="1" value="0"
+               data-row="${rowNum}"
+               oninput="onDiscountSliderChange(this)">
+      </div>
+      <div style="text-align:center;">
+        <label>Descuento aplicado</label>
+        <div class="item-discount-amount" style="font-weight:700; font-size:15px; color:var(--accent);">$0 MXN</div>
+        <div style="font-size:10px; color:var(--text-light); margin-top:2px;">
+          Máx: <span class="item-discount-max-label">$0</span> MXN
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <label>Precio Final (con descuento)</label>
+        <div class="item-final-price" style="font-weight:700; font-size:16px; color:var(--success);">-</div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Precio Unitario</label>
-      <input type="text" class="form-input item-calc-unit-price" style="background-color: var(--bg);" value="-" readonly>
-    </div>
-    <button type="button" class="btn-remove" onclick="removeQuoteItemRow(${quoteItemsCount})">🗑️</button>
   `;
-  
-  container.appendChild(div);
+
+  container.appendChild(wrapper);
   debouncedLiveCalculation();
 }
 
@@ -1867,16 +1891,43 @@ function debouncedLiveCalculation() {
       const calc = await res.json();
       if (!res.ok) throw new Error(calc.error || 'Calculation failed');
       
-      // Update individual unit prices in the form
-      const rows = document.querySelectorAll('#items-builder-container .item-row');
-      rows.forEach(r => {
-        const select = r.querySelector('.item-product-select');
-        const unitPriceInput = r.querySelector('.item-calc-unit-price');
+      // Update individual unit prices and discount sliders in the form
+      const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
+      wrappers.forEach(wrapper => {
+        const select = wrapper.querySelector('.item-product-select');
+        const unitPriceInput = wrapper.querySelector('.item-calc-unit-price');
+        const discountRow = wrapper.querySelector('.item-discount-row');
+        const slider = wrapper.querySelector('.item-discount-slider');
+        const maxLabel = wrapper.querySelector('.item-discount-max-label');
         
-        if (select && unitPriceInput) {
+        if (select && select.value && unitPriceInput) {
           const calcItem = calc.items.find(i => i.producto_id === Number(select.value));
           if (calcItem) {
+            // Show base price
             unitPriceInput.value = `$${calcItem.precio_neto.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            
+            // Configure discount slider
+            const maxDisc = calcItem.max_discount_mxn || 0;
+            if (maxDisc > 0 && discountRow && slider) {
+              discountRow.style.display = 'grid';
+              slider.max = maxDisc;
+              // Only reset to 0 if the max changed (new product selection)
+              if (parseFloat(slider.getAttribute('data-max-prev') || 0) !== maxDisc) {
+                slider.value = 0;
+                slider.setAttribute('data-max-prev', maxDisc);
+              }
+              if (maxLabel) maxLabel.textContent = maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 0 });
+              // Store base net price for slider calculations
+              slider.setAttribute('data-base-price', calcItem.precio_neto);
+              // Update slider display
+              onDiscountSliderChange(slider);
+            } else if (discountRow) {
+              discountRow.style.display = 'none';
+              if (slider) {
+                slider.value = 0;
+                slider.setAttribute('data-base-price', calcItem.precio_neto);
+              }
+            }
           }
         }
       });
@@ -1887,6 +1938,59 @@ function debouncedLiveCalculation() {
     }
   }, 350);
 }
+
+// Handle discount slider movement — updates the per-row display in real time
+window.onDiscountSliderChange = function(slider) {
+  const val = parseFloat(slider.value) || 0;
+  const max = parseFloat(slider.max) || 1;
+  const basePrice = parseFloat(slider.getAttribute('data-base-price')) || 0;
+  const finalPrice = basePrice - val;
+  
+  const wrapper = slider.closest('.item-row-wrapper');
+  if (!wrapper) return;
+  
+  const amountEl = wrapper.querySelector('.item-discount-amount');
+  const finalEl = wrapper.querySelector('.item-final-price');
+  
+  if (amountEl) amountEl.textContent = `$${val.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  if (finalEl) finalEl.textContent = `$${finalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  
+  // Update slider gradient fill
+  const pct = max > 0 ? (val / max) * 100 : 0;
+  slider.style.setProperty('--slider-pct', `${pct}%`);
+  
+  // Recalculate grand total with discounts applied
+  recalcTotalsWithDiscounts();
+};
+
+// Recalculate grand total factoring in any advisor discounts from sliders
+function recalcTotalsWithDiscounts() {
+  let adjustedTotal = 0;
+  const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
+  wrappers.forEach(wrapper => {
+    const select = wrapper.querySelector('.item-product-select');
+    const qtyInput = wrapper.querySelector('.item-qty-input');
+    const slider = wrapper.querySelector('.item-discount-slider');
+    const basePrice = slider ? parseFloat(slider.getAttribute('data-base-price') || 0) : 0;
+    const discountVal = slider ? parseFloat(slider.value || 0) : 0;
+    const qty = qtyInput ? (parseFloat(qtyInput.value) || 1) : 1;
+    
+    if (select && select.value && basePrice > 0) {
+      adjustedTotal += (basePrice - discountVal) * qty;
+    }
+  });
+  
+  if (adjustedTotal > 0) {
+    document.getElementById('preview-total-val').textContent =
+      `$${adjustedTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+    // Update Puntos and Cupón
+    document.getElementById('preview-puntos-val').textContent =
+      `$${(adjustedTotal * 0.03).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+    document.getElementById('preview-cupon-val').textContent =
+      `$${(adjustedTotal * 0.01).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  }
+}
+
 
 // Reset printable sheet view
 function resetVirtualSheet() {
@@ -1912,6 +2016,8 @@ function resetVirtualSheet() {
   document.getElementById('preview-discount-vol').textContent = '-';
   document.getElementById('preview-row-anticipo').style.display = 'none';
   document.getElementById('preview-total-val').textContent = '$0.00 MXN';
+  document.getElementById('preview-puntos-val').textContent = '$0.00 MXN';
+  document.getElementById('preview-cupon-val').textContent = '$0.00 MXN';
   document.getElementById('preview-notes-content').textContent = 'El precio final calculado incluye los descuentos por volumen y campaña en base a las reglas de la distribuidora. Sujeto a cambios sin previo aviso.';
   
   document.getElementById('client-quick-details').style.display = 'none';
@@ -1954,22 +2060,42 @@ function updateVirtualSheet(calc, payload) {
   document.getElementById('preview-folio').textContent = `CG-2026-PENDIENTE`;
   
   // Build preview items rows
+  // Read any advisor discounts currently set in the sliders
+  const sliderDiscounts = {};
+  document.querySelectorAll('#items-builder-container .item-row-wrapper').forEach(wrapper => {
+    const select = wrapper.querySelector('.item-product-select');
+    const slider = wrapper.querySelector('.item-discount-slider');
+    if (select && select.value && slider) {
+      sliderDiscounts[Number(select.value)] = parseFloat(slider.value) || 0;
+    }
+  });
+  
   const tbody = document.getElementById('preview-table-body');
   tbody.innerHTML = '';
+  let grandTotalWithDiscounts = 0;
   
   calc.items.forEach(i => {
     const listPrice = i.precio_lista;
     const netPrice = i.precio_neto;
-    const discount = listPrice - netPrice;
+    const advisorDiscount = sliderDiscounts[i.producto_id] || 0;
+    const finalPrice = netPrice - advisorDiscount;
+    const totalVolumeDiscount = listPrice - netPrice;
+    const subtotalFinal = finalPrice * i.cantidad;
+    grandTotalWithDiscounts += subtotalFinal;
+    
+    // Build discount badge if advisor gave extra discount
+    const advisorBadge = advisorDiscount > 0
+      ? `<br><span style="font-size:9px; color:var(--accent); font-weight:600;">-$${advisorDiscount.toLocaleString('es-MX', { minimumFractionDigits: 0 })} desc. asesor</span>`
+      : '';
     
     tbody.innerHTML += `
       <tr>
         <td><strong>${i.producto_nombre}</strong><br><span style="font-size: 9px; color: var(--text-light);">${i.tipo_categoria}</span></td>
         <td style="text-align: center; font-weight: 600;">${i.cantidad}</td>
         <td style="text-align: right;">$${listPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align: right; color: var(--danger); font-weight: 500;">-$${discount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align: right; font-weight: 600;">$${netPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align: right; font-weight: 700;">$${i.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+        <td style="text-align: right; color: var(--danger); font-weight: 500;">-$${totalVolumeDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+        <td style="text-align: right; font-weight: 600;">$${finalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}${advisorBadge}</td>
+        <td style="text-align: right; font-weight: 700;">$${subtotalFinal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
       </tr>
     `;
   });
@@ -1987,7 +2113,15 @@ function updateVirtualSheet(calc, payload) {
     anticipoRow.style.display = 'none';
   }
   
-  document.getElementById('preview-total-val').textContent = `$${calc.total_mxn.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  // Total (with advisor discounts applied)
+  document.getElementById('preview-total-val').textContent = `$${grandTotalWithDiscounts.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  
+  // Puntos (3%) y Cupón (1%) — informational benefit for the client
+  document.getElementById('preview-puntos-val').textContent =
+    `$${(grandTotalWithDiscounts * 0.03).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  document.getElementById('preview-cupon-val').textContent =
+    `$${(grandTotalWithDiscounts * 0.01).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  
   document.getElementById('preview-notes-content').textContent = payload.notas || 'El precio final calculado incluye los descuentos por volumen y campaña en base a las reglas de la distribuidora. Sujeto a cambios sin previo aviso.';
 }
 

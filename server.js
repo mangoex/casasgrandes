@@ -686,6 +686,9 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     const calculatedItems = [];
     let grandTotal = 0.0;
     
+    // Get current month (1-12) to look up promotional discount configured in Programación
+    const currentMonth = new Date().getMonth() + 1;
+    
     for (const { item, prod } of dbItems) {
       const listPrice = prod.list_price_mxn;
       let seasonPrice = listPrice;
@@ -720,10 +723,18 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
         netPrice = seasonPrice - prod.descuento_fijo_quimicos;
       }
       
+      // Step 3: Look up maximum advisor promo discount for this product/month
+      // Configured in Programación Mensual (crm_precios_mensuales.promo_dinero)
+      const promoRow = await db.get(
+        'SELECT promo_dinero FROM crm_precios_mensuales WHERE producto_id = ? AND mes = ?',
+        [prod.id, currentMonth]
+      );
+      const maxDiscountMxn = promoRow ? (promoRow.promo_dinero || 0.0) : 0.0;
+      
       const subtotal = netPrice * item.cantidad;
       grandTotal += subtotal;
       
-      calculatedItems.append = calculatedItems.push({
+      calculatedItems.push({
         producto_id: prod.id,
         producto_nombre: prod.producto,
         tipo_categoria: prod.tipo_categoria,
@@ -731,15 +742,17 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
         precio_lista: listPrice,
         precio_temporada: seasonPrice,
         precio_neto: netPrice,
+        max_discount_mxn: maxDiscountMxn,
         subtotal
       });
     }
     
+
     res.json({
       cliente_nombre: client.nombre,
       cuenta_clave_nombre: keyAccount ? keyAccount.tier_name : 'General',
       temporada_nombre: activeSeason ? activeSeason.actividad : 'Precio Lleno',
-      vol_multiplier,
+      vol_multiplier: volMultiplier,
       total_discountable_seeds: totalDiscountableSeeds,
       items: calculatedItems,
       total_mxn: grandTotal,
