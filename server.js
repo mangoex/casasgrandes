@@ -780,17 +780,29 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     
     const volMultiplier = getVolumeMultiplier(totalDiscountableSeeds);
     
+    const currentMonth = new Date().getMonth() + 1;
     for (const row of calculatedItems) {
       const prod = row.prod;
       const item = row.item;
       
-      const { netPrice, subtotal } = calculateItemPricing(
+      const { netPrice: baseNetPrice } = calculateItemPricing(
         prod,
         item.cantidad,
         volMultiplier,
         keyAccountDesc,
         activeSeason
       );
+      
+      // Look up and apply advisor discount safely
+      const promoRow = await db.get(
+        'SELECT promo_dinero FROM crm_precios_mensuales WHERE producto_id = ? AND mes = ?',
+        [prod.id, currentMonth]
+      );
+      const maxDiscountMxn = promoRow ? (promoRow.promo_dinero || 0.0) : 0.0;
+      const discountApplied = Math.min(item.descuento_aplicado || 0.0, maxDiscountMxn);
+      
+      const netPrice = baseNetPrice - discountApplied;
+      const subtotal = netPrice * item.cantidad;
       
       row.netPrice = netPrice;
       row.subtotal = subtotal;
@@ -1042,17 +1054,29 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
     const volMultiplier = getVolumeMultiplier(totalDiscountableSeeds);
     let grandTotal = 0.0;
     
+    const currentMonth = new Date().getMonth() + 1;
     for (const row of calculatedRows) {
       const prod = row.prod;
       const item = row.item;
       
-      const { netPrice, subtotal } = calculateItemPricing(
+      const { netPrice: baseNetPrice } = calculateItemPricing(
         prod,
         item.cantidad,
         volMultiplier,
         keyAccountDesc,
         activeSeason
       );
+      
+      // Look up and apply advisor discount safely
+      const promoRow = await db.get(
+        'SELECT promo_dinero FROM crm_precios_mensuales WHERE producto_id = ? AND mes = ?',
+        [prod.id, currentMonth]
+      );
+      const maxDiscountMxn = promoRow ? (promoRow.promo_dinero || 0.0) : 0.0;
+      const discountApplied = Math.min(item.descuento_aplicado || 0.0, maxDiscountMxn);
+      
+      const netPrice = baseNetPrice - discountApplied;
+      const subtotal = netPrice * item.cantidad;
       
       row.netPrice = netPrice;
       row.subtotal = subtotal;

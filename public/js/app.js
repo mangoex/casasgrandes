@@ -1851,15 +1851,17 @@ function getQuotePayload() {
   const notas = document.getElementById('quote-notas').value.trim();
   
   const items = [];
-  const rows = document.querySelectorAll('#items-builder-container .item-row');
-  rows.forEach(r => {
-    const select = r.querySelector('.item-product-select');
-    const qtyInput = r.querySelector('.item-qty-input');
+  const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
+  wrappers.forEach(w => {
+    const select = w.querySelector('.item-product-select');
+    const qtyInput = w.querySelector('.item-qty-input');
+    const slider = w.querySelector('.item-discount-slider');
     
     if (select && select.value && qtyInput && qtyInput.value) {
       items.push({
         producto_id: Number(select.value),
-        cantidad: Number(qtyInput.value)
+        cantidad: Number(qtyInput.value),
+        descuento_aplicado: slider ? (parseFloat(slider.value) || 0.0) : 0.0
       });
     }
   });
