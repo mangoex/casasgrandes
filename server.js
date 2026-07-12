@@ -811,8 +811,8 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     
     const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000.0 : 0.0;
     
-    // Status logic: if payment conditions are credit, or manual note, might need review. Let's make it 'Autorizada' by default
-    const defaultStatus = 'Autorizada';
+    // Status logic: quotations start as 'Pendiente' until authorized by Admin/Coordinator
+    const defaultStatus = 'Pendiente';
     
     const result = await db.run(`
       INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera)
@@ -917,7 +917,7 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
         await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = 0 WHERE cotizacion_id = ?', [id]);
       }
       
-    } else if (estatus === 'Borrador' || estatus === 'Autorizada') {
+    } else if (estatus === 'Borrador' || estatus === 'Autorizada' || estatus === 'Pendiente') {
       // Revert stock if it was previously deducted
       if (stockDeducted) {
         for (const item of items) {

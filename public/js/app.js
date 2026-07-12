@@ -1006,7 +1006,7 @@ function renderKanbanBoard(quotesList) {
   quotesList.forEach(q => {
     // Determine target column (map fallback statuses)
     let status = q.estatus;
-    if (status === 'Pendiente Autorización') status = 'Borrador';
+    if (status === 'Pendiente' || status === 'Pendiente Autorización') return; // Hide pending quotes from Sales Board until authorized
     if (status === 'Cancelado') return; // Hide canceled quotes from board
     
     const col = columns[status];
@@ -1077,7 +1077,7 @@ function renderKanbanBoard(quotesList) {
 function getVisibleKanbanQuotesByStatus(status) {
   return lastRenderedKanbanQuotes.filter(q => {
     let quoteStatus = q.estatus;
-    if (quoteStatus === 'Pendiente Autorización') quoteStatus = 'Borrador';
+    if (quoteStatus === 'Pendiente' || quoteStatus === 'Pendiente Autorización') return false;
     return quoteStatus === status;
   });
 }
@@ -1316,7 +1316,7 @@ window.showQuoteDetails = async function(quoteId) {
     document.getElementById('quote-detail-total').textContent = `$${parseFloat(quote.total_mxn).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
 
     // 4. Handle buttons visibility (Authorize, Edit, Delete)
-    const isBorrador = quote.estatus === 'Borrador' || quote.estatus === 'Pendiente Autorización';
+    const isBorrador = quote.estatus === 'Borrador' || quote.estatus === 'Pendiente Autorización' || quote.estatus === 'Pendiente';
     const hasAdminOrCoordPermission = user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador';
     const isOwner = quote.asesor_id === user.id;
 
@@ -3021,7 +3021,7 @@ async function loadWeeklySchedule() {
             <div style="flex-grow: 1;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;">
                 <div class="plan-card-client">
-                  ${renderAdvisorStageButtons()}
+                  ${renderAdvisorStageButtons(true)}
                   <strong style="font-size: 13.5px; color: var(--text);">${p.cliente_nombre}</strong>
                 </div>
                 ${statusBadge}
@@ -3994,14 +3994,20 @@ async function loadCatalogStageStates() {
   }
 }
 
-function renderAdvisorStageButtons() {
+function renderAdvisorStageButtons(onlyV = false) {
   if (user?.nivel_rol !== 'Asesor') return '';
-  const stages = catalogStageStates.length > 0
+  let stages = catalogStageStates.length > 0
     ? catalogStageStates
     : ADVISOR_STAGE_DEFINITIONS.map(stage => ({ ...stage, active: false, color: '#94a3b8', title: `${stage.label}: cargando` }));
 
+  if (onlyV) {
+    stages = stages.filter(s => s.code === 'V');
+  }
+
+  const columnsStyle = onlyV ? 'grid-template-columns: 30px; justify-content: flex-end;' : '';
+
   return `
-    <div class="advisor-stage-buttons" aria-label="Etapas activas">
+    <div class="advisor-stage-buttons" aria-label="Etapas activas" style="${columnsStyle}">
       ${stages.map(stage => `
         <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" ${stage.active ? `style="--stage-color: ${escapeAttribute(stage.color)};"` : ''} title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" disabled>${stage.code}</button>
       `).join('')}
