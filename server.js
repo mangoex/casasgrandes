@@ -690,39 +690,6 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     const currentMonth = new Date().getMonth() + 1;
     
     for (const { item, prod } of dbItems) {
-      const listPrice = prod.list_price_mxn;
-      let seasonPrice = listPrice;
-      let netPrice = 0.0;
-      
-      // Step 1: Calculate season price (except for chemicals)
-      if (prod.tipo_categoria === 'Agroquímico') {
-        seasonPrice = listPrice;
-      } else {
-        const discount = activeSeason ? activeSeason.descuento_porcentaje : 0.0;
-        const action = activeSeason ? activeSeason.estado_operacion : 'Sumar';
-        if (action === 'Restar') {
-          seasonPrice = listPrice * (1 - discount / 100.0);
-        } else {
-          seasonPrice = listPrice * (1 + discount / 100.0);
-        }
-      }
-      
-      // Step 2: Calculate net price
-      if (prod.descontar === 1) {
-        // Seeds eligible for volume + key account discount
-        const baseUsd = prod.base_usd;
-        const usdPriceForTier = Math.round((baseUsd * volMultiplier) * 100) / 100;
-        const exchangeRate = 18.70;
-        const mxnVolumePrice = Math.round(usdPriceForTier * 4.00 * exchangeRate);
-        netPrice = mxnVolumePrice - keyAccountDesc;
-      } else if (prod.tipo_categoria === 'Híbrido') {
-        // Seeds with season price but NO volume/key account discount
-        netPrice = Math.round(seasonPrice);
-      } else {
-        // Chemicals: List price minus flat catalog discount
-        netPrice = seasonPrice - prod.descuento_fijo_quimicos;
-      }
-      
       // Step 3: Look up maximum advisor promo discount for this product/month
       // Configured in Programación Mensual (crm_precios_mensuales.promo_dinero)
       const promoRow = await db.get(
@@ -731,7 +698,14 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
       );
       const maxDiscountMxn = promoRow ? (promoRow.promo_dinero || 0.0) : 0.0;
       
-      const subtotal = netPrice * item.cantidad;
+      const { netPrice, subtotal } = calculateItemPricing(
+        prod,
+        item.cantidad,
+        volMultiplier,
+        keyAccountDesc,
+        activeSeason
+      );
+      
       grandTotal += subtotal;
       
       calculatedItems.push({
@@ -739,8 +713,8 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
         producto_nombre: prod.producto,
         tipo_categoria: prod.tipo_categoria,
         cantidad: item.cantidad,
-        precio_lista: listPrice,
-        precio_temporada: seasonPrice,
+        precio_lista: prod.list_price_mxn,
+        precio_temporada: getSeasonPrice(prod.list_price_mxn, prod.tipo_categoria, activeSeason),
         precio_neto: netPrice,
         max_discount_mxn: maxDiscountMxn,
         subtotal
@@ -809,29 +783,18 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     for (const row of calculatedItems) {
       const prod = row.prod;
       const item = row.item;
-      let seasonPrice = prod.list_price_mxn;
       
-      if (prod.tipo_categoria !== 'Agroquímico') {
-        const discount = activeSeason ? activeSeason.descuento_porcentaje : 0.0;
-        const action = activeSeason ? activeSeason.estado_operacion : 'Sumar';
-        seasonPrice = action === 'Restar' ? 
-          prod.list_price_mxn * (1 - discount / 100.0) : 
-          prod.list_price_mxn * (1 + discount / 100.0);
-      }
-      
-      let netPrice = 0.0;
-      if (prod.descontar === 1) {
-        const usdPriceForTier = Math.round((prod.base_usd * volMultiplier) * 100) / 100;
-        netPrice = Math.round(usdPriceForTier * 4.00 * 18.70) - keyAccountDesc;
-      } else if (prod.tipo_categoria === 'Híbrido') {
-        netPrice = Math.round(seasonPrice);
-      } else {
-        netPrice = seasonPrice - prod.descuento_fijo_quimicos;
-      }
+      const { netPrice, subtotal } = calculateItemPricing(
+        prod,
+        item.cantidad,
+        volMultiplier,
+        keyAccountDesc,
+        activeSeason
+      );
       
       row.netPrice = netPrice;
-      row.subtotal = netPrice * item.cantidad;
-      grandTotal += row.subtotal;
+      row.subtotal = subtotal;
+      grandTotal += subtotal;
     }
     
     const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000.0 : 0.0;
@@ -1082,29 +1045,18 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
     for (const row of calculatedRows) {
       const prod = row.prod;
       const item = row.item;
-      let seasonPrice = prod.list_price_mxn;
       
-      if (prod.tipo_categoria !== 'Agroquímico') {
-        const discount = activeSeason ? activeSeason.descuento_porcentaje : 0.0;
-        const action = activeSeason ? activeSeason.estado_operacion : 'Sumar';
-        seasonPrice = action === 'Restar' ? 
-          prod.list_price_mxn * (1 - discount / 100.0) : 
-          prod.list_price_mxn * (1 + discount / 100.0);
-      }
-      
-      let netPrice = 0.0;
-      if (prod.descontar === 1) {
-        const usdPriceForTier = Math.round((prod.base_usd * volMultiplier) * 100) / 100;
-        netPrice = Math.round(usdPriceForTier * 4.00 * 18.70) - keyAccountDesc;
-      } else if (prod.tipo_categoria === 'Híbrido') {
-        netPrice = Math.round(seasonPrice);
-      } else {
-        netPrice = seasonPrice - prod.descuento_fijo_quimicos;
-      }
+      const { netPrice, subtotal } = calculateItemPricing(
+        prod,
+        item.cantidad,
+        volMultiplier,
+        keyAccountDesc,
+        activeSeason
+      );
       
       row.netPrice = netPrice;
-      row.subtotal = netPrice * item.cantidad;
-      grandTotal += row.subtotal;
+      row.subtotal = subtotal;
+      grandTotal += subtotal;
     }
     
     // Step 3: Delete old details
