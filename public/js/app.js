@@ -552,7 +552,7 @@ async function loadDashboardData() {
         if (q.estatus === 'Entregado') badgeClass = 'badge-success';
         
         ordersTbody.innerHTML += `
-          <tr>
+          <tr style="cursor: pointer;" onclick="showQuoteDetails(${q.id})">
             <td><strong>${q.folio_cotizacion}</strong></td>
             <td>${q.cliente_nombre}</td>
             ${user.nivel_rol !== 'Asesor' ? `<td>${q.asesor_nombre}</td>` : ''}
