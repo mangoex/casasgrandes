@@ -335,6 +335,10 @@ function switchView(viewId, title) {
     viewId = 'asignacion-asesor-view';
     title = 'Asignación de Agricultores';
   }
+
+  if (viewId === 'programacion-view' && !['Administrador', 'Coordinador'].includes(user?.nivel_rol)) {
+    return;
+  }
   
   document.getElementById('view-title').textContent = title;
   

@@ -56,6 +56,13 @@ function authenticateToken(req, res, next) {
   });
 }
 
+function requireProgramacionManager(req, res, next) {
+  if (!['Administrador', 'Coordinador'].includes(req.user.nivel_rol)) {
+    return res.status(403).json({ error: 'Programación requiere permisos de Administrador o Coordinador' });
+  }
+  next();
+}
+
 // -------------------------------------------------------------
 // AUTHENTICATION ENDPOINTS
 // -------------------------------------------------------------
@@ -1004,6 +1011,7 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
 // DELETE QUOTATION
 app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
+  let client;
   try {
     const q = await db.get('SELECT * FROM cotizaciones WHERE id = ?', [id]);
     if (!q) return res.status(404).json({ error: 'Quotation not found' });
@@ -1015,32 +1023,41 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       }
     }
     
-    // Check if stock is currently deducted and revert it
-    const stockDeducted = await db.get(
-      "SELECT id FROM almacen_movimientos WHERE cotizacion_id = ? AND tipo_movimiento LIKE 'Salida%' LIMIT 1",
-      [id]
-    );
-    
-    if (stockDeducted) {
-      const now = new Date().toISOString();
-      const items = await db.all('SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
-      for (const item of items) {
-        const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
-        const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
-        const new_stock = current_stock + item.cantidad_ordenada;
-        
-        await db.run(`
-          INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
-          VALUES (?, 'Reversión por Eliminación', ?, ?, 0, ?, ?, ?, ?, ?)
-        `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Reversión de stock por eliminación de cotización`]);
-      }
-    }
-    
-    await db.run('DELETE FROM cotizaciones WHERE id = ?', [id]);
+    client = await db.pool.connect();
+    await client.query('BEGIN');
+
+    // The warehouse rows reference the quotation and must be removed before its header.
+    await client.query('DELETE FROM almacen_movimientos WHERE cotizacion_id = $1', [id]);
+    await client.query('DELETE FROM cotizaciones WHERE id = $1', [id]);
+
+    // Rebuild the running stock from the movements that remain in the warehouse.
+    await client.query(`
+      WITH recalculated AS (
+        SELECT id,
+          SUM(COALESCE(cantidad_entrante, 0) - COALESCE(cantidad_saliente, 0))
+          OVER (PARTITION BY producto_id ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS existencias
+        FROM almacen_movimientos
+      )
+      UPDATE almacen_movimientos m
+      SET existencias_resultantes = recalculated.existencias
+      FROM recalculated
+      WHERE m.id = recalculated.id
+    `);
+
+    await client.query('COMMIT');
     res.json({ message: 'Quotation deleted successfully' });
   } catch (err) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('Failed to roll back quotation deletion:', rollbackErr);
+      }
+    }
     console.error(err);
     res.status(500).json({ error: 'Failed to delete quotation' });
+  } finally {
+    client?.release();
   }
 });
 
@@ -2479,7 +2496,7 @@ app.get('/api/agentes/coordinador/seguimientos', authenticateToken, authorizeAge
 // PROGRAMACIÓN (ETAPAS & PRECIOS MENSUALES) ENDPOINTS
 // -------------------------------------------------------------
 
-app.get('/api/programacion/etapas', authenticateToken, async (req, res) => {
+app.get('/api/programacion/etapas', authenticateToken, requireProgramacionManager, async (req, res) => {
   try {
     const rows = await db.all('SELECT * FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
     res.json(rows);
@@ -2489,10 +2506,7 @@ app.get('/api/programacion/etapas', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/programacion/etapas', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
-    return res.status(403).json({ error: 'Admin or Coordinator privileges required' });
-  }
+app.post('/api/programacion/etapas', authenticateToken, requireProgramacionManager, async (req, res) => {
   const { id, clave, nombre, fecha_inicio, fecha_fin, color } = req.body;
   if (!clave || !nombre || !fecha_inicio || !fecha_fin || !color) {
     return res.status(400).json({ error: 'All fields are required' });
@@ -2521,10 +2535,7 @@ app.post('/api/programacion/etapas', authenticateToken, async (req, res) => {
   }
 });
 
-app.delete('/api/programacion/etapas/:id', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
-    return res.status(403).json({ error: 'Admin or Coordinator privileges required' });
-  }
+app.delete('/api/programacion/etapas/:id', authenticateToken, requireProgramacionManager, async (req, res) => {
   const { id } = req.params;
   try {
     await db.run('DELETE FROM crm_etapas_programacion WHERE id = ?', [id]);
@@ -2535,7 +2546,7 @@ app.delete('/api/programacion/etapas/:id', authenticateToken, async (req, res) =
   }
 });
 
-app.get('/api/programacion/precios', authenticateToken, async (req, res) => {
+app.get('/api/programacion/precios', authenticateToken, requireProgramacionManager, async (req, res) => {
   const { producto_id } = req.query;
   if (!producto_id) {
     return res.status(400).json({ error: 'producto_id is required' });
@@ -2574,10 +2585,7 @@ app.get('/api/programacion/precios', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/programacion/precios', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
-    return res.status(403).json({ error: 'Admin or Coordinator privileges required' });
-  }
+app.post('/api/programacion/precios', authenticateToken, requireProgramacionManager, async (req, res) => {
   const { producto_id, precios } = req.body;
   if (!producto_id || !Array.isArray(precios) || precios.length !== 12) {
     return res.status(400).json({ error: 'producto_id and an array of 12 months of prices are required' });
