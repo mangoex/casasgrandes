@@ -269,6 +269,11 @@ async function runMigration() {
         FOREIGN KEY (visita_id) REFERENCES crm_visitas(id)
       )
     `);
+    await db.run('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_ciclo_estatus ON cotizaciones (asesor_id, ciclo_agricola, estatus)');
+    await db.run('CREATE INDEX IF NOT EXISTS idx_cotizacion_detalles_cotizacion ON cotizacion_detalles (cotizacion_id)');
+    await db.run('CREATE INDEX IF NOT EXISTS idx_planificacion_asesor_realizada ON planificacion_semanal (asesor_id, realizada)');
+    await db.run('CREATE INDEX IF NOT EXISTS idx_planificacion_estado_fecha ON planificacion_semanal (realizada, fecha_programada)');
+    await db.run('CREATE INDEX IF NOT EXISTS idx_metas_asesor_ciclo_activo ON metas_ventas (asesor_id, ciclo_agricola) WHERE activo = 1');
 
     await db.run(`
       CREATE TABLE crm_pujas (

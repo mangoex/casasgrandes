@@ -2824,6 +2824,8 @@ window.toggleProductoActiveStatus = async function(id, activate) {
 // WEEKLY PLANNING VIEW LOGIC
 // -------------------------------------------------------------
 let activePlanWeek = '';
+let planClientSearchTimer = null;
+let planClientSearchController = null;
 
 function getCurrentWeekString() {
   const d = new Date();
@@ -2870,15 +2872,10 @@ async function loadPlaneacionView() {
   }
   activePlanWeek = weekSelect.value;
   
-  if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') {
-    await loadPlanAdvisorOptions();
-  }
-  
-  await loadPlanClientOptions();
-  if (user.nivel_rol === 'Asesor') {
-    await loadCatalogStageStates();
-  }
-  await loadWeeklySchedule();
+  const loaders = [loadWeeklySchedule()];
+  if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') loaders.push(loadPlanAdvisorOptions());
+  if (user.nivel_rol === 'Asesor') loaders.push(loadCatalogStageStates());
+  await Promise.all(loaders);
 }
 
 async function loadPlanAdvisorOptions() {
@@ -2893,7 +2890,7 @@ async function loadPlanAdvisorOptions() {
     select.innerHTML = '<option value="ALL">Todos los Asesores</option>';
     advisers.forEach(a => {
       if (a.activo === 1) {
-        select.innerHTML += `<option value="${a.id}">${a.nombre}</option>`;
+        select.innerHTML += `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`;
       }
     });
     select.value = curr;
@@ -2902,23 +2899,42 @@ async function loadPlanAdvisorOptions() {
   }
 }
 
-async function loadPlanClientOptions() {
+async function loadPlanClientOptions(searchTerm = '') {
   const select = document.getElementById('plan-client');
   if (!select) return;
   
   try {
-    if (allClients.length === 0) {
-      const res = await fetch(`${API_URL}/api/clientes`, { headers: getHeaders() });
-      allClients = await res.json();
+    const term = searchTerm.trim();
+    if (term.length < 2) {
+      select.replaceChildren(new Option('Escribe al menos 2 letras para buscar', ''));
+      return;
     }
-    
-    select.innerHTML = '<option value="">-- Selecciona un Cliente --</option>';
-    allClients.forEach(c => {
-      select.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+
+    if (planClientSearchController) planClientSearchController.abort();
+    planClientSearchController = new AbortController();
+    select.replaceChildren(new Option('Buscando agricultores...', ''));
+    const params = new URLSearchParams({ page: '1', limit: '50', q: term });
+    const res = await fetch(`${API_URL}/api/clientes?${params.toString()}`, {
+      headers: getHeaders(),
+      signal: planClientSearchController.signal
     });
+    const payload = await res.json();
+    if (!res.ok || !Array.isArray(payload.data)) throw new Error(payload.error || 'No fue posible buscar agricultores');
+
+    select.replaceChildren(new Option(payload.data.length ? '-- Selecciona un Cliente --' : 'Sin coincidencias', ''));
+    payload.data.forEach(c => select.add(new Option(c.nombre, String(c.id))));
   } catch (err) {
+    if (err.name === 'AbortError') return;
     console.error(err);
+    select.replaceChildren(new Option('No fue posible cargar agricultores', ''));
   }
+}
+
+function setPlanClientSelection(clientId, clientName) {
+  const select = document.getElementById('plan-client');
+  if (!select) return;
+  const option = new Option(clientName || `Agricultor #${clientId}`, String(clientId), true, true);
+  select.replaceChildren(option);
 }
 
 async function loadWeeklySchedule() {
@@ -2937,6 +2953,7 @@ async function loadWeeklySchedule() {
     
     const res = await fetch(url, { headers: getHeaders() });
     const planList = await res.json();
+    if (!res.ok || !Array.isArray(planList)) throw new Error('No fue posible cargar la planificación semanal');
     currentPlanList = planList;
     
     // Reset day column structures and checkboxes
@@ -3022,14 +3039,14 @@ async function loadWeeklySchedule() {
               <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;">
                 <div class="plan-card-client">
                   ${renderAdvisorStageButtons(true)}
-                  <strong style="font-size: 13.5px; color: var(--text);">${p.cliente_nombre}</strong>
+                  <strong style="font-size: 13.5px; color: var(--text);">${escapeHtml(p.cliente_nombre)}</strong>
                 </div>
                 ${statusBadge}
               </div>
               <div style="font-size: 11px; color: var(--text-light); font-weight: 500;">Visita: ${p.fecha_programada.slice(5)}</div>
-              <div style="font-size: 12px; color: var(--text); margin-top: 4px; font-style: italic;">"${p.objetivo_visita || 'Sin objetivo'}"</div>
+              <div style="font-size: 12px; color: var(--text); margin-top: 4px; font-style: italic;">"${escapeHtml(p.objetivo_visita || 'Sin objetivo')}"</div>
               ${forecastText}
-              <div style="font-size: 10px; color: var(--text-light); margin-top: 4px;">👤 Asesor: ${p.asesor_nombre.split(' ')[0]}</div>
+              <div style="font-size: 10px; color: var(--text-light); margin-top: 4px;">👤 Asesor: ${escapeHtml((p.asesor_nombre || '').split(' ')[0])}</div>
             </div>
           </div>
           ${actions}
@@ -3054,9 +3071,13 @@ async function loadWeeklySchedule() {
       document.getElementById(`count-day-${i}`).textContent = dayCounts[i - 1];
     }
     
-    await loadPlanningMetaProgress(advisorId);
+    loadPlanningMetaProgress(advisorId);
   } catch (err) {
     console.error(err);
+    for (let i = 1; i <= 5; i++) {
+      const column = document.getElementById(`agenda-day-${i}`);
+      if (column) column.innerHTML = '<div style="padding: 12px; color: var(--danger); font-size: 12px;">No fue posible cargar la agenda.</div>';
+    }
   }
 }
 
@@ -3064,7 +3085,9 @@ async function loadPlanningMetaProgress(advisorId = 'ALL') {
   try {
     const cycle = 'O-I 2026';
     const res = await fetch(`${API_URL}/api/dashboard/proyecciones?ciclo_agricola=${cycle}`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('No fue posible cargar el avance comercial');
     let rollups = await res.json();
+    if (!Array.isArray(rollups)) throw new Error('Respuesta de avance comercial inválida');
     
     if (advisorId && advisorId !== 'ALL') {
       rollups = rollups.filter(r => r.asesor_id === Number(advisorId));
@@ -3104,6 +3127,10 @@ async function loadPlanningMetaProgress(advisorId = 'ALL') {
     updateDayHeaderCheckboxes();
   } catch (err) {
     console.error(err);
+    document.getElementById('meta-progress-mxn-text').textContent = 'No disponible';
+    document.getElementById('meta-progress-bags-text').textContent = 'No disponible';
+    document.getElementById('meta-progress-mxn-bar').style.width = '0%';
+    document.getElementById('meta-progress-bags-bar').style.width = '0%';
   }
 }
 
@@ -3215,10 +3242,20 @@ if (planAdvFilter) {
   });
 }
 
+const planClientSearch = document.getElementById('plan-client-search');
+if (planClientSearch) {
+  planClientSearch.addEventListener('input', () => {
+    window.clearTimeout(planClientSearchTimer);
+    planClientSearchTimer = window.setTimeout(() => loadPlanClientOptions(planClientSearch.value), 250);
+  });
+}
+
 document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
   document.getElementById('add-plan-form').reset();
   document.getElementById('plan-form-id').value = '';
   document.getElementById('plan-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('plan-client-search').value = '';
+  loadPlanClientOptions();
   
   // Clear stages container
   const stagesContainer = document.getElementById('plan-modal-stages-container');
@@ -3246,7 +3283,8 @@ document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
 });
 
 window.openEditPlanModal = function(p) {
-  document.getElementById('plan-client').value = p.cliente_id;
+  document.getElementById('plan-client-search').value = p.cliente_nombre || '';
+  setPlanClientSelection(p.cliente_id, p.cliente_nombre);
   document.getElementById('plan-date').value = p.fecha_programada;
   document.getElementById('plan-objective').value = p.objetivo_visita || '';
   document.getElementById('plan-forecast-bags').value = p.pronostico_bolsas || 0;
@@ -3413,7 +3451,8 @@ window.reschedulePlanActivity = function(p) {
   document.getElementById('add-plan-form').reset();
   document.getElementById('plan-form-id').value = '';
   
-  document.getElementById('plan-client').value = p.cliente_id;
+  document.getElementById('plan-client-search').value = p.cliente_nombre || '';
+  setPlanClientSelection(p.cliente_id, p.cliente_nombre);
   document.getElementById('plan-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('plan-objective').value = `[Reagenda] ${p.objetivo_visita || ''}`.replace('[Reagenda] [Reagenda]', '[Reagenda]');
   document.getElementById('plan-forecast-bags').value = p.pronostico_bolsas || 0;

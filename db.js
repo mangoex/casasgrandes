@@ -36,9 +36,12 @@ async function initSchema() {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_activos_nombre ON clientes (nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_asesor_activo_nombre ON clientes (asesor_id, nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_fecha ON cotizaciones (asesor_id, fecha_creacion DESC)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_ciclo_estatus ON cotizaciones (asesor_id, ciclo_agricola, estatus)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_cliente_estatus ON cotizaciones (cliente_id, estatus)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizacion_detalles_cotizacion ON cotizacion_detalles (cotizacion_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_planificacion_asesor_realizada ON planificacion_semanal (asesor_id, realizada)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_planificacion_estado_fecha ON planificacion_semanal (realizada, fecha_programada)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_metas_asesor_ciclo_activo ON metas_ventas (asesor_id, ciclo_agricola) WHERE activo = 1');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS crm_pujas (
         id SERIAL PRIMARY KEY,

@@ -1927,7 +1927,10 @@
               <label for="plan-client" style="margin-bottom: 0;">Cliente / Agricultor</label>
               <div id="plan-modal-stages-container"></div>
             </div>
-            <select id="plan-client" class="form-input" required></select>
+              <input type="search" id="plan-client-search" class="form-input" placeholder="Buscar por nombre, ubicación o contacto..." autocomplete="off" style="margin-bottom: 8px;">
+              <select id="plan-client" class="form-input" required>
+                <option value="">Escribe al menos 2 letras para buscar</option>
+              </select>
           </div>
           <div class="input-grid">
             <div class="form-group">

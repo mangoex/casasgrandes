@@ -2069,45 +2069,54 @@ app.delete('/api/planificacion/:id', authenticateToken, async (req, res) => {
 app.get('/api/dashboard/proyecciones', authenticateToken, async (req, res) => {
   const ciclo = req.query.ciclo_agricola || 'O-I 2026';
   try {
-    const advisors = await db.all('SELECT id, nombre FROM asesores WHERE activo = 1');
-    const results = [];
-    
-    for (const adv of advisors) {
-      if (req.user.nivel_rol === 'Asesor' && req.user.id !== adv.id) {
-        continue;
-      }
-      
-      const meta = await db.get(
-        'SELECT monto_objetivo_mxn, bolsas_objetivo FROM metas_ventas WHERE asesor_id = ? AND ciclo_agricola = ? AND activo = 1',
-        [adv.id, ciclo]
-      );
-      
-      const real = await db.get(`
-        SELECT SUM(q.total_mxn) as total_real, SUM(d.cantidad_ordenada) as bolsas_real
-        FROM cotizaciones q
-        LEFT JOIN cotizacion_detalles d ON q.id = d.cotizacion_id
-        WHERE q.asesor_id = ? AND q.ciclo_agricola = ? AND (q.estatus = 'Vendido' OR q.estatus = 'Entregado')
-      `, [adv.id, ciclo]);
-      
-      const forecast = await db.get(`
-        SELECT SUM(pronostico_monto_mxn) as total_forecast, SUM(pronostico_bolsas) as bolsas_forecast
-        FROM planificacion_semanal
-        WHERE asesor_id = ? AND realizada = 0
-      `, [adv.id]);
-      
-      results.push({
-        asesor_id: adv.id,
-        asesor_nombre: adv.nombre,
-        meta_mxn: meta ? meta.monto_objetivo_mxn : 0.0,
-        meta_bolsas: meta ? meta.bolsas_objetivo : 0,
-        real_mxn: real ? (real.total_real || 0.0) : 0.0,
-        real_bolsas: real ? (real.bolsas_real || 0) : 0,
-        forecast_mxn: forecast ? (forecast.total_forecast || 0.0) : 0.0,
-        forecast_bolsas: forecast ? (forecast.bolsas_forecast || 0) : 0
-      });
+    const params = [ciclo];
+    let advisorScope = '';
+    if (req.user.nivel_rol === 'Asesor') {
+      advisorScope = ' AND a.id = ?';
+      params.push(req.user.id);
     }
-    
-    res.json(results);
+
+    const rows = await db.all(`
+      SELECT
+        a.id AS asesor_id,
+        a.nombre AS asesor_nombre,
+        COALESCE(m.meta_mxn, 0) AS meta_mxn,
+        COALESCE(m.meta_bolsas, 0) AS meta_bolsas,
+        COALESCE(s.total_real, 0) AS real_mxn,
+        COALESCE(b.bolsas_real, 0) AS real_bolsas,
+        COALESCE(f.forecast_mxn, 0) AS forecast_mxn,
+        COALESCE(f.forecast_bolsas, 0) AS forecast_bolsas
+      FROM asesores a
+      LEFT JOIN (
+        SELECT asesor_id, SUM(monto_objetivo_mxn) AS meta_mxn, SUM(bolsas_objetivo) AS meta_bolsas
+        FROM metas_ventas
+        WHERE ciclo_agricola = ? AND activo = 1
+        GROUP BY asesor_id
+      ) m ON m.asesor_id = a.id
+      LEFT JOIN (
+        SELECT asesor_id, SUM(total_mxn) AS total_real
+        FROM cotizaciones
+        WHERE ciclo_agricola = ? AND estatus IN ('Vendido', 'Entregado')
+        GROUP BY asesor_id
+      ) s ON s.asesor_id = a.id
+      LEFT JOIN (
+        SELECT q.asesor_id, SUM(d.cantidad_ordenada) AS bolsas_real
+        FROM cotizaciones q
+        JOIN cotizacion_detalles d ON d.cotizacion_id = q.id
+        WHERE q.ciclo_agricola = ? AND q.estatus IN ('Vendido', 'Entregado')
+        GROUP BY q.asesor_id
+      ) b ON b.asesor_id = a.id
+      LEFT JOIN (
+        SELECT asesor_id, SUM(pronostico_monto_mxn) AS forecast_mxn, SUM(pronostico_bolsas) AS forecast_bolsas
+        FROM planificacion_semanal
+        WHERE realizada = 0
+        GROUP BY asesor_id
+      ) f ON f.asesor_id = a.id
+      WHERE a.activo = 1${advisorScope}
+      ORDER BY a.nombre ASC
+    `, [ciclo, ciclo, ciclo, ...params.slice(1)]);
+
+    res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch proyecciones' });
