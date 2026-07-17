@@ -135,6 +135,8 @@ async function runMigration() {
         FOREIGN KEY (cuenta_clave_id) REFERENCES cuentas_clave(id)
       )
     `);
+    await db.run('CREATE INDEX IF NOT EXISTS idx_clientes_activos_nombre ON clientes (nombre) WHERE activo = 1');
+    await db.run('CREATE INDEX IF NOT EXISTS idx_clientes_asesor_activo_nombre ON clientes (asesor_id, nombre) WHERE activo = 1');
 
     await db.run(`
       CREATE TABLE productos (

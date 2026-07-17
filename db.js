@@ -33,6 +33,12 @@ async function initSchema() {
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_clavis REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cropprotection REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cosecha REAL DEFAULT 0.0');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_activos_nombre ON clientes (nombre) WHERE activo = 1');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_asesor_activo_nombre ON clientes (asesor_id, nombre) WHERE activo = 1');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_fecha ON cotizaciones (asesor_id, fecha_creacion DESC)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_cliente_estatus ON cotizaciones (cliente_id, estatus)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizacion_detalles_cotizacion ON cotizacion_detalles (cotizacion_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_planificacion_asesor_realizada ON planificacion_semanal (asesor_id, realizada)');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS crm_pujas (
         id SERIAL PRIMARY KEY,
@@ -156,10 +162,9 @@ async function initSchema() {
     console.log('PostgreSQL schema auto-updates checked/applied successfully.');
   } catch (err) {
     console.error('Error checking/applying PostgreSQL schema updates:', err.message);
+    throw err;
   }
 }
-initSchema();
-
 pool.on('connect', () => {
   console.log('Successfully connected to PostgreSQL pool.');
 });
@@ -217,5 +222,6 @@ module.exports = {
     }
   },
   
-  pool // Expose raw pool in case direct operations are needed
+  pool, // Expose raw pool in case direct operations are needed
+  initSchema
 };

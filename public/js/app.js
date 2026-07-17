@@ -3905,6 +3905,9 @@ let selectedCatalogClientIds = new Set();
 let catalogStageStates = [];
 let catalogAdvisorsLoaded = false;
 let catalogEventsBound = false;
+let catalogSearchTimer = null;
+let catalogRequestController = null;
+let catalogPagination = { page: 1, limit: 50, total: 0, totalPages: 1 };
 
 const ADVISOR_STAGE_DEFINITIONS = [
   { code: 'C', label: 'Cosecha', matcher: stage => normalizeStageText(stage).includes('cosecha') || normalizeStageKey(stage) === 'C' },
@@ -3919,6 +3922,15 @@ function escapeAttribute(value) {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function normalizeStageText(stage) {
@@ -4021,21 +4033,22 @@ function bindCatalogClientEvents() {
   const searchInput = document.getElementById('catalog-client-search');
   if (searchInput) {
     searchInput.addEventListener('input', () => {
-      renderCatalogClientes();
+      window.clearTimeout(catalogSearchTimer);
+      catalogSearchTimer = window.setTimeout(() => loadClientesCatalog({ page: 1 }), 250);
     });
   }
   
   const advisorFilter = document.getElementById('catalog-client-advisor-filter');
   if (advisorFilter) {
     advisorFilter.addEventListener('change', () => {
-      renderCatalogClientes();
+      loadClientesCatalog({ page: 1 });
     });
   }
 
   const selectAll = document.getElementById('catalog-select-all-clients');
   if (selectAll) {
     selectAll.addEventListener('change', () => {
-      const visibleIds = getFilteredCatalogClients().map(c => c.id);
+      const visibleIds = allCatalogClients.map(c => c.id);
       if (selectAll.checked) {
         visibleIds.forEach(id => selectedCatalogClientIds.add(id));
       } else {
@@ -4049,32 +4062,19 @@ function bindCatalogClientEvents() {
   if (bulkDeleteBtn) {
     bulkDeleteBtn.addEventListener('click', deleteSelectedCatalogClients);
   }
+
+  document.getElementById('catalog-page-prev')?.addEventListener('click', () => {
+    if (catalogPagination.page > 1) loadClientesCatalog({ page: catalogPagination.page - 1 });
+  });
+  document.getElementById('catalog-page-next')?.addEventListener('click', () => {
+    if (catalogPagination.page < catalogPagination.totalPages) loadClientesCatalog({ page: catalogPagination.page + 1 });
+  });
   
   catalogEventsBound = true;
 }
 
 function getFilteredCatalogClients() {
-  if (!Array.isArray(allCatalogClients)) return [];
-
-  const searchInput = document.getElementById('catalog-client-search');
-  const advisorSelect = document.getElementById('catalog-client-advisor-filter');
-  const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-  const advisorFilter = advisorSelect ? advisorSelect.value : 'ALL';
-  let filtered = allCatalogClients;
-
-  if (searchTerm) {
-    filtered = filtered.filter(c =>
-      c.nombre.toLowerCase().includes(searchTerm) ||
-      (c.ubicacion && c.ubicacion.toLowerCase().includes(searchTerm)) ||
-      (c.contacto && c.contacto.toLowerCase().includes(searchTerm))
-    );
-  }
-
-  if (user.nivel_rol !== 'Asesor' && advisorFilter !== 'ALL') {
-    filtered = filtered.filter(c => c.asesor_id === Number(advisorFilter));
-  }
-
-  return filtered;
+  return Array.isArray(allCatalogClients) ? allCatalogClients : [];
 }
 
 function updateCatalogSelectionControls(visibleClients = getFilteredCatalogClients()) {
@@ -4122,7 +4122,7 @@ async function loadCatalogClientAdvisorOptions() {
     filterSelect.innerHTML = '<option value="ALL">Todos los Asesores</option>';
     advisers.forEach(a => {
       if (a.activo === 1) {
-        filterSelect.innerHTML += `<option value="${a.id}">${a.nombre}</option>`;
+        filterSelect.innerHTML += `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`;
       }
     });
     catalogAdvisorsLoaded = true;
@@ -4131,7 +4131,25 @@ async function loadCatalogClientAdvisorOptions() {
   }
 }
 
-window.loadClientesCatalog = async function() {
+function renderCatalogPagination() {
+  const container = document.getElementById('catalog-pagination');
+  const summary = document.getElementById('catalog-pagination-summary');
+  const current = document.getElementById('catalog-pagination-current');
+  const prev = document.getElementById('catalog-page-prev');
+  const next = document.getElementById('catalog-page-next');
+  if (!container || !summary || !current || !prev || !next) return;
+
+  const { page, limit, total, totalPages } = catalogPagination;
+  const from = total === 0 ? 0 : (page - 1) * limit + 1;
+  const to = Math.min(page * limit, total);
+  container.style.display = total > 0 ? 'flex' : 'none';
+  summary.textContent = `${from}-${to} de ${total} agricultores`;
+  current.textContent = `Página ${page} de ${totalPages}`;
+  prev.disabled = page <= 1;
+  next.disabled = page >= totalPages;
+}
+
+window.loadClientesCatalog = async function({ page = catalogPagination.page } = {}) {
   const tbody = document.getElementById('catalog-clientes-tbody');
   if (tbody) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">Cargando agricultores...</td></tr>';
@@ -4146,15 +4164,23 @@ window.loadClientesCatalog = async function() {
   try {
     bindCatalogClientEvents();
     
-    if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') {
-      await loadCatalogClientAdvisorOptions();
-    }
+    const preloaders = [];
+    if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') preloaders.push(loadCatalogClientAdvisorOptions());
+    if (user.nivel_rol === 'Asesor') preloaders.push(loadCatalogStageStates());
 
-    if (user.nivel_rol === 'Asesor') {
-      await loadCatalogStageStates();
-    }
-    
-    const res = await fetch(`${API_URL}/api/clientes`, { headers: getHeaders() });
+    if (catalogRequestController) catalogRequestController.abort();
+    catalogRequestController = new AbortController();
+    const search = document.getElementById('catalog-client-search')?.value.trim() || '';
+    const advisorId = document.getElementById('catalog-client-advisor-filter')?.value || 'ALL';
+    const params = new URLSearchParams({ page: String(page), limit: String(catalogPagination.limit) });
+    if (search) params.set('q', search);
+    if (user.nivel_rol !== 'Asesor' && advisorId !== 'ALL') params.set('asesor_id', advisorId);
+
+    const [response] = await Promise.all([
+      fetch(`${API_URL}/api/clientes?${params.toString()}`, { headers: getHeaders(), signal: catalogRequestController.signal }),
+      ...preloaders
+    ]);
+    const res = response;
     const data = await res.json();
     
     if (!res.ok) {
@@ -4164,16 +4190,21 @@ window.loadClientesCatalog = async function() {
       throw new Error(data.error || 'Failed to fetch clients');
     }
     
-    if (!Array.isArray(data)) {
+    if (!Array.isArray(data?.data)) {
       throw new Error('La respuesta del servidor no tiene el formato esperado.');
     }
     
-    allCatalogClients = data;
-    selectedCatalogClientIds = new Set(
-      [...selectedCatalogClientIds].filter(id => allCatalogClients.some(c => c.id === id))
-    );
+    allCatalogClients = data.data;
+    catalogPagination = {
+      page: data.page,
+      limit: data.limit,
+      total: data.total,
+      totalPages: data.totalPages
+    };
     renderCatalogClientes();
+    renderCatalogPagination();
   } catch (err) {
+    if (err.name === 'AbortError') return;
     console.error('Failed to load client catalog:', err);
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--danger);">Error al cargar: ${err.message}</td></tr>`;
@@ -4191,7 +4222,7 @@ window.renderCatalogClientes = function() {
   }
   
   tbody.innerHTML = '';
-  const filtered = getFilteredCatalogClients();
+  const filtered = allCatalogClients;
   updateCatalogSelectionControls(filtered);
   
   if (filtered.length === 0) {
@@ -4211,21 +4242,21 @@ window.renderCatalogClientes = function() {
       ? `<button class="btn btn-secondary icon-action-btn danger" title="Borrar agricultor" aria-label="Borrar agricultor" onclick="deleteCatalogClient(${c.id})">🗑️</button>`
       : '';
     const nameContent = user.nivel_rol === 'Asesor'
-      ? `<div class="advisor-stage-name">${renderAdvisorStageButtons()}<strong>${c.nombre}</strong></div>`
-      : `<div class="catalog-name-cell"><strong>${c.nombre}</strong>${selectionControl}</div>`;
+      ? `<div class="advisor-stage-name">${renderAdvisorStageButtons()}<strong>${escapeHtml(c.nombre)}</strong></div>`
+      : `<div class="catalog-name-cell"><strong>${escapeHtml(c.nombre)}</strong>${selectionControl}</div>`;
     
     catalogHtml += `
       <tr>
         <td>
           ${nameContent}
         </td>
-        ${user.nivel_rol !== 'Asesor' ? `<td>${c.asesor_nombre || 'Sin Asesor'}</td>` : ''}
-        <td>${c.cuenta_clave_nombre || '-'}</td>
-        <td>${c.contacto || '-'}</td>
-        <td>${c.telefono || '-'}</td>
-        <td>${c.ubicacion || '-'}</td>
-        <td>${c.superficie_text || '-'}</td>
-        <td><span class="badge ${badgeClass}">${c.estado_status}</span></td>
+        ${user.nivel_rol !== 'Asesor' ? `<td>${escapeHtml(c.asesor_nombre || 'Sin Asesor')}</td>` : ''}
+        <td>${escapeHtml(c.cuenta_clave_nombre || '-')}</td>
+        <td>${escapeHtml(c.contacto || '-')}</td>
+        <td>${escapeHtml(c.telefono || '-')}</td>
+        <td>${escapeHtml(c.ubicacion || '-')}</td>
+        <td>${escapeHtml(c.superficie_text || '-')}</td>
+        <td><span class="badge ${badgeClass}">${escapeHtml(c.estado_status)}</span></td>
         <td style="text-align: center;">
           <div class="catalog-row-actions">
             <button class="btn btn-secondary icon-action-btn" title="Editar agricultor" aria-label="Editar agricultor" onclick="editCatalogClient(${c.id})">✏️</button>
@@ -4272,7 +4303,7 @@ window.deleteCatalogClient = async function(clientId) {
     if (!res.ok) throw new Error(data.error || 'Failed to delete client');
 
     selectedCatalogClientIds.delete(clientId);
-    await loadClientesCatalog();
+    await loadClientesCatalog({ page: catalogPagination.page });
     alert('Agricultor borrado con éxito.');
   } catch (err) {
     alert(err.message);
@@ -4299,7 +4330,7 @@ async function deleteSelectedCatalogClients() {
     if (!res.ok) throw new Error(data.error || 'Failed to delete clients');
 
     selectedCatalogClientIds.clear();
-    await loadClientesCatalog();
+    await loadClientesCatalog({ page: catalogPagination.page });
     const deletedCount = data.deleted || ids.length;
     alert(`${deletedCount} agricultor${deletedCount === 1 ? '' : 'es'} borrado${deletedCount === 1 ? '' : 's'} con éxito.`);
   } catch (err) {
@@ -4331,7 +4362,7 @@ window.switchClientTab = function(tabName) {
     if (tabBids) tabBids.classList.remove('active');
     if (secCatalog) secCatalog.style.display = 'block';
     if (secBids) secBids.style.display = 'none';
-    loadCatalogData();
+    loadClientesCatalog({ page: catalogPagination.page });
   } else {
     if (tabCatalog) tabCatalog.classList.remove('active');
     if (tabBids) tabBids.classList.add('active');

@@ -9,9 +9,24 @@ const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing }
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'casas_grandes_secret_key_123';
+const JWT_SECRET = process.env.JWT_SECRET;
 
-app.use(cors());
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET must be configured before starting the server.');
+}
+
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    // Same-origin browser requests and non-browser health checks do not send Origin.
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Origin not allowed by CORS'));
+  }
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -86,29 +101,58 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // -------------------------------------------------------------
 
 app.get('/api/clientes', authenticateToken, async (req, res) => {
-  const { asesor_id } = req.query;
+  const { asesor_id, q, page, limit } = req.query;
   try {
+    const usesPagination = page !== undefined || limit !== undefined || q !== undefined;
+    const requestedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
+    const requestedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 10), 100);
+    let whereSql = 'WHERE c.activo = 1';
+    const params = [];
+
+    // Non-admins (advisers) can only view their own clients unless they are Directors/Coordinators.
+    if (req.user.nivel_rol === 'Asesor') {
+      whereSql += ' AND c.asesor_id = ?';
+      params.push(req.user.id);
+    } else if (asesor_id) {
+      whereSql += ' AND c.asesor_id = ?';
+      params.push(asesor_id);
+    }
+
+    const search = String(q || '').trim();
+    if (search) {
+      whereSql += ' AND (c.nombre ILIKE ? OR c.ubicacion ILIKE ? OR c.contacto ILIKE ?)';
+      const searchPattern = `%${search}%`;
+      params.push(searchPattern, searchPattern, searchPattern);
+    }
+
     let query = `
-      SELECT c.*, a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn
+      SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.contacto, c.telefono,
+             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
+             a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn
       FROM clientes c
       LEFT JOIN asesores a ON c.asesor_id = a.id
       LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
-      WHERE c.activo = 1
+      ${whereSql}
     `;
-    const params = [];
-    
-    // Non-admins (advisers) can only view their own clients unless they are Directors/Coordinators
-    if (req.user.nivel_rol === 'Asesor') {
-      query += ` AND c.asesor_id = ?`;
-      params.push(req.user.id);
-    } else if (asesor_id) {
-      query += ` AND c.asesor_id = ?`;
-      params.push(asesor_id);
-    }
     
     query += ` ORDER BY c.nombre ASC`;
-    const rows = await db.all(query, params);
-    res.json(rows);
+    if (!usesPagination) {
+      const rows = await db.all(query, params);
+      return res.json(rows);
+    }
+
+    const countQuery = `SELECT count(*)::int AS total FROM clientes c ${whereSql}`;
+    const totalRow = await db.get(countQuery, params);
+    query += ` LIMIT ? OFFSET ?`;
+    const rows = await db.all(query, [...params, requestedLimit, (requestedPage - 1) * requestedLimit]);
+    const total = totalRow?.total || 0;
+    res.json({
+      data: rows,
+      page: requestedPage,
+      limit: requestedLimit,
+      total,
+      totalPages: Math.max(Math.ceil(total / requestedLimit), 1)
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch clients' });
@@ -2451,9 +2495,16 @@ app.post('/api/programacion/precios', authenticateToken, async (req, res) => {
   }
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`Casas Grandes Sales Management Server running on port ${PORT}`);
-  // Initialize agents background scheduler
-  agentsService.startBackgroundScheduler();
+// Start only after the schema is ready, avoiding requests against a partially migrated database.
+async function startServer() {
+  await db.initSchema();
+  app.listen(PORT, () => {
+    console.log(`Casas Grandes Sales Management Server running on port ${PORT}`);
+    agentsService.startBackgroundScheduler();
+  });
+}
+
+startServer().catch(err => {
+  console.error('Unable to initialize database schema:', err.message);
+  process.exit(1);
 });
