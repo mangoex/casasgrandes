@@ -2063,6 +2063,91 @@ app.delete('/api/planificacion/:id', authenticateToken, async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// PRODUCTION DATA RESET (ADMIN ONLY)
+// -------------------------------------------------------------
+app.post('/api/admin/limpiar-operacion', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  if (req.body?.confirmacion !== 'LIMPIAR PRODUCCION') {
+    return res.status(400).json({ error: 'La confirmación exacta es requerida.' });
+  }
+
+  let client;
+  try {
+    client = await db.pool.connect();
+    await client.query('BEGIN');
+
+    const backupResult = await client.query(`
+      SELECT jsonb_build_object(
+        'cotizaciones', COALESCE((SELECT jsonb_agg(to_jsonb(q) ORDER BY q.id) FROM cotizaciones q), '[]'::jsonb),
+        'cotizacion_detalles', COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM cotizacion_detalles d), '[]'::jsonb),
+        'movimientos_ventas', COALESCE((SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM almacen_movimientos m WHERE m.cotizacion_id IS NOT NULL), '[]'::jsonb),
+        'planificacion', COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM planificacion_semanal p), '[]'::jsonb)
+      ) AS datos,
+      jsonb_build_object(
+        'cotizaciones', (SELECT count(*) FROM cotizaciones),
+        'cotizacion_detalles', (SELECT count(*) FROM cotizacion_detalles),
+        'movimientos_ventas', (SELECT count(*) FROM almacen_movimientos WHERE cotizacion_id IS NOT NULL),
+        'planificacion', (SELECT count(*) FROM planificacion_semanal),
+        'bitacora_crm_conservada', (SELECT count(*) FROM crm_visitas)
+      ) AS resumen
+    `);
+    const { datos, resumen } = backupResult.rows[0];
+
+    const backupInsert = await client.query(
+      `INSERT INTO crm_respaldos_limpieza_operacion (creado_por_id, alcance, resumen, datos)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [req.user.id, 'ventas_y_planificacion_sin_bitacora_crm', resumen, datos]
+    );
+
+    // Sales movements must be removed before their quotation headers due to the foreign key.
+    const movementsDeleted = await client.query('DELETE FROM almacen_movimientos WHERE cotizacion_id IS NOT NULL');
+    const quotesDeleted = await client.query('DELETE FROM cotizaciones');
+    const plansDeleted = await client.query('DELETE FROM planificacion_semanal');
+
+    // Keep manual inventory movements and recalculate their running stock after removing test sales.
+    await client.query(`
+      WITH recalculated AS (
+        SELECT id,
+          SUM(COALESCE(cantidad_entrante, 0) - COALESCE(cantidad_saliente, 0))
+          OVER (PARTITION BY producto_id ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS existencias
+        FROM almacen_movimientos
+      )
+      UPDATE almacen_movimientos m
+      SET existencias_resultantes = recalculated.existencias
+      FROM recalculated
+      WHERE m.id = recalculated.id
+    `);
+
+    await client.query('COMMIT');
+    res.json({
+      message: 'Ventas y planificación limpiadas. La bitácora CRM fue conservada.',
+      respaldo_id: backupInsert.rows[0].id,
+      eliminado: {
+        cotizaciones: quotesDeleted.rowCount,
+        movimientos_ventas: movementsDeleted.rowCount,
+        planificacion: plansDeleted.rowCount
+      },
+      conservado: { bitacora_crm: resumen.bitacora_crm_conservada }
+    });
+  } catch (err) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('Failed to roll back production cleanup:', rollbackErr);
+      }
+    }
+    console.error('Failed to clean production operation data:', err);
+    res.status(500).json({ error: 'No fue posible limpiar los datos. No se aplicaron cambios.' });
+  } finally {
+    client?.release();
+  }
+});
+
+// -------------------------------------------------------------
 // PROYECCIONES REPORT ENDPOINT
 // -------------------------------------------------------------
 

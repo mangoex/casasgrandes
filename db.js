@@ -162,6 +162,17 @@ async function initSchema() {
       )
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_respaldos_limpieza_operacion (
+        id SERIAL PRIMARY KEY,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        creado_por_id INTEGER REFERENCES asesores(id),
+        alcance TEXT NOT NULL,
+        resumen JSONB NOT NULL,
+        datos JSONB NOT NULL
+      )
+    `);
+
     console.log('PostgreSQL schema auto-updates checked/applied successfully.');
   } catch (err) {
     console.error('Error checking/applying PostgreSQL schema updates:', err.message);

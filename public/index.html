@@ -1115,6 +1115,7 @@
           <button id="tab-admin-productos" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🌾 Productos</button>
           <button id="tab-admin-metas" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🎯 Metas Comerciales</button>
           <button id="tab-admin-ciclos" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">📅 Ciclos Agrícolas</button>
+          <button id="tab-admin-mantenimiento" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🛠️ Mantenimiento</button>
         </div>
 
         <!-- 1. Asesores panel -->
@@ -1279,6 +1280,14 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        <div id="panel-admin-mantenimiento" class="admin-panel" style="display: none;">
+          <div class="card" style="max-width: 720px; border-color: #fecaca;">
+            <h3 style="margin-bottom: 8px;">Limpieza para Inicio de Producción</h3>
+            <p style="color: var(--text-light); margin-bottom: 16px;">Elimina cotizaciones, sus detalles, movimientos de venta y visitas programadas. Conserva agricultores, productos, metas, inventario manual y bitácora CRM.</p>
+            <button id="btn-open-production-cleanup" class="btn btn-danger" type="button" style="width: auto;">🗑️ Limpiar Ventas y Planificación</button>
           </div>
         </div>
       </div>
@@ -1957,6 +1966,23 @@
             <button type="button" id="btn-convert-to-prospect" class="btn btn-secondary" style="display: none; flex: 1.5; border-color: var(--accent); color: var(--accent-hover); margin-top: 0;">📋 Pasar a Prospecto</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="production-cleanup-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2>Limpiar Ventas y Planificación</h2>
+        <button class="modal-close" onclick="closeModal('production-cleanup-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-top: 0; color: var(--text-light);">Se creará un respaldo antes de eliminar los datos. La bitácora CRM no será modificada.</p>
+        <div class="form-group">
+          <label for="production-cleanup-confirmation">Escribe LIMPIAR PRODUCCION para confirmar</label>
+          <input id="production-cleanup-confirmation" class="form-input" autocomplete="off">
+        </div>
+        <button id="btn-confirm-production-cleanup" class="btn btn-danger" type="button">🗑️ Crear Respaldo y Limpiar</button>
       </div>
     </div>
   </div>

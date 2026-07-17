@@ -2477,6 +2477,7 @@ if (document.getElementById('tab-admin-asesores')) {
   document.getElementById('tab-admin-productos').addEventListener('click', () => switchAdminTab('productos'));
   document.getElementById('tab-admin-metas').addEventListener('click', () => switchAdminTab('metas'));
   document.getElementById('tab-admin-ciclos').addEventListener('click', () => switchAdminTab('ciclos'));
+  document.getElementById('tab-admin-mantenimiento').addEventListener('click', () => switchAdminTab('mantenimiento'));
 }
 
 function switchAdminTab(tabName) {
@@ -2489,6 +2490,7 @@ function switchAdminTab(tabName) {
   document.getElementById('panel-admin-productos').style.display = 'none';
   document.getElementById('panel-admin-metas').style.display = 'none';
   document.getElementById('panel-admin-ciclos').style.display = 'none';
+  document.getElementById('panel-admin-mantenimiento').style.display = 'none';
   
   document.getElementById(`tab-admin-${tabName}`).classList.add('active');
   document.getElementById(`panel-admin-${tabName}`).style.display = 'block';
@@ -2506,6 +2508,45 @@ async function loadAdminData() {
   } else if (adminActiveTab === 'ciclos') {
     await loadAdminCiclos();
   }
+}
+
+const openProductionCleanupBtn = document.getElementById('btn-open-production-cleanup');
+if (openProductionCleanupBtn) {
+  openProductionCleanupBtn.addEventListener('click', () => {
+    document.getElementById('production-cleanup-confirmation').value = '';
+    openModal('production-cleanup-modal');
+  });
+}
+
+const confirmProductionCleanupBtn = document.getElementById('btn-confirm-production-cleanup');
+if (confirmProductionCleanupBtn) {
+  confirmProductionCleanupBtn.addEventListener('click', async () => {
+    const confirmation = document.getElementById('production-cleanup-confirmation').value.trim();
+    if (confirmation !== 'LIMPIAR PRODUCCION') {
+      alert('Escribe LIMPIAR PRODUCCION para confirmar la limpieza.');
+      return;
+    }
+
+    confirmProductionCleanupBtn.disabled = true;
+    try {
+      const res = await fetch(`${API_URL}/api/admin/limpiar-operacion`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ confirmacion: confirmation })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No fue posible limpiar los datos');
+
+      closeModal('production-cleanup-modal');
+      alert(`Limpieza completada. Respaldo #${data.respaldo_id}. Se conservaron ${data.conservado.bitacora_crm} registros de bitácora CRM.`);
+      loadCRMBoardData();
+      loadWeeklySchedule();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      confirmProductionCleanupBtn.disabled = false;
+    }
+  });
 }
 
 // 1. ASESORES ADMIN LOGIC
