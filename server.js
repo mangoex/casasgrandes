@@ -20,12 +20,24 @@ const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .map(origin => origin.trim())
   .filter(Boolean);
 
-app.use(cors({
-  origin(origin, callback) {
-    // Same-origin browser requests and non-browser health checks do not send Origin.
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Origin not allowed by CORS'));
+app.use(cors((req, callback) => {
+  const origin = req.get('origin');
+  let isSameOrigin = false;
+
+  if (origin) {
+    try {
+      // The browser UI is served by this application, so its own host is always allowed.
+      isSameOrigin = new URL(origin).host.toLowerCase() === req.get('host')?.toLowerCase();
+    } catch {
+      isSameOrigin = false;
+    }
   }
+
+  // Health checks do not send Origin. External applications still require CORS_ORIGINS.
+  if (!origin || isSameOrigin || allowedOrigins.includes(origin)) {
+    return callback(null, { origin: true });
+  }
+  return callback(new Error('Origin not allowed by CORS'));
 }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));

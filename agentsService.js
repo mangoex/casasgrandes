@@ -623,7 +623,10 @@ async function executeAgent(agentId, customApiKey, cicloId) {
 // Check and run agents based on scheduled times
 async function runScheduledAgents() {
   try {
-    const agents = await db.all("SELECT * FROM crm_agentes_config WHERE activo = 1");
+    // "global" stores provider credentials and is not an executable agent.
+    const agents = await db.all(
+      "SELECT * FROM crm_agentes_config WHERE activo = 1 AND agente_id IN ('ceo', 'coordinador', 'outreach')"
+    );
     for (const agent of agents) {
       const configData = JSON.parse(agent.configuracion || '{}');
       const freqHours = configData.frecuencia_horas || 12;
