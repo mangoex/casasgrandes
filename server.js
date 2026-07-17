@@ -10,6 +10,7 @@ const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing }
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET must be configured before starting the server.');
@@ -91,7 +92,7 @@ app.post('/api/auth/login', async (req, res) => {
     const token = jwt.sign(
       { id: user.id, nombre: user.nombre, usuario: user.usuario, nivel_rol: user.nivel_rol, email: user.email },
       JWT_SECRET,
-      { expiresIn: '12h' }
+      { expiresIn: JWT_EXPIRES_IN }
     );
     
     res.json({

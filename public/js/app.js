@@ -13,21 +13,25 @@ window.fetch = async function(...args) {
     if (response.status === 401 || response.status === 403) {
       const resource = args[0];
       const urlStr = typeof resource === 'string' ? resource : (resource.url || '');
-      if (!urlStr.includes('/api/auth/login')) {
-        console.warn('Session expired or unauthorized. Redirecting to login...', urlStr);
+      let errorMessage = '';
+      try {
+        errorMessage = (await response.clone().json()).error || '';
+      } catch {
+        // A non-JSON failure must not be treated as an expired session.
+      }
+
+      const invalidSession = ['Access token required', 'Invalid or expired token'].includes(errorMessage);
+      if (!urlStr.includes('/api/auth/login') && invalidSession) {
+        console.warn('Session expired or invalid. Redirecting to login...', urlStr);
         token = null;
         user = null;
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         showLoginView();
-        throw new Error('Session expired or unauthorized');
       }
     }
     return response;
   } catch (error) {
-    if (error.message === 'Session expired or unauthorized') {
-      throw error;
-    }
     throw error;
   }
 };
