@@ -398,7 +398,10 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       body: JSON.stringify({ usernameOrEmail, password })
     });
     
-    const data = await res.json();
+    const contentType = res.headers.get('content-type') || '';
+    const data = contentType.includes('application/json')
+      ? await res.json()
+      : { error: 'El servidor está respondiendo temporalmente de forma inesperada. Espera unos segundos y vuelve a intentar.' };
     if (!res.ok) {
       throw new Error(data.error || 'Login failed');
     }
