@@ -6673,12 +6673,16 @@ function renderProgramacionTableContent(prices) {
       
       const active = checkMonthOverlap(idx, etapa.fecha_inicio, etapa.fecha_fin);
       if (active) {
-        // Render colored block in cell
-        td.innerHTML = `
-          <div class="timeline-bar" style="background-color: ${etapa.color}dd; border-left: 4px solid ${etapa.color};" title="${etapa.nombre}: ${etapa.fecha_inicio} a ${etapa.fecha_fin}">
-            <span class="timeline-bar-text">${etapa.clave}</span>
-          </div>
-        `;
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'timeline-bar timeline-report-trigger';
+        trigger.style.backgroundColor = `${etapa.color}dd`;
+        trigger.style.borderLeftColor = etapa.color;
+        trigger.title = `Ver análisis de ${etapa.nombre}`;
+        trigger.setAttribute('aria-label', `Ver análisis de ${etapa.nombre}`);
+        trigger.innerHTML = `<span class="timeline-bar-text">${escapeHtml(etapa.clave)}</span>`;
+        trigger.addEventListener('click', () => window.openStageAnalysis(etapa.id));
+        td.appendChild(trigger);
       }
       tr.appendChild(td);
     });
@@ -6686,6 +6690,80 @@ function renderProgramacionTableContent(prices) {
     tbody.appendChild(tr);
   });
 }
+
+function stageAnalysisDate(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function stageAnalysisSummary(stageCode, responses) {
+  if (stageCode === 'DV' || stageCode === 'DR') {
+    const anomaly = responses.anomalia === 'Sí' ? 'Anomalía reportada' : 'Sin anomalía';
+    return `${anomaly}. ${responses.comentarios_productor || 'Sin observaciones.'}`;
+  }
+  if (stageCode === 'C') {
+    return `${responses.hibrido_material || 'Material sin especificar'} · Rendimiento: ${responses.rendimiento || 'sin dato'} · Superficie: ${responses.hectareaje || 'sin dato'}`;
+  }
+  return 'Etapa de venta: la gestión comercial se consulta en Cotizador.';
+}
+
+window.openStageAnalysis = async function(stageId) {
+  const stage = programacionStages.find(item => item.id === Number(stageId));
+  if (!stage) return;
+
+  const title = document.getElementById('stage-analysis-title');
+  const period = document.getElementById('stage-analysis-period');
+  const content = document.getElementById('stage-analysis-content');
+  if (!title || !period || !content) return;
+
+  title.textContent = `Análisis de ${stage.nombre}`;
+  period.textContent = `${stageAnalysisDate(stage.fecha_inicio)} al ${stageAnalysisDate(stage.fecha_fin)}`;
+  content.innerHTML = '<div class="stage-analysis-loading">Cargando análisis...</div>';
+  openModal('stage-analysis-modal');
+
+  try {
+    const res = await fetch(`/api/programacion/etapas/${stage.id}/analisis`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible cargar el análisis');
+
+    const resumen = data.resumen;
+    const pendientes = Math.max(0, resumen.visitas_programadas - resumen.reportes_recibidos);
+    const anomalyCopy = ['DV', 'DR'].includes(stage.clave)
+      ? `${resumen.anomalias_reportadas} con anomalía reportada`
+      : stage.clave === 'C'
+        ? 'Datos de cosecha recopilados'
+        : 'Seguimiento comercial desde Cotizador';
+    const reportRows = data.reportes.map(reporte => `
+      <tr>
+        <td><strong>${escapeHtml(reporte.cliente_nombre || 'Agricultor sin nombre')}</strong></td>
+        <td>${escapeHtml(reporte.asesor_nombre || '-')}</td>
+        <td>${escapeHtml(stageAnalysisDate(reporte.fecha_reporte))}</td>
+        <td class="stage-analysis-response">${escapeHtml(stageAnalysisSummary(stage.clave, reporte.respuestas || {}))}</td>
+      </tr>
+    `).join('');
+
+    content.innerHTML = `
+      <div class="stage-analysis-metrics">
+        <div><span>Visitas programadas</span><strong>${resumen.visitas_programadas}</strong></div>
+        <div><span>Reportes recibidos</span><strong>${resumen.reportes_recibidos}</strong></div>
+        <div><span>Agricultores con reporte</span><strong>${resumen.agricultores_reportaron}</strong></div>
+        <div><span>Pendientes de captura</span><strong class="${pendientes ? 'stage-analysis-warning' : ''}">${pendientes}</strong></div>
+      </div>
+      <div class="stage-analysis-insight" style="--stage-color: ${escapeAttribute(stage.color)};">
+        <strong>${escapeHtml(anomalyCopy)}</strong>
+        <span>${resumen.asesores_reportaron} asesores han registrado información en este periodo.</span>
+      </div>
+      <div class="table-container stage-analysis-table-wrap">
+        <table>
+          <thead><tr><th>Agricultor</th><th>Asesor</th><th>Fecha</th><th>Información registrada</th></tr></thead>
+          <tbody>${reportRows || '<tr><td colspan="4" class="stage-analysis-empty">Aún no hay encuestas registradas en esta etapa.</td></tr>'}</tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    content.innerHTML = `<div class="stage-analysis-empty">${escapeHtml(err.message)}</div>`;
+  }
+};
 
 async function saveMonthlyPricing() {
   if (!selectedProgramacionProductId) {

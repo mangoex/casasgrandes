@@ -2605,6 +2605,61 @@ app.delete('/api/programacion/etapas/:id', authenticateToken, requireProgramacio
   }
 });
 
+app.get('/api/programacion/etapas/:id/analisis', authenticateToken, requireProgramacionManager, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const etapa = await db.get('SELECT * FROM crm_etapas_programacion WHERE id = ?', [id]);
+    if (!etapa) return res.status(404).json({ error: 'Stage not found' });
+
+    const reportes = await db.all(`
+      SELECT r.id, r.etapa_clave, r.fecha_reporte, r.respuestas, r.creado_en, r.actualizado_en,
+             c.nombre AS cliente_nombre, a.nombre AS asesor_nombre
+      FROM crm_reportes_etapa r
+      LEFT JOIN clientes c ON c.id = r.cliente_id
+      LEFT JOIN asesores a ON a.id = r.asesor_id
+      WHERE r.etapa_clave = ?
+        AND r.fecha_reporte BETWEEN ? AND ?
+      ORDER BY r.fecha_reporte DESC, r.actualizado_en DESC
+    `, [etapa.clave, etapa.fecha_inicio, etapa.fecha_fin]);
+
+    const planificacion = await db.get(`
+      SELECT COUNT(*) AS total
+      FROM planificacion_semanal
+      WHERE fecha_programada BETWEEN ? AND ?
+        AND realizada <> 2
+    `, [etapa.fecha_inicio, etapa.fecha_fin]);
+
+    const respuestas = reportes.map(reporte => {
+      if (typeof reporte.respuestas === 'string') {
+        try {
+          return JSON.parse(reporte.respuestas || '{}');
+        } catch {
+          return {};
+        }
+      }
+      return reporte.respuestas || {};
+    });
+    const agricultores = new Set(reportes.map(reporte => reporte.cliente_nombre).filter(Boolean));
+    const asesores = new Set(reportes.map(reporte => reporte.asesor_nombre).filter(Boolean));
+    const anomalias = respuestas.filter(respuesta => respuesta.anomalia === 'Sí').length;
+
+    res.json({
+      etapa,
+      resumen: {
+        visitas_programadas: Number(planificacion?.total || 0),
+        reportes_recibidos: reportes.length,
+        agricultores_reportaron: agricultores.size,
+        asesores_reportaron: asesores.size,
+        anomalias_reportadas: anomalias
+      },
+      reportes: reportes.map((reporte, index) => ({ ...reporte, respuestas: respuestas[index] }))
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to build stage analysis' });
+  }
+});
+
 app.get('/api/reportes-etapa', authenticateToken, async (req, res) => {
   const { planificacion_id, etapa_clave, cliente_id, asesor_id } = req.query;
   try {
