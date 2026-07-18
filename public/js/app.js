@@ -4218,6 +4218,7 @@ window.openStageReportModal = function(planId, stageCode, clientName) {
   const plan = currentPlanList.find(item => item.id === Number(planId))
     || (activePlanModalPlan?.id === Number(planId) ? activePlanModalPlan : null);
   if (!plan) return;
+  closeModal('add-plan-modal');
   activeStageReportContext = { plan, stageCode, clientName };
   const title = document.getElementById('stage-report-modal-title');
   if (title) title.textContent = `Reporte ${stageCode} · ${clientName || plan.cliente_nombre || 'Agricultor'}`;
