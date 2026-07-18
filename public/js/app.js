@@ -4306,6 +4306,7 @@ window.openStageCotizador = async function(planId, stageCode, clientName) {
   activeStageReportContext = { plan, stageCode, clientName };
   const clientId = plan.cliente_id;
   const clientNameValue = clientName || plan.cliente_nombre;
+  closeModal('add-plan-modal');
   const navItems = document.querySelectorAll('.nav-links .nav-item');
   navItems.forEach(i => {
     i.classList.remove('active');

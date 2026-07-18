@@ -154,10 +154,34 @@ async function initSchema() {
       INSERT INTO crm_etapas_programacion (clave, nombre, fecha_inicio, fecha_fin, color)
       VALUES
         ('V', 'Venta', '${currentYear}-07-01', '${currentYear + 1}-01-31', '#60a5fa'),
-        ('DV', 'Desarrollo Vegetativo', '${currentYear}-10-01', '${currentYear + 1}-03-31', '#34d399'),
-        ('DR', 'Desarrollo Reproductivo', '${currentYear + 1}-01-01', '${currentYear + 1}-04-30', '#f59e0b'),
-        ('C', 'Cosecha', '${currentYear + 1}-03-01', '${currentYear + 1}-07-31', '#ef4444')
+        ('DV', 'Desarrollo Vegetativo', '${currentYear - 1}-10-01', '${currentYear}-03-31', '#34d399'),
+        ('DR', 'Desarrollo Reproductivo', '${currentYear}-01-01', '${currentYear}-04-30', '#f59e0b'),
+        ('C', 'Cosecha', '${currentYear}-03-01', '${currentYear}-07-31', '#ef4444')
       ON CONFLICT (clave) DO NOTHING
+    `);
+
+    // Repair only the dates created by the previous default-seed error.
+    // Manually configured stages do not match these exact values and stay untouched.
+    await pool.query(`
+      UPDATE crm_etapas_programacion
+      SET fecha_inicio = '${currentYear}-03-01', fecha_fin = '${currentYear}-07-31'
+      WHERE clave = 'C'
+        AND fecha_inicio = '${currentYear + 1}-03-01'
+        AND fecha_fin = '${currentYear + 1}-07-31'
+    `);
+    await pool.query(`
+      UPDATE crm_etapas_programacion
+      SET fecha_inicio = '${currentYear}-01-01', fecha_fin = '${currentYear}-04-30'
+      WHERE clave = 'DR'
+        AND fecha_inicio = '${currentYear + 1}-01-01'
+        AND fecha_fin = '${currentYear + 1}-04-30'
+    `);
+    await pool.query(`
+      UPDATE crm_etapas_programacion
+      SET fecha_inicio = '${currentYear - 1}-10-01', fecha_fin = '${currentYear}-03-31'
+      WHERE clave = 'DV'
+        AND fecha_inicio = '${currentYear}-10-01'
+        AND fecha_fin = '${currentYear + 1}-03-31'
     `);
 
     await pool.query(`
