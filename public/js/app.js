@@ -2904,6 +2904,7 @@ let activePlanWeek = '';
 let planClientSearchTimer = null;
 let planClientSearchController = null;
 let activeStageReportContext = null;
+let activePlanModalPlan = null;
 
 function getCurrentWeekString() {
   const d = new Date();
@@ -3110,14 +3111,12 @@ async function loadWeeklySchedule() {
           `;
         }
         
-        const activeStageButtons = renderStageButtonsForPlan(p);
         card.innerHTML = `
           <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px;">
             <input type="checkbox" class="card-select-checkbox" data-id="${p.id}" style="width: 15px; height: 15px; cursor: pointer; margin-top: 3px;">
             <div style="flex-grow: 1;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;">
                 <div class="plan-card-client">
-                  ${activeStageButtons}
                   <strong style="font-size: 13.5px; color: var(--text);">${escapeHtml(p.cliente_nombre)}</strong>
                 </div>
                 ${statusBadge}
@@ -3330,6 +3329,7 @@ if (planClientSearch) {
 }
 
 document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
+  activePlanModalPlan = null;
   document.getElementById('add-plan-form').reset();
   document.getElementById('plan-form-id').value = '';
   document.getElementById('plan-date').value = new Date().toISOString().slice(0, 10);
@@ -3363,6 +3363,7 @@ document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
 });
 
 window.openEditPlanModal = function(p) {
+  activePlanModalPlan = p;
   document.getElementById('plan-client-search').value = p.cliente_nombre || '';
   setPlanClientSelection(p.cliente_id, p.cliente_nombre);
   document.getElementById('plan-date').value = p.fecha_programada;
@@ -3375,6 +3376,7 @@ window.openEditPlanModal = function(p) {
   const stagesContainer = document.getElementById('plan-modal-stages-container');
   if (stagesContainer) {
     stagesContainer.innerHTML = user?.nivel_rol === 'Asesor' ? renderStageButtonsForPlan(p) : '';
+    bindStageReportButtons(stagesContainer);
   }
   
   const modalTitle = document.getElementById('plan-modal-title');
@@ -3540,6 +3542,7 @@ window.reschedulePlanActivity = function(p) {
   
   document.getElementById('add-plan-form').reset();
   document.getElementById('plan-form-id').value = '';
+  activePlanModalPlan = null;
   
   document.getElementById('plan-client-search').value = p.cliente_nombre || '';
   setPlanClientSelection(p.cliente_id, p.cliente_nombre);
@@ -4190,14 +4193,30 @@ function renderStageButtonsForPlan(plan) {
   return `
     <div class="advisor-stage-buttons" aria-label="Botones de reporte por etapa" style="grid-template-columns: repeat(4, 30px); justify-content: flex-end;">
       ${stages.map(stage => `
-        <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" ${stage.active ? `style="--stage-color: ${escapeAttribute(stage.color)};"` : ''} title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" ${stage.active ? '' : 'disabled'} onclick="${stage.active ? (stage.code === 'V' ? `window.openStageCotizador(${plan.id}, '${stage.code}')` : `window.openStageReportModal(${plan.id}, '${stage.code}')`) : ''}">${stage.code}</button>
+        <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" ${stage.active ? `style="--stage-color: ${escapeAttribute(stage.color)};"` : ''} title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" ${stage.active ? `data-stage-plan-id="${plan.id}" data-stage-code="${stage.code}"` : 'disabled'}>${stage.code}</button>
       `).join('')}
     </div>
   `;
 }
 
+function bindStageReportButtons(container) {
+  container.querySelectorAll('[data-stage-plan-id]').forEach(button => {
+    button.addEventListener('click', async event => {
+      event.preventDefault();
+      const planId = Number(button.dataset.stagePlanId);
+      const stageCode = button.dataset.stageCode;
+      if (stageCode === 'V') {
+        await window.openStageCotizador(planId, stageCode);
+      } else {
+        window.openStageReportModal(planId, stageCode);
+      }
+    });
+  });
+}
+
 window.openStageReportModal = function(planId, stageCode, clientName) {
-  const plan = currentPlanList.find(item => item.id === Number(planId));
+  const plan = currentPlanList.find(item => item.id === Number(planId))
+    || (activePlanModalPlan?.id === Number(planId) ? activePlanModalPlan : null);
   if (!plan) return;
   activeStageReportContext = { plan, stageCode, clientName };
   const title = document.getElementById('stage-report-modal-title');
@@ -4280,7 +4299,9 @@ window.submitStageReport = async function() {
 };
 
 window.openStageCotizador = async function(planId, stageCode, clientName) {
-  const plan = currentPlanList.find(item => item.id === Number(planId)) || activeStageReportContext?.plan;
+  const plan = currentPlanList.find(item => item.id === Number(planId))
+    || (activePlanModalPlan?.id === Number(planId) ? activePlanModalPlan : null)
+    || activeStageReportContext?.plan;
   if (!plan) return;
   activeStageReportContext = { plan, stageCode, clientName };
   const clientId = plan.cliente_id;
@@ -4621,7 +4642,7 @@ window.renderCatalogClientes = function() {
       ? `<button class="btn btn-secondary icon-action-btn danger" title="Borrar agricultor" aria-label="Borrar agricultor" onclick="deleteCatalogClient(${c.id})">🗑️</button>`
       : '';
     const nameContent = user.nivel_rol === 'Asesor'
-      ? `<div class="advisor-stage-name">${renderAdvisorStageButtons()}<strong>${escapeHtml(c.nombre)}</strong></div>`
+      ? `<div class="catalog-name-cell"><strong>${escapeHtml(c.nombre)}</strong></div>`
       : `<div class="catalog-name-cell"><strong>${escapeHtml(c.nombre)}</strong>${selectionControl}</div>`;
     
     catalogHtml += `
