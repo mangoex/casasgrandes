@@ -2637,11 +2637,13 @@ tr:hover td {
 }
 
 #programacion-stages-card.is-collapsed {
-  padding: 14px 8px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 10px 8px;
 }
 
 #programacion-stages-card.is-collapsed > :not(.stage-management-header) {
-  display: none;
+  display: none !important;
 }
 
 #programacion-stages-card.is-collapsed .stage-management-header {
