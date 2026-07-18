@@ -1520,6 +1520,69 @@
   <!-- =========================================================
        2.5 MODAL POPUP (QUOTE DETAIL & AUTHORIZATION)
        ========================================================= -->
+  <div id="stage-report-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 640px;">
+      <div class="modal-header">
+        <h2 id="stage-report-modal-title">Reporte de Etapa</h2>
+        <button class="modal-close" onclick="closeModal('stage-report-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="stage-report-form">
+          <input type="hidden" id="stage-report-plan-id">
+          <input type="hidden" id="stage-report-client-id">
+          <input type="hidden" id="stage-report-asesor-id">
+          <input type="hidden" id="stage-report-stage">
+          <div class="form-group">
+            <label for="stage-report-date">Fecha del reporte</label>
+            <input type="date" id="stage-report-date" class="form-input" required readonly>
+          </div>
+          <div id="stage-report-dv-dr-fields" style="display: none;">
+            <div class="form-group">
+              <label>¿El cultivo presenta alguna anomalía, plaga, enfermedad u otra situación?</label>
+              <div style="display:flex; gap:12px; margin-top:8px;">
+                <label><input type="radio" name="stage-report-anomalia" value="Sí"> Sí</label>
+                <label><input type="radio" name="stage-report-anomalia" value="No"> No</label>
+              </div>
+            </div>
+            <div id="stage-report-anomaly-group" class="form-group" style="display:none;">
+              <label for="stage-report-description">Defina la situación detectada (máx. 40 palabras)</label>
+              <input type="text" id="stage-report-description" class="form-input" placeholder="Describa la anomalía detectada">
+            </div>
+            <div class="form-group">
+              <label for="stage-report-comments">Observación o comentarios del productor (20 a 50 palabras)</label>
+              <textarea id="stage-report-comments" class="form-input" rows="3" required></textarea>
+            </div>
+          </div>
+          <div id="stage-report-c-fields" style="display:none;">
+            <div class="form-group">
+              <label for="stage-report-c-hibrido">Híbrido, material o marca cosechada</label>
+              <input type="text" id="stage-report-c-hibrido" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label for="stage-report-c-rendimiento">Rendimiento por hectárea o toneladas totales recibidas</label>
+              <input type="text" id="stage-report-c-rendimiento" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label for="stage-report-c-hectareaje">Hectareaje o superficie cosechada</label>
+              <input type="text" id="stage-report-c-hectareaje" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label for="stage-report-c-comments">Observación o comentarios del productor (máx. 150 palabras)</label>
+              <textarea id="stage-report-c-comments" class="form-input" rows="3"></textarea>
+            </div>
+          </div>
+          <div id="stage-report-cotizador-action" style="display:none; margin-top: 12px;">
+            <button type="button" class="btn btn-primary" style="width:auto;" onclick="window.openStageCotizador()">Abrir Cotizador</button>
+          </div>
+          <p id="stage-report-hint" style="margin-top: 12px; color: var(--text-light); font-size: 13px;">Complete la información para dejar seguimiento agrícola trazable.</p>
+          <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('stage-report-modal')">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar Reporte</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
   <div id="quote-detail-modal" class="modal-overlay">
     <div class="modal-card" style="max-width: 700px;">
       <div class="modal-header">

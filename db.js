@@ -149,6 +149,38 @@ async function initSchema() {
       )
     `);
 
+    const currentYear = new Date().getFullYear();
+    await pool.query(`
+      INSERT INTO crm_etapas_programacion (clave, nombre, fecha_inicio, fecha_fin, color)
+      VALUES
+        ('V', 'Venta', '${currentYear}-07-01', '${currentYear + 1}-01-31', '#60a5fa'),
+        ('DV', 'Desarrollo Vegetativo', '${currentYear}-10-01', '${currentYear + 1}-03-31', '#34d399'),
+        ('DR', 'Desarrollo Reproductivo', '${currentYear + 1}-01-01', '${currentYear + 1}-04-30', '#f59e0b'),
+        ('C', 'Cosecha', '${currentYear + 1}-03-01', '${currentYear + 1}-07-31', '#ef4444')
+      ON CONFLICT (clave) DO NOTHING
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_reportes_etapa (
+        id SERIAL PRIMARY KEY,
+        planificacion_id INTEGER,
+        visita_id INTEGER,
+        cliente_id INTEGER,
+        asesor_id INTEGER,
+        etapa_clave VARCHAR(10) NOT NULL,
+        fecha_reporte DATE NOT NULL,
+        respuestas JSONB DEFAULT '{}'::jsonb,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        tiene_cartera_pendiente INTEGER DEFAULT 0,
+        monto_cartera_pendiente REAL DEFAULT 0.0,
+        tiene_beneficio_contrato INTEGER DEFAULT 0,
+        fuente_integracion TEXT,
+        actualizado_integracion_en TIMESTAMP,
+        UNIQUE(planificacion_id, etapa_clave)
+      )
+    `);
+
     // Create crm_precios_mensuales table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS crm_precios_mensuales (

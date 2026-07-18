@@ -48,6 +48,7 @@ let currentPlanList = [];
 let currentCycleMetaMxn = 0;
 let currentCycleMetaBags = 0;
 let allMovements = [];
+let stageReportFormEventsBound = false;
 
 // On Page Load
 document.addEventListener('DOMContentLoaded', () => {
@@ -56,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupKanbanDeleteShortcut();
   bindIAViewEventListeners();
   bindProgramacionEventListeners();
+  bindStageReportFormEvents();
 });
 
 function setupKanbanDeleteShortcut() {
@@ -1667,14 +1669,37 @@ async function loadClientVisits(clientId) {
     }
     
     visits.forEach(v => {
-      const nextDateStr = v.proxima_cita ? `<span class="visita-next">🗓️ Próxima Cita: ${v.proxima_cita}</span>` : '';
+      const nextDateStr = v.proxima_cita ? `<span class="visita-next">🗓️ Próxima Cita: ${escapeHtml(v.proxima_cita)}</span>` : '';
+      const dateLabel = v.fecha_reporte || v.fecha_visita || '-';
+      let contentHtml = '';
+
+      if (v.tipo === 'reporte_etapa') {
+        let parsedResponses = {};
+        try {
+          parsedResponses = typeof v.respuestas === 'string' ? JSON.parse(v.respuestas) : (v.respuestas || {});
+        } catch {
+          parsedResponses = {};
+        }
+        const stageLabel = v.etapa_clave ? `Etapa ${escapeHtml(v.etapa_clave)}` : 'Reporte de etapa';
+        const details = [];
+        if (parsedResponses.anomalia) details.push(`<div><strong>Anomalía:</strong> ${escapeHtml(parsedResponses.anomalia)}</div>`);
+        if (parsedResponses.descripcion_situacion) details.push(`<div><strong>Situación:</strong> ${escapeHtml(parsedResponses.descripcion_situacion)}</div>`);
+        if (parsedResponses.comentarios_productor) details.push(`<div><strong>Comentarios:</strong> ${escapeHtml(parsedResponses.comentarios_productor)}</div>`);
+        if (parsedResponses.hibrido_material) details.push(`<div><strong>Híbrido/material:</strong> ${escapeHtml(parsedResponses.hibrido_material)}</div>`);
+        if (parsedResponses.rendimiento) details.push(`<div><strong>Rendimiento:</strong> ${escapeHtml(parsedResponses.rendimiento)}</div>`);
+        if (parsedResponses.hectareaje) details.push(`<div><strong>Hectareaje:</strong> ${escapeHtml(parsedResponses.hectareaje)}</div>`);
+        contentHtml = `<div><strong>${stageLabel}</strong></div>${details.join('')}`;
+      } else {
+        contentHtml = escapeHtml(v.comentarios_bitacora || '');
+      }
+
       container.innerHTML += `
         <div class="visita-card">
           <div class="visita-header">
-            <span>👤 ${v.asesor_nombre}</span>
-            <span>📅 ${v.fecha_visita}</span>
+            <span>👤 ${escapeHtml(v.asesor_nombre || '')}</span>
+            <span>📅 ${escapeHtml(dateLabel)}</span>
           </div>
-          <div class="visita-content">${v.comentarios_bitacora}</div>
+          <div class="visita-content">${contentHtml}</div>
           ${nextDateStr}
         </div>
       `;
@@ -2878,6 +2903,7 @@ window.toggleProductoActiveStatus = async function(id, activate) {
 let activePlanWeek = '';
 let planClientSearchTimer = null;
 let planClientSearchController = null;
+let activeStageReportContext = null;
 
 function getCurrentWeekString() {
   const d = new Date();
@@ -3084,13 +3110,14 @@ async function loadWeeklySchedule() {
           `;
         }
         
+        const activeStageButtons = renderStageButtonsForPlan(p);
         card.innerHTML = `
           <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px;">
             <input type="checkbox" class="card-select-checkbox" data-id="${p.id}" style="width: 15px; height: 15px; cursor: pointer; margin-top: 3px;">
             <div style="flex-grow: 1;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px;">
                 <div class="plan-card-client">
-                  ${renderAdvisorStageButtons(true)}
+                  ${activeStageButtons}
                   <strong style="font-size: 13.5px; color: var(--text);">${escapeHtml(p.cliente_nombre)}</strong>
                 </div>
                 ${statusBadge}
@@ -4116,6 +4143,247 @@ function renderAdvisorStageButtons(onlyV = false) {
       `).join('')}
     </div>
   `;
+}
+
+function getPlanStageButtons(plan) {
+  const stageCodes = Array.isArray(plan?.activeStageCodes) && plan.activeStageCodes.length > 0
+    ? plan.activeStageCodes
+    : [];
+  const activeStageDetails = Array.isArray(plan?.activeStageDetails) ? plan.activeStageDetails : [];
+  const stageColorByCode = Object.fromEntries(activeStageDetails.map(detail => [detail.code, detail.color]));
+
+  const stages = ADVISOR_STAGE_DEFINITIONS.map(definition => {
+    const active = stageCodes.includes(definition.code);
+    const fallbackColor = catalogStageStates.find(item => item.code === definition.code)?.color || '#10b981';
+    return {
+      ...definition,
+      active,
+      color: active ? (stageColorByCode[definition.code] || fallbackColor) : '#94a3b8',
+      title: active ? `${definition.label}: activo` : `${definition.label}: inactivo`
+    };
+  });
+  return stages;
+}
+
+function renderStageButtonsForPlan(plan) {
+  const stages = getPlanStageButtons(plan);
+  return `
+    <div class="advisor-stage-buttons" aria-label="Botones de reporte por etapa" style="grid-template-columns: repeat(4, 30px); justify-content: flex-end;">
+      ${stages.map(stage => `
+        <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" ${stage.active ? `style="--stage-color: ${escapeAttribute(stage.color)};"` : ''} title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" ${stage.active ? '' : 'disabled'} onclick="${stage.active ? (stage.code === 'V' ? `window.openStageCotizador(${plan.id}, '${stage.code}', '${escapeAttribute(plan.cliente_nombre || '')}')` : `window.openStageReportModal(${plan.id}, '${stage.code}', '${escapeAttribute(plan.cliente_nombre || '')}')`) : ''}">${stage.code}</button>
+      `).join('')}
+    </div>
+  `;
+}
+
+window.openStageReportModal = function(planId, stageCode, clientName) {
+  const plan = currentPlanList.find(item => item.id === Number(planId));
+  if (!plan) return;
+  activeStageReportContext = { plan, stageCode, clientName };
+  const title = document.getElementById('stage-report-modal-title');
+  if (title) title.textContent = `Reporte ${stageCode} · ${clientName || plan.cliente_nombre || 'Agricultor'}`;
+
+  const form = document.getElementById('stage-report-form');
+  const hiddenFields = [
+    ['stage-report-plan-id', plan.id],
+    ['stage-report-client-id', plan.cliente_id],
+    ['stage-report-asesor-id', plan.asesor_id],
+    ['stage-report-stage', stageCode]
+  ];
+
+  hiddenFields.forEach(([fieldId, value]) => {
+    const field = document.getElementById(fieldId);
+    if (field) field.value = value;
+  });
+
+  const dateField = document.getElementById('stage-report-date');
+  if (dateField) {
+    dateField.value = plan.fecha_programada;
+    dateField.readOnly = true;
+  }
+
+  if (form) form.reset();
+
+  hiddenFields.forEach(([fieldId, value]) => {
+    const field = document.getElementById(fieldId);
+    if (field) field.value = value;
+  });
+  if (dateField) dateField.value = plan.fecha_programada;
+
+  document.getElementById('stage-report-anomaly-group').style.display = 'none';
+  document.getElementById('stage-report-cotizador-action').style.display = 'none';
+  document.getElementById('stage-report-hint').textContent = 'Complete la información para dejar seguimiento agrícola trazable.';
+  document.getElementById('stage-report-dv-dr-fields').style.display = ['DV', 'DR'].includes(stageCode) ? 'block' : 'none';
+  document.getElementById('stage-report-c-fields').style.display = stageCode === 'C' ? 'block' : 'none';
+  if (stageCode === 'V') {
+    document.getElementById('stage-report-cotizador-action').style.display = 'flex';
+    document.getElementById('stage-report-hint').textContent = 'La etapa Venta abre directamente el cotizador con el agricultor precargado.';
+  }
+  openModal('stage-report-modal');
+};
+
+window.submitStageReport = async function() {
+  const form = document.getElementById('stage-report-form');
+  if (!form) return;
+  const payload = {
+    planificacion_id: Number(document.getElementById('stage-report-plan-id').value),
+    cliente_id: Number(document.getElementById('stage-report-client-id').value),
+    asesor_id: Number(document.getElementById('stage-report-asesor-id').value),
+    etapa_clave: document.getElementById('stage-report-stage').value,
+    fecha_reporte: document.getElementById('stage-report-date').value,
+    respuestas: {}
+  };
+  const stageCode = payload.etapa_clave;
+  if (stageCode === 'DV' || stageCode === 'DR') {
+    payload.respuestas.anomalia = document.querySelector('input[name="stage-report-anomalia"]:checked')?.value || '';
+    payload.respuestas.descripcion_situacion = document.getElementById('stage-report-description').value.trim();
+    payload.respuestas.comentarios_productor = document.getElementById('stage-report-comments').value.trim();
+  } else if (stageCode === 'C') {
+    payload.respuestas.hibrido_material = document.getElementById('stage-report-c-hibrido').value.trim();
+    payload.respuestas.rendimiento = document.getElementById('stage-report-c-rendimiento').value.trim();
+    payload.respuestas.hectareaje = document.getElementById('stage-report-c-hectareaje').value.trim();
+    payload.respuestas.comentarios_productor = document.getElementById('stage-report-c-comments').value.trim();
+  }
+  try {
+    const res = await fetch(`${API_URL}/api/reportes-etapa`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save stage report');
+    closeModal('stage-report-modal');
+    alert('Reporte guardado correctamente en la bitácora CRM.');
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+window.openStageCotizador = async function(planId, stageCode, clientName) {
+  const plan = currentPlanList.find(item => item.id === Number(planId)) || activeStageReportContext?.plan;
+  if (!plan) return;
+  activeStageReportContext = { plan, stageCode, clientName };
+  const clientId = plan.cliente_id;
+  const clientNameValue = clientName || plan.cliente_nombre;
+  const navItems = document.querySelectorAll('.nav-links .nav-item');
+  navItems.forEach(i => {
+    i.classList.remove('active');
+    if (i.getAttribute('data-target') === 'cotizador-view') {
+      i.classList.add('active');
+    }
+  });
+  switchView('cotizador-view', 'Cotizador');
+  await loadCotizadorConfig();
+  const clientSelect = document.getElementById('quote-client');
+  if (clientSelect) {
+    clientSelect.value = clientId;
+    if (clientSelect.value !== String(clientId)) {
+      const option = Array.from(clientSelect.options).find(opt => Number(opt.value) === Number(clientId));
+      if (option) clientSelect.value = option.value;
+    }
+    if (clientSelect.value) {
+      clientSelect.dispatchEvent(new Event('change'));
+    }
+  }
+  const quickDetails = document.getElementById('client-quick-details');
+  if (quickDetails) quickDetails.style.display = 'block';
+  const quoteNotas = document.getElementById('quote-notas');
+  if (quoteNotas) {
+    quoteNotas.value = `Reporte de etapa ${stageCode || activeStageReportContext.stageCode} para ${clientNameValue || 'agrupador'}.`;
+  }
+};
+
+function countWords(value) {
+  if (typeof value !== 'string') return 0;
+  return value.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function bindStageReportFormEvents() {
+  if (stageReportFormEventsBound) return;
+  stageReportFormEventsBound = true;
+
+  const anomalyRadios = document.querySelectorAll('input[name="stage-report-anomalia"]');
+  const anomalyGroup = document.getElementById('stage-report-anomaly-group');
+  const description = document.getElementById('stage-report-description');
+  const comments = document.getElementById('stage-report-comments');
+  const cotizadorAction = document.getElementById('stage-report-cotizador-action');
+  const hint = document.getElementById('stage-report-hint');
+  const dvDrFields = document.getElementById('stage-report-dv-dr-fields');
+  const cFields = document.getElementById('stage-report-c-fields');
+  anomalyRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      const showDescription = radio.value === 'Sí';
+      anomalyGroup.style.display = showDescription ? 'block' : 'none';
+      description.required = showDescription;
+      if (!showDescription) {
+        description.value = '';
+      }
+      cotizadorAction.style.display = showDescription ? 'flex' : 'none';
+      hint.textContent = showDescription ? 'Registre la situación detectada y luego abra el cotizador.' : 'Guarde el reporte sin requerir descripción adicional.';
+    });
+  });
+  const form = document.getElementById('stage-report-form');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const stageCode = document.getElementById('stage-report-stage').value;
+      if (stageCode === 'DV' || stageCode === 'DR') {
+        if (!document.querySelector('input[name="stage-report-anomalia"]:checked')) {
+          alert('Debe responder si hay anomalía para esta etapa.');
+          return;
+        }
+        if (document.querySelector('input[name="stage-report-anomalia"]:checked').value === 'Sí' && !document.getElementById('stage-report-description').value.trim()) {
+          alert('Debe definir la situación detectada cuando marque Sí.');
+          return;
+        }
+        if (countWords(description.value) > 40) {
+          alert('La descripción de anomalía no puede exceder 40 palabras.');
+          return;
+        }
+        if (countWords(comments.value) < 20 || countWords(comments.value) > 50) {
+          alert('Las observaciones del productor deben tener entre 20 y 50 palabras.');
+          return;
+        }
+      } else if (stageCode === 'C') {
+        if (!document.getElementById('stage-report-c-hibrido').value.trim()) {
+          alert('El campo de híbrido/material es obligatorio.');
+          return;
+        }
+        if (!document.getElementById('stage-report-c-rendimiento').value.trim()) {
+          alert('El campo de rendimiento es obligatorio.');
+          return;
+        }
+        if (!document.getElementById('stage-report-c-hectareaje').value.trim()) {
+          alert('El campo de hectareaje es obligatorio.');
+          return;
+        }
+        if (countWords(document.getElementById('stage-report-c-comments').value) > 150) {
+          alert('Las observaciones del productor no pueden exceder 150 palabras.');
+          return;
+        }
+      }
+      await window.submitStageReport();
+    });
+  }
+
+  const stageField = document.getElementById('stage-report-stage');
+  if (stageField) {
+    stageField.addEventListener('change', () => {
+      const code = stageField.value;
+      dvDrFields.style.display = ['DV', 'DR'].includes(code) ? 'block' : 'none';
+      cFields.style.display = code === 'C' ? 'block' : 'none';
+      if (code === 'V') {
+        cotizadorAction.style.display = 'flex';
+        hint.textContent = 'La etapa Venta abre directamente el cotizador con el agricultor precargado.';
+      } else if (code === 'DV' || code === 'DR') {
+        cotizadorAction.style.display = 'none';
+        hint.textContent = 'Complete la información y luego puede abrir el cotizador si detecta una anomalía.';
+      } else if (code === 'C') {
+        cotizadorAction.style.display = 'none';
+        hint.textContent = 'Registre los datos de cosecha y observaciones del productor.';
+      }
+    });
+  }
 }
 
 function bindCatalogClientEvents() {

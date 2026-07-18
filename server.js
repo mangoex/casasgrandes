@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const db = require('./db');
 const agentsService = require('./agentsService');
 const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
+const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -297,6 +298,9 @@ app.post('/api/clientes/bulk-delete', authenticateToken, async (req, res) => {
 app.get('/api/clientes/:id/visitas', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
+    const client = await db.get('SELECT id FROM clientes WHERE id = ? AND activo = 1', [id]);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
     const visits = await db.all(`
       SELECT v.*, a.nombre as asesor_nombre
       FROM crm_visitas v
@@ -304,7 +308,26 @@ app.get('/api/clientes/:id/visitas', authenticateToken, async (req, res) => {
       WHERE v.cliente_id = ?
       ORDER BY v.fecha_visita DESC
     `, [id]);
-    res.json(visits);
+
+    const stageReports = await db.all(`
+      SELECT r.id, r.planificacion_id, r.etapa_clave, r.fecha_reporte, r.respuestas, r.creado_en, r.actualizado_en,
+             a.nombre AS asesor_nombre
+      FROM crm_reportes_etapa r
+      JOIN asesores a ON a.id = r.asesor_id
+      WHERE r.cliente_id = ?
+      ORDER BY r.fecha_reporte DESC, r.actualizado_en DESC
+    `, [id]);
+
+    const combined = [
+      ...visits.map(item => ({ ...item, tipo: 'visita', source: 'crm_visitas' })),
+      ...stageReports.map(item => ({ ...item, tipo: 'reporte_etapa', source: 'crm_reportes_etapa' }))
+    ].sort((left, right) => {
+      const leftDate = left.fecha_reporte || left.fecha_visita || '';
+      const rightDate = right.fecha_reporte || right.fecha_visita || '';
+      return String(rightDate).localeCompare(String(leftDate));
+    });
+
+    res.json(combined);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch visit logs' });
@@ -1940,7 +1963,27 @@ app.get('/api/planificacion', authenticateToken, async (req, res) => {
     
     query += ` ORDER BY p.fecha_programada ASC, c.nombre ASC`;
     const rows = await db.all(query, params);
-    res.json(rows);
+
+    const stageRows = await db.all('SELECT id, clave, nombre, fecha_inicio, fecha_fin, color FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
+    const enrichedRows = rows.map(plan => {
+      const planDate = plan.fecha_programada;
+      const activeStageCodes = getActiveStageCodesForDate(stageRows, planDate);
+      const activeStageDetails = stageRows
+        .filter(stage => activeStageCodes.includes(String(stage.clave || '').trim().toUpperCase()))
+        .map(stage => ({
+          code: String(stage.clave || '').trim().toUpperCase(),
+          nombre: stage.nombre,
+          color: stage.color
+        }));
+
+      return {
+        ...plan,
+        activeStageCodes,
+        activeStageDetails
+      };
+    });
+
+    res.json(enrichedRows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch planning' });
@@ -2507,6 +2550,21 @@ app.get('/api/programacion/etapas', authenticateToken, requireProgramacionManage
   }
 });
 
+app.get('/api/programacion/etapas/activas', authenticateToken, async (req, res) => {
+  const { fecha } = req.query;
+  if (!fecha) {
+    return res.status(400).json({ error: 'fecha is required' });
+  }
+  try {
+    const rows = await db.all('SELECT * FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
+    const active = rows.filter(stage => isStageActiveOnDate(stage, fecha));
+    res.json(active);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch active stages' });
+  }
+});
+
 app.post('/api/programacion/etapas', authenticateToken, requireProgramacionManager, async (req, res) => {
   const { id, clave, nombre, fecha_inicio, fecha_fin, color } = req.body;
   if (!clave || !nombre || !fecha_inicio || !fecha_fin || !color) {
@@ -2544,6 +2602,200 @@ app.delete('/api/programacion/etapas/:id', authenticateToken, requireProgramacio
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete stage' });
+  }
+});
+
+app.get('/api/reportes-etapa', authenticateToken, async (req, res) => {
+  const { planificacion_id, etapa_clave, cliente_id, asesor_id } = req.query;
+  try {
+    let query = `
+      SELECT r.*, p.fecha_programada, c.nombre AS cliente_nombre, a.nombre AS asesor_nombre
+      FROM crm_reportes_etapa r
+      LEFT JOIN planificacion_semanal p ON p.id = r.planificacion_id
+      LEFT JOIN clientes c ON c.id = r.cliente_id
+      LEFT JOIN asesores a ON a.id = r.asesor_id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (req.user.nivel_rol === 'Asesor') {
+      query += ' AND r.asesor_id = ?';
+      params.push(req.user.id);
+    }
+
+    if (planificacion_id) {
+      query += ' AND r.planificacion_id = ?';
+      params.push(Number(planificacion_id));
+    }
+    if (etapa_clave) {
+      query += ' AND r.etapa_clave = ?';
+      params.push(etapa_clave.toUpperCase());
+    }
+    if (cliente_id) {
+      query += ' AND r.cliente_id = ?';
+      params.push(Number(cliente_id));
+    }
+    if (asesor_id) {
+      query += ' AND r.asesor_id = ?';
+      params.push(Number(asesor_id));
+    }
+
+    query += ' ORDER BY r.fecha_reporte DESC, r.actualizado_en DESC';
+    const rows = await db.all(query, params);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch stage reports' });
+  }
+});
+
+app.post('/api/reportes-etapa', authenticateToken, async (req, res) => {
+  const payload = req.body || {};
+  const {
+    planificacion_id,
+    visita_id,
+    cliente_id,
+    asesor_id,
+    etapa_clave,
+    fecha_reporte,
+    respuestas,
+    tiene_cartera_pendiente,
+    monto_cartera_pendiente,
+    tiene_beneficio_contrato,
+    fuente_integracion,
+    actualizado_integracion_en
+  } = payload;
+
+  const normalizedStage = String(etapa_clave || '').trim().toUpperCase();
+  const normalizedDate = String(fecha_reporte || '').trim();
+
+  if (!cliente_id || !asesor_id || !normalizedStage || !normalizedDate) {
+    return res.status(400).json({ error: 'cliente_id, asesor_id, etapa_clave and fecha_reporte are required' });
+  }
+
+  try {
+    const plan = await db.get('SELECT * FROM planificacion_semanal WHERE id = ?', [Number(planificacion_id)]);
+    if (!plan) {
+      return res.status(404).json({ error: 'Planning not found' });
+    }
+
+    if (Number(cliente_id) !== plan.cliente_id || Number(asesor_id) !== plan.asesor_id) {
+      return res.status(400).json({ error: 'The report does not belong to the selected planning visit' });
+    }
+
+    if (req.user.nivel_rol === 'Asesor' && plan.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to create a report for this visit' });
+    }
+
+    if (normalizedDate !== String(plan.fecha_programada || '').trim()) {
+      return res.status(400).json({ error: 'The report date must match the scheduled visit date' });
+    }
+
+    const stageRows = await db.all('SELECT id, clave, nombre, fecha_inicio, fecha_fin, color FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
+    const activeStageCodes = getActiveStageCodesForDate(stageRows, plan.fecha_programada);
+    if (!activeStageCodes.includes(normalizedStage)) {
+      return res.status(400).json({ error: 'The selected stage is not active on the report date' });
+    }
+
+    const validation = validateStageReportPayload({ etapa_clave: normalizedStage, respuestas: respuestas || {} });
+    if (!validation.ok) {
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const existing = await db.get('SELECT * FROM crm_reportes_etapa WHERE planificacion_id = ? AND etapa_clave = ?', [planificacion_id || null, normalizedStage]);
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const reportData = {
+      planificacion_id: planificacion_id || null,
+      visita_id: visita_id || null,
+      cliente_id: Number(cliente_id),
+      asesor_id: Number(asesor_id),
+      etapa_clave: normalizedStage,
+      fecha_reporte: normalizedDate,
+      respuestas: JSON.stringify(respuestas || {}),
+      actualizado_en: now,
+      tiene_cartera_pendiente: Number(tiene_cartera_pendiente) || 0,
+      monto_cartera_pendiente: Number(monto_cartera_pendiente) || 0.0,
+      tiene_beneficio_contrato: Number(tiene_beneficio_contrato) || 0,
+      fuente_integracion: fuente_integracion || null,
+      actualizado_integracion_en: actualizado_integracion_en || null
+    };
+
+    if (existing) {
+      if (req.user.nivel_rol === 'Asesor' && existing.asesor_id !== req.user.id) {
+        return res.status(403).json({ error: 'Unauthorized to modify this report' });
+      }
+      await db.run(`
+        UPDATE crm_reportes_etapa
+        SET planificacion_id = ?, visita_id = ?, cliente_id = ?, asesor_id = ?, etapa_clave = ?, fecha_reporte = ?, respuestas = ?, actualizado_en = ?,
+            tiene_cartera_pendiente = ?, monto_cartera_pendiente = ?, tiene_beneficio_contrato = ?, fuente_integracion = ?, actualizado_integracion_en = ?
+        WHERE id = ?
+      `, [
+        reportData.planificacion_id,
+        reportData.visita_id,
+        reportData.cliente_id,
+        reportData.asesor_id,
+        reportData.etapa_clave,
+        reportData.fecha_reporte,
+        reportData.respuestas,
+        reportData.actualizado_en,
+        reportData.tiene_cartera_pendiente,
+        reportData.monto_cartera_pendiente,
+        reportData.tiene_beneficio_contrato,
+        reportData.fuente_integracion,
+        reportData.actualizado_integracion_en,
+        existing.id
+      ]);
+      return res.json({ id: existing.id, message: 'Report updated successfully' });
+    }
+
+    const result = await db.run(`
+      INSERT INTO crm_reportes_etapa (
+        planificacion_id, visita_id, cliente_id, asesor_id, etapa_clave, fecha_reporte, respuestas,
+        creado_en, actualizado_en, tiene_cartera_pendiente, monto_cartera_pendiente,
+        tiene_beneficio_contrato, fuente_integracion, actualizado_integracion_en
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      reportData.planificacion_id,
+      reportData.visita_id,
+      reportData.cliente_id,
+      reportData.asesor_id,
+      reportData.etapa_clave,
+      reportData.fecha_reporte,
+      reportData.respuestas,
+      reportData.actualizado_en,
+      reportData.actualizado_en,
+      reportData.tiene_cartera_pendiente,
+      reportData.monto_cartera_pendiente,
+      reportData.tiene_beneficio_contrato,
+      reportData.fuente_integracion,
+      reportData.actualizado_integracion_en
+    ]);
+    res.status(201).json({ id: result.id, message: 'Report created successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save stage report' });
+  }
+});
+
+app.get('/api/reportes-etapa/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const row = await db.get(`
+      SELECT r.*, p.fecha_programada, c.nombre AS cliente_nombre, a.nombre AS asesor_nombre
+      FROM crm_reportes_etapa r
+      LEFT JOIN planificacion_semanal p ON p.id = r.planificacion_id
+      LEFT JOIN clientes c ON c.id = r.cliente_id
+      LEFT JOIN asesores a ON a.id = r.asesor_id
+      WHERE r.id = ?
+    `, [id]);
+    if (!row) return res.status(404).json({ error: 'Report not found' });
+    if (req.user.nivel_rol === 'Asesor' && row.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to view this report' });
+    }
+    res.json(row);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch stage report' });
   }
 });
 
