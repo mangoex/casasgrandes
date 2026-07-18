@@ -3336,7 +3336,8 @@ document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
   document.getElementById('plan-client-search').value = '';
   loadPlanClientOptions();
   
-  // Clear stages container
+  // A report must be tied to a saved visit. It becomes available immediately
+  // after the visit is created and the modal reopens in edit mode.
   const stagesContainer = document.getElementById('plan-modal-stages-container');
   if (stagesContainer) stagesContainer.innerHTML = '';
   
@@ -3370,10 +3371,10 @@ window.openEditPlanModal = function(p) {
   document.getElementById('plan-forecast-amount').value = p.pronostico_monto_mxn || 0;
   document.getElementById('plan-form-id').value = p.id;
   
-  // Render advisor stage buttons inside the modal
+  // Reports are available for a saved visit and use that visit's scheduled date.
   const stagesContainer = document.getElementById('plan-modal-stages-container');
   if (stagesContainer) {
-    stagesContainer.innerHTML = renderAdvisorStageButtons();
+    stagesContainer.innerHTML = user?.nivel_rol === 'Asesor' ? renderStageButtonsForPlan(p) : '';
   }
   
   const modalTitle = document.getElementById('plan-modal-title');
@@ -3436,8 +3437,18 @@ document.getElementById('add-plan-form').addEventListener('submit', async (e) =>
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to save plan');
     
-    closeModal('add-plan-modal');
     await loadWeeklySchedule();
+    const savedPlan = id
+      ? currentPlanList.find(plan => plan.id === Number(id))
+      : currentPlanList.find(plan => plan.id === Number(data.id));
+
+    if (!id && savedPlan && user?.nivel_rol === 'Asesor') {
+      openEditPlanModal(savedPlan);
+      alert('Visita programada. Ya puedes registrar las encuestas de las etapas activas.');
+      return;
+    }
+
+    closeModal('add-plan-modal');
     alert(id ? 'Visita actualizada exitosamente.' : 'Visita programada exitosamente.');
   } catch (err) {
     alert(err.message);
@@ -4095,24 +4106,33 @@ function isSeasonActiveByDate(season) {
   return today >= start && today <= end;
 }
 
+function getLocalISODate() {
+  const today = new Date();
+  const offset = today.getTimezoneOffset() * 60000;
+  return new Date(today.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function mapStageStates(stages) {
+  return ADVISOR_STAGE_DEFINITIONS.map(definition => {
+    const activeStage = stages.find(definition.matcher);
+    return {
+      ...definition,
+      active: Boolean(activeStage),
+      color: activeStage?.color || '#10b981',
+      title: activeStage
+        ? `${definition.label}: activo (${activeStage.nombre})`
+        : `${definition.label}: fuera de fecha activa`
+    };
+  });
+}
+
 async function loadCatalogStageStates() {
   try {
-    const res = await fetch(`${API_URL}/api/programacion/etapas`, { headers: getHeaders() });
+    const date = getLocalISODate();
+    const res = await fetch(`${API_URL}/api/programacion/etapas/activas?fecha=${encodeURIComponent(date)}`, { headers: getHeaders() });
     const stages = await res.json();
     if (!res.ok || !Array.isArray(stages)) throw new Error('Failed to load programming stages');
-
-    catalogStageStates = ADVISOR_STAGE_DEFINITIONS.map(stage => {
-      const matchingStages = stages.filter(stage.matcher);
-      const activeStage = matchingStages.find(isSeasonActiveByDate);
-      return {
-        ...stage,
-        active: Boolean(activeStage),
-        color: activeStage?.color || '#10b981',
-        title: activeStage
-          ? `${stage.label}: activo (${activeStage.nombre})`
-          : `${stage.label}: fuera de fecha activa`
-      };
-    });
+    catalogStageStates = mapStageStates(stages);
   } catch (err) {
     console.error('Failed to load catalog stage states:', err);
     catalogStageStates = ADVISOR_STAGE_DEFINITIONS.map(stage => ({
@@ -4170,7 +4190,7 @@ function renderStageButtonsForPlan(plan) {
   return `
     <div class="advisor-stage-buttons" aria-label="Botones de reporte por etapa" style="grid-template-columns: repeat(4, 30px); justify-content: flex-end;">
       ${stages.map(stage => `
-        <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" ${stage.active ? `style="--stage-color: ${escapeAttribute(stage.color)};"` : ''} title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" ${stage.active ? '' : 'disabled'} onclick="${stage.active ? (stage.code === 'V' ? `window.openStageCotizador(${plan.id}, '${stage.code}', '${escapeAttribute(plan.cliente_nombre || '')}')` : `window.openStageReportModal(${plan.id}, '${stage.code}', '${escapeAttribute(plan.cliente_nombre || '')}')`) : ''}">${stage.code}</button>
+        <button type="button" class="advisor-stage-btn ${stage.active ? 'active' : 'inactive'}" ${stage.active ? `style="--stage-color: ${escapeAttribute(stage.color)};"` : ''} title="${escapeAttribute(stage.title)}" aria-label="${escapeAttribute(stage.title)}" ${stage.active ? '' : 'disabled'} onclick="${stage.active ? (stage.code === 'V' ? `window.openStageCotizador(${plan.id}, '${stage.code}')` : `window.openStageReportModal(${plan.id}, '${stage.code}')`) : ''}">${stage.code}</button>
       `).join('')}
     </div>
   `;
