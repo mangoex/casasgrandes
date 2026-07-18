@@ -2603,10 +2603,69 @@ tr:hover td {
   align-items: start;
 }
 
+.programacion-grid.stages-collapsed {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+
+.stage-management-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.stage-management-header h3 { margin: 0; }
+
+.stage-management-toggle {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-light);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stage-management-toggle:hover,
+.stage-management-toggle:focus-visible {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+#programacion-stages-card.is-collapsed {
+  padding: 14px 8px;
+}
+
+#programacion-stages-card.is-collapsed > :not(.stage-management-header) {
+  display: none;
+}
+
+#programacion-stages-card.is-collapsed .stage-management-header {
+  justify-content: center;
+  margin: 0;
+}
+
+#programacion-stages-card.is-collapsed .stage-management-header h3 {
+  display: none;
+}
+
+#programacion-stages-card.is-collapsed .stage-management-toggle {
+  transform: rotate(180deg);
+}
+
 @media (max-width: 1024px) {
   .programacion-grid {
     grid-template-columns: 1fr;
   }
+
+  .programacion-grid.stages-collapsed {
+    grid-template-columns: 1fr;
+  }
+
 }
 
 .stage-header-col {

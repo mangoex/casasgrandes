@@ -6818,6 +6818,26 @@ async function saveMonthlyPricing() {
 
 // Bind Programación View event listeners
 function bindProgramacionEventListeners() {
+  const stagesCard = document.getElementById('programacion-stages-card');
+  const stagesToggle = document.getElementById('programacion-stages-toggle');
+  if (stagesCard && stagesToggle) {
+    const collapsed = localStorage.getItem('agrisalesProgramacionStagesCollapsed') === 'true';
+    stagesCard.classList.toggle('is-collapsed', collapsed);
+    document.querySelector('.programacion-grid')?.classList.toggle('stages-collapsed', collapsed);
+    stagesToggle.setAttribute('aria-expanded', String(!collapsed));
+    stagesToggle.setAttribute('title', collapsed ? 'Expandir gestión de etapas' : 'Contraer gestión de etapas');
+    stagesToggle.setAttribute('aria-label', collapsed ? 'Expandir gestión de etapas' : 'Contraer gestión de etapas');
+
+    stagesToggle.addEventListener('click', () => {
+      const isCollapsed = stagesCard.classList.toggle('is-collapsed');
+      document.querySelector('.programacion-grid')?.classList.toggle('stages-collapsed', isCollapsed);
+      localStorage.setItem('agrisalesProgramacionStagesCollapsed', String(isCollapsed));
+      stagesToggle.setAttribute('aria-expanded', String(!isCollapsed));
+      stagesToggle.setAttribute('title', isCollapsed ? 'Expandir gestión de etapas' : 'Contraer gestión de etapas');
+      stagesToggle.setAttribute('aria-label', isCollapsed ? 'Expandir gestión de etapas' : 'Contraer gestión de etapas');
+    });
+  }
+
   const form = document.getElementById('etapa-form');
   if (form) {
     form.addEventListener('submit', async (e) => {
