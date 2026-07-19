@@ -2060,16 +2060,32 @@ app.get('/api/planificacion', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/planificacion', authenticateToken, async (req, res) => {
-  const { cliente_id, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn } = req.body;
+  const { cliente_id, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, asesor_id } = req.body;
   if (!cliente_id || !fecha_programada) {
     return res.status(400).json({ error: 'cliente_id and fecha_programada are required' });
   }
   try {
+    let assignedAdvisorId = req.user.id;
+    if (req.user.nivel_rol === 'Administrador' && asesor_id !== undefined) {
+      assignedAdvisorId = Number(asesor_id);
+    } else if (asesor_id !== undefined && Number(asesor_id) !== req.user.id) {
+      return res.status(403).json({ error: 'Solo un administrador puede asignar actividades a otro asesor.' });
+    }
+
+    if (!Number.isInteger(assignedAdvisorId) || assignedAdvisorId <= 0) {
+      return res.status(400).json({ error: 'Selecciona un asesor responsable.' });
+    }
+
+    const assignedAdvisor = await db.get('SELECT id FROM asesores WHERE id = ? AND activo = 1', [assignedAdvisorId]);
+    if (!assignedAdvisor) {
+      return res.status(400).json({ error: 'El asesor seleccionado no está activo.' });
+    }
+
     const result = await db.run(`
       INSERT INTO planificacion_semanal (asesor_id, cliente_id, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, realizada)
       VALUES (?, ?, ?, ?, ?, ?, 0)
     `, [
-      req.user.id,
+      assignedAdvisorId,
       cliente_id,
       fecha_programada,
       objetivo_visita || null,
@@ -2085,7 +2101,7 @@ app.post('/api/planificacion', authenticateToken, async (req, res) => {
 
 app.put('/api/planificacion/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { realizada, comentarios_resultado, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, bitacora, cliente_id } = req.body;
+  const { realizada, comentarios_resultado, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, bitacora, cliente_id, asesor_id } = req.body;
   
   try {
     const plan = await db.get('SELECT * FROM planificacion_semanal WHERE id = ?', [id]);
@@ -2097,6 +2113,21 @@ app.put('/api/planificacion/:id', authenticateToken, async (req, res) => {
     
     if (plan.realizada === 3) {
       return res.status(400).json({ error: 'No se puede modificar una planificación vencida.' });
+    }
+
+    let assignedAdvisorId = plan.asesor_id;
+    if (asesor_id !== undefined && Number(asesor_id) !== plan.asesor_id) {
+      if (req.user.nivel_rol !== 'Administrador') {
+        return res.status(403).json({ error: 'Solo un administrador puede reasignar actividades.' });
+      }
+      assignedAdvisorId = Number(asesor_id);
+      if (!Number.isInteger(assignedAdvisorId) || assignedAdvisorId <= 0) {
+        return res.status(400).json({ error: 'Selecciona un asesor responsable.' });
+      }
+      const assignedAdvisor = await db.get('SELECT id FROM asesores WHERE id = ? AND activo = 1', [assignedAdvisorId]);
+      if (!assignedAdvisor) {
+        return res.status(400).json({ error: 'El asesor seleccionado no está activo.' });
+      }
     }
     
     let visitId = plan.visita_id;
@@ -2118,7 +2149,8 @@ app.put('/api/planificacion/:id', authenticateToken, async (req, res) => {
           pronostico_bolsas = ?,
           pronostico_monto_mxn = ?,
           visita_id = ?,
-          cliente_id = ?
+          cliente_id = ?,
+          asesor_id = ?
       WHERE id = ?
     `, [
       realizada !== undefined ? Number(realizada) : plan.realizada,
@@ -2128,6 +2160,7 @@ app.put('/api/planificacion/:id', authenticateToken, async (req, res) => {
       pronostico_monto_mxn !== undefined ? Number(pronostico_monto_mxn) : plan.pronostico_monto_mxn,
       visitId,
       cliente_id !== undefined ? Number(cliente_id) : plan.cliente_id,
+      assignedAdvisorId,
       id
     ]);
     
@@ -2199,6 +2232,10 @@ app.delete('/api/planificacion/:id', authenticateToken, async (req, res) => {
     
     if (req.user.nivel_rol === 'Asesor' && plan.asesor_id !== req.user.id) {
       return res.status(403).json({ error: 'Unauthorized to delete this plan' });
+    }
+
+    if (Number(plan.realizada) !== 0) {
+      return res.status(400).json({ error: 'Solo se pueden eliminar actividades programadas pendientes.' });
     }
     
     await db.run('DELETE FROM planificacion_semanal WHERE id = ?', [id]);

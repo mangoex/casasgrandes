@@ -2984,23 +2984,50 @@ async function loadPlaneacionView() {
 }
 
 async function loadPlanAdvisorOptions() {
-  const select = document.getElementById('plan-advisor-filter');
-  if (!select) return;
+  const filterSelect = document.getElementById('plan-advisor-filter');
+  const assignmentSelect = document.getElementById('plan-assigned-advisor');
+  if (!filterSelect && !assignmentSelect) return;
   
   try {
     const res = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
     const advisers = await res.json();
-    const curr = select.value || 'ALL';
-    
-    select.innerHTML = '<option value="ALL">Todos los Asesores</option>';
-    advisers.forEach(a => {
-      if (a.activo === 1) {
-        select.innerHTML += `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`;
-      }
-    });
-    select.value = curr;
+    if (!res.ok || !Array.isArray(advisers)) throw new Error('No fue posible cargar asesores');
+    const activeAdvisers = advisers.filter(a => Number(a.activo) === 1);
+
+    if (filterSelect) {
+      const currentFilter = filterSelect.value || 'ALL';
+      filterSelect.innerHTML = '<option value="ALL">Todos los Asesores</option>';
+      activeAdvisers.forEach(a => {
+        filterSelect.innerHTML += `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`;
+      });
+      filterSelect.value = currentFilter;
+    }
+
+    if (assignmentSelect) {
+      const currentAssignment = assignmentSelect.value;
+      assignmentSelect.innerHTML = '<option value="">Selecciona un asesor</option>';
+      activeAdvisers.forEach(a => {
+        assignmentSelect.innerHTML += `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`;
+      });
+      assignmentSelect.value = currentAssignment;
+    }
   } catch (err) {
     console.error(err);
+  }
+}
+
+function configurePlanAssignment(selectedAdvisorId = null, disabled = false) {
+  const group = document.getElementById('plan-assigned-advisor-group');
+  const select = document.getElementById('plan-assigned-advisor');
+  if (!group || !select) return;
+
+  const canAssign = user?.nivel_rol === 'Administrador';
+  group.style.display = canAssign ? 'block' : 'none';
+  select.required = canAssign;
+  select.disabled = !canAssign || disabled;
+  if (canAssign) {
+    const preferredAdvisorId = selectedAdvisorId || document.getElementById('plan-advisor-filter')?.value;
+    select.value = preferredAdvisorId && preferredAdvisorId !== 'ALL' ? String(preferredAdvisorId) : '';
   }
 }
 
@@ -3123,10 +3150,11 @@ async function loadWeeklySchedule() {
         
         let actions = '';
         if (p.realizada === 0 && (p.asesor_id === user.id || user.nivel_rol === 'Administrador')) {
+          const deleteLabel = user.nivel_rol === 'Administrador' ? 'Eliminar actividad' : 'Eliminar';
           actions = `
             <div style="display: flex; gap: 8px; margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 8px; justify-content: flex-end;">
               <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto;" onclick="openCompletePlanModal(${p.id})">✔️ Cerrar</button>
-              <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--danger); color: var(--danger);" onclick="deletePlanActivity(${p.id})">🗑️</button>
+              <button class="btn btn-secondary" title="${deleteLabel}" aria-label="${deleteLabel}" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--danger); color: var(--danger);" onclick="deletePlanActivity(${p.id})">🗑️</button>
             </div>
           `;
         } else if (p.realizada === 3 && (p.asesor_id === user.id || user.nivel_rol === 'Administrador')) {
@@ -3361,6 +3389,7 @@ document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
   document.getElementById('plan-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('plan-client-search').value = '';
   loadPlanClientOptions();
+  configurePlanAssignment();
   
   // A report must be tied to a saved visit. It becomes available immediately
   // after the visit is created and the modal reopens in edit mode.
@@ -3397,6 +3426,7 @@ window.openEditPlanModal = function(p) {
   document.getElementById('plan-forecast-bags').value = p.pronostico_bolsas || 0;
   document.getElementById('plan-forecast-amount').value = p.pronostico_monto_mxn || 0;
   document.getElementById('plan-form-id').value = p.id;
+  configurePlanAssignment(p.asesor_id, p.realizada === 1 || p.realizada === 2);
   
   // Reports are available for a saved visit and use that visit's scheduled date.
   const stagesContainer = document.getElementById('plan-modal-stages-container');
@@ -3451,6 +3481,9 @@ document.getElementById('add-plan-form').addEventListener('submit', async (e) =>
     pronostico_bolsas: Number(document.getElementById('plan-forecast-bags').value) || 0,
     pronostico_monto_mxn: Number(document.getElementById('plan-forecast-amount').value) || 0.0
   };
+  if (user?.nivel_rol === 'Administrador') {
+    payload.asesor_id = Number(document.getElementById('plan-assigned-advisor').value);
+  }
   
   const url = id ? `${API_URL}/api/planificacion/${id}` : `${API_URL}/api/planificacion`;
   const method = id ? 'PUT' : 'POST';
@@ -3576,6 +3609,11 @@ window.reschedulePlanActivity = function(p) {
   document.getElementById('plan-objective').value = `[Reagenda] ${p.objetivo_visita || ''}`.replace('[Reagenda] [Reagenda]', '[Reagenda]');
   document.getElementById('plan-forecast-bags').value = p.pronostico_bolsas || 0;
   document.getElementById('plan-forecast-amount').value = p.pronostico_monto_mxn || 0.0;
+  configurePlanAssignment(p.asesor_id);
+
+  document.querySelectorAll('#add-plan-form .form-input').forEach(input => {
+    input.disabled = false;
+  });
   
   const modalTitle = document.getElementById('plan-modal-title');
   if (modalTitle) modalTitle.textContent = 'Reagendar Visita';
@@ -3590,7 +3628,7 @@ window.reschedulePlanActivity = function(p) {
 };
 
 window.deletePlanActivity = async function(id) {
-  if (!confirm('¿Estás seguro de que deseas eliminar esta visita programada de tu agenda?')) return;
+  if (!confirm('¿Eliminar esta actividad programada? Esta acción no se puede deshacer.')) return;
   
   try {
     const res = await fetch(`${API_URL}/api/planificacion/${id}`, {
