@@ -1135,18 +1135,19 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'El movimiento solicitado no es válido para el estatus actual de la cotización.' });
     }
     
-    // Check if stock is currently deducted (indicated by a Salida movement for this quote)
-    const stockDeducted = await db.get(
-      "SELECT id FROM almacen_movimientos WHERE cotizacion_id = ? AND tipo_movimiento LIKE 'Salida%' LIMIT 1",
+    // The last movement for the quotation is the source of truth for its current stock effect.
+    const lastStockMovement = await db.get(
+      'SELECT tipo_movimiento FROM almacen_movimientos WHERE cotizacion_id = ? ORDER BY id DESC LIMIT 1',
       [id]
     );
+    const stockDeducted = Boolean(lastStockMovement?.tipo_movimiento?.startsWith('Salida'));
     
     const now = new Date().toISOString();
     const dateOnly = now.slice(0, 10);
     const items = await db.all('SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
     
-    if (estatus === 'Vendido' || estatus === 'Entregado') {
-      // If stock has not been deducted yet, deduct it now
+    if (q.estatus !== 'Entregado' && estatus === 'Entregado') {
+      // Inventory leaves the warehouse only when the quotation is delivered.
       if (!stockDeducted) {
         for (const item of items) {
           const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
@@ -1156,19 +1157,12 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
           await db.run(`
             INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
             VALUES (?, 'Salida por Pedido', ?, 0, ?, ?, ?, ?, ?, ?)
-          `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Salida registrada por cambio de estatus de cotización a ${estatus}`]);
+          `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, 'Salida registrada por entrega de cotización']);
         }
       }
-      
-      // Update quantity delivered based on state
-      if (estatus === 'Entregado') {
-        await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
-      } else {
-        await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = 0 WHERE cotizacion_id = ?', [id]);
-      }
-      
-    } else if (estatus === 'Borrador' || estatus === 'Autorizada' || estatus === 'Pendiente') {
-      // Revert stock if it was previously deducted
+      await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
+    } else if (q.estatus === 'Entregado' && estatus !== 'Entregado') {
+      // Returning a delivered quotation to a prior stage returns its items to stock.
       if (stockDeducted) {
         for (const item of items) {
           const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
@@ -1178,11 +1172,9 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
           await db.run(`
             INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
             VALUES (?, 'Reversión por Cancelación', ?, ?, 0, ?, ?, ?, ?, ?)
-          `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Reversión de stock por cambio de estatus de cotización a ${estatus}`]);
+          `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Reversión por cambio de entregada a ${estatus}`]);
         }
       }
-      
-      // Reset quantity delivered
       await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = 0 WHERE cotizacion_id = ?', [id]);
     }
     
@@ -1277,11 +1269,12 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Solo puedes editar tus cotizaciones pendientes de autorización.' });
     }
     
-    // Step 1: Revert stock if currently deducted
-    const stockDeducted = await db.get(
-      "SELECT id FROM almacen_movimientos WHERE cotizacion_id = ? AND tipo_movimiento LIKE 'Salida%' LIMIT 1",
+    // Only delivered quotations affect inventory, based on their latest movement.
+    const lastStockMovement = await db.get(
+      'SELECT tipo_movimiento FROM almacen_movimientos WHERE cotizacion_id = ? ORDER BY id DESC LIMIT 1',
       [id]
     );
+    const stockDeducted = Boolean(lastStockMovement?.tipo_movimiento?.startsWith('Salida'));
     const now = new Date().toISOString();
     
     if (stockDeducted) {
@@ -1373,8 +1366,8 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       WHERE id = ?
     `, [ciclo_agricola, condiciones_pago, financiera || null, notas || null, grandTotal, anticipoApartado, id]);
     
-    // Step 5: Re-deduct stock if state is Sold or Delivered
-    if (q.estatus === 'Vendido' || q.estatus === 'Entregado') {
+    // Step 5: Re-deduct stock only when the quotation was already delivered.
+    if (q.estatus === 'Entregado') {
       for (const row of calculatedRows) {
         const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [row.item.producto_id]);
         const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
