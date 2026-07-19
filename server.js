@@ -912,7 +912,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
 
 // CREATE QUOTATION / ORDER
 app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
-  const { cliente_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas, prospecto_id } = req.body;
+  const { cliente_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas, prospecto_id, planificacion_id, origen_etapa } = req.body;
   
   if (!cliente_id || !ciclo_agricola || !condiciones_pago || !items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Missing required header or items list' });
@@ -937,6 +937,7 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     }
     let prospectId = null;
     let quoteAdvisorId = req.user.id;
+    let directSalePlan = null;
     if (prospecto_id !== undefined && prospecto_id !== null) {
       const prospect = await db.get('SELECT * FROM crm_prospectos WHERE id = ?', [Number(prospecto_id)]);
       if (!prospect || prospect.cliente_id !== Number(cliente_id) || prospect.estado !== 'Prospecto'
@@ -945,6 +946,28 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
       }
       prospectId = prospect.id;
       quoteAdvisorId = prospect.asesor_id;
+    }
+    if (planificacion_id !== undefined && planificacion_id !== null) {
+      if (prospectId || String(origen_etapa || '').trim().toUpperCase() !== 'V') {
+        return res.status(400).json({ error: 'La cotización directa desde planificación solo está disponible para la etapa Venta.' });
+      }
+      directSalePlan = await db.get('SELECT * FROM planificacion_semanal WHERE id = ?', [Number(planificacion_id)]);
+      if (!directSalePlan || directSalePlan.cliente_id !== Number(cliente_id)) {
+        return res.status(400).json({ error: 'La visita de Venta no corresponde al agricultor seleccionado.' });
+      }
+      if (req.user.nivel_rol === 'Asesor' && directSalePlan.asesor_id !== req.user.id) {
+        return res.status(403).json({ error: 'Solo puedes cotizar visitas asignadas a tu cuenta.' });
+      }
+      const stageRows = await db.all('SELECT clave, fecha_inicio, fecha_fin FROM crm_etapas_programacion');
+      const activeStageCodes = getActiveStageCodesForDate(stageRows, directSalePlan.fecha_programada);
+      if (!activeStageCodes.includes('V')) {
+        return res.status(400).json({ error: 'La etapa Venta no está activa para la fecha de esta visita.' });
+      }
+      const existingProspect = await db.get('SELECT * FROM crm_prospectos WHERE planificacion_id = ?', [directSalePlan.id]);
+      if (existingProspect) {
+        return res.status(400).json({ error: 'Esta visita ya fue enviada al Canal de Ventas.' });
+      }
+      quoteAdvisorId = directSalePlan.asesor_id;
     }
     const ccId = client.cuenta_clave_id || 1;
     const keyAccount = await db.get('SELECT * FROM cuentas_clave WHERE id = ?', [ccId]);
@@ -1012,7 +1035,31 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
       `, [cotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
     }
 
-    if (prospectId) {
+    if (directSalePlan) {
+      const prospectResult = await db.run(`
+        INSERT INTO crm_prospectos (planificacion_id, cliente_id, asesor_id, estado, cotizacion_id)
+        VALUES (?, ?, ?, 'En cotización', ?)
+      `, [directSalePlan.id, directSalePlan.cliente_id, directSalePlan.asesor_id, cotId]);
+      prospectId = prospectResult.id;
+      await db.run('UPDATE cotizaciones SET prospecto_id = ? WHERE id = ?', [prospectId, cotId]);
+      await db.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [directSalePlan.id]);
+      await db.run(`
+        INSERT INTO crm_reportes_etapa (
+          planificacion_id, visita_id, cliente_id, asesor_id, etapa_clave, fecha_reporte, respuestas, creado_en, actualizado_en
+        ) VALUES (?, ?, ?, ?, 'V', ?, ?::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (planificacion_id, etapa_clave)
+        DO UPDATE SET respuestas = EXCLUDED.respuestas, actualizado_en = CURRENT_TIMESTAMP
+      `, [
+        directSalePlan.id,
+        directSalePlan.visita_id || null,
+        directSalePlan.cliente_id,
+        directSalePlan.asesor_id,
+        directSalePlan.fecha_programada,
+        JSON.stringify({ cotizacion_id: cotId, enviada_a_cotizador: true })
+      ]);
+    }
+
+    if (prospectId && !directSalePlan) {
       await db.run("UPDATE crm_prospectos SET estado = 'En cotización', cotizacion_id = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?", [cotId, prospectId]);
     }
     

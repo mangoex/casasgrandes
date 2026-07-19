@@ -41,6 +41,7 @@ let quoteItemsCount = 0;
 let allQuotes = [];
 let allProspects = [];
 let activeProspectId = null;
+let activePlanningQuoteContext = null;
 let preserveProspectQuoteContext = false;
 let allClients = [];
 let selectedKanbanQuoteIds = new Set();
@@ -365,7 +366,10 @@ function switchView(viewId, title) {
   } else if (viewId === 'clientes-view') {
     loadClientesCatalog();
   } else if (viewId === 'cotizador-view') {
-    if (!preserveProspectQuoteContext) activeProspectId = null;
+    if (!preserveProspectQuoteContext) {
+      activeProspectId = null;
+      activePlanningQuoteContext = null;
+    }
     loadCotizadorConfig();
   } else if (viewId === 'catalog-view') {
     loadCatalogData();
@@ -1988,7 +1992,9 @@ function getQuotePayload() {
     items,
     financiera,
     notas,
-    prospecto_id: activeProspectId || undefined
+    prospecto_id: activeProspectId || undefined,
+    planificacion_id: activePlanningQuoteContext?.planId,
+    origen_etapa: activePlanningQuoteContext?.stageCode
   };
 }
 
@@ -2271,13 +2277,17 @@ document.getElementById('quotation-form').addEventListener('submit', async (e) =
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to submit quote');
     
-    alert(`Pedido registrado exitosamente con Folio: ${data.folio}`);
+    const cameFromSaleVisit = Boolean(activePlanningQuoteContext?.planId);
+    alert(cameFromSaleVisit
+      ? `Cotización ${data.folio} enviada a autorización. La visita quedó registrada como prospecto.`
+      : `Pedido registrado exitosamente con Folio: ${data.folio}`);
     
     // Reset Form & Switch view
     document.getElementById('quotation-form').reset();
     document.getElementById('items-builder-container').innerHTML = '';
     quoteItemsCount = 0;
     activeProspectId = null;
+    activePlanningQuoteContext = null;
     addQuoteItemRow();
     switchView('dashboard-view', 'Tablero General');
   } catch (err) {
@@ -4431,9 +4441,7 @@ window.openStageReportModal = function(planId, stageCode, clientName) {
   document.getElementById('stage-report-hint').textContent = 'Complete la información para dejar seguimiento agrícola trazable.';
   document.getElementById('stage-report-dv-dr-fields').style.display = ['DV', 'DR'].includes(stageCode) ? 'block' : 'none';
   document.getElementById('stage-report-c-fields').style.display = stageCode === 'C' ? 'block' : 'none';
-  if (stageCode === 'V') {
-    document.getElementById('stage-report-hint').textContent = 'Guarda este reporte de venta para habilitar el paso de la visita a prospecto.';
-  }
+  if (stageCode === 'V') return window.openStageCotizador(plan.id, stageCode, clientName || plan.cliente_nombre);
   openModal('stage-report-modal');
 };
 
@@ -4483,6 +4491,7 @@ window.openStageCotizador = async function(planId, stageCode, clientName) {
     || activeStageReportContext?.plan;
   if (!plan) return;
   activeStageReportContext = { plan, stageCode, clientName };
+  activePlanningQuoteContext = { planId: plan.id, stageCode: String(stageCode || '').trim().toUpperCase() };
   const clientId = plan.cliente_id;
   const clientNameValue = clientName || plan.cliente_nombre;
   closeModal('add-plan-modal');
@@ -4493,8 +4502,13 @@ window.openStageCotizador = async function(planId, stageCode, clientName) {
       i.classList.add('active');
     }
   });
-  switchView('cotizador-view', 'Cotizador');
-  await loadCotizadorConfig();
+  preserveProspectQuoteContext = true;
+  try {
+    switchView('cotizador-view', 'Cotizador');
+    await loadCotizadorConfig();
+  } finally {
+    preserveProspectQuoteContext = false;
+  }
   const clientSelect = document.getElementById('quote-client');
   if (clientSelect) {
     clientSelect.value = clientId;
@@ -4510,7 +4524,7 @@ window.openStageCotizador = async function(planId, stageCode, clientName) {
   if (quickDetails) quickDetails.style.display = 'block';
   const quoteNotas = document.getElementById('quote-notas');
   if (quoteNotas) {
-    quoteNotas.value = `Reporte de etapa ${stageCode || activeStageReportContext.stageCode} para ${clientNameValue || 'agrupador'}.`;
+    quoteNotas.value = `Venta originada desde la visita programada de ${clientNameValue || 'agricultor'}.`;
   }
 };
 
