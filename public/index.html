@@ -748,13 +748,14 @@
               <input type="week" id="plan-week-select" class="form-input" style="padding: 8px 12px; font-size: 14px; width: auto;">
             </div>
             <div class="form-group admin-or-coordinator-only" style="margin-bottom: 0; display: none;">
-              <label for="plan-advisor-filter" style="margin-bottom: 4px; font-size: 12px;">Filtrar Asesor</label>
+              <label id="plan-advisor-filter-label" for="plan-advisor-filter" style="margin-bottom: 4px; font-size: 12px;">Filtrar Asesor</label>
               <select id="plan-advisor-filter" class="form-input" style="padding: 8px 12px; font-size: 14px; width: auto;">
                 <option value="ALL">Todos los Asesores</option>
               </select>
             </div>
           </div>
-          <div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button id="btn-delete-selected-plans" class="btn btn-danger admin-only" type="button" title="Eliminar actividades seleccionadas" aria-label="Eliminar actividades seleccionadas" style="display: none; width: auto; padding: 10px 14px;">🗑️ <span id="selected-plans-count">0</span></button>
             <button id="btn-open-plan-modal" class="btn btn-primary" style="width: auto; padding: 10px 20px;">📅 Agendar Visita</button>
           </div>
         </div>
@@ -2029,12 +2030,6 @@
               <select id="plan-client" class="form-input" required>
                 <option value="">Escribe al menos 2 letras para buscar</option>
               </select>
-          </div>
-          <div class="form-group" id="plan-assigned-advisor-group" style="display: none;">
-            <label for="plan-assigned-advisor">Asesor responsable</label>
-            <select id="plan-assigned-advisor" class="form-input">
-              <option value="">Selecciona un asesor</option>
-            </select>
           </div>
           <div class="input-grid">
             <div class="form-group">

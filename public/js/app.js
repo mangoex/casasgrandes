@@ -2976,6 +2976,11 @@ async function loadPlaneacionView() {
     weekSelect.value = getCurrentWeekString();
   }
   activePlanWeek = weekSelect.value;
+
+  const advisorLabel = document.getElementById('plan-advisor-filter-label');
+  if (advisorLabel) {
+    advisorLabel.textContent = user.nivel_rol === 'Administrador' ? 'Asesor responsable' : 'Filtrar Asesor';
+  }
   
   const loaders = [loadWeeklySchedule()];
   if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') loaders.push(loadPlanAdvisorOptions());
@@ -2985,8 +2990,7 @@ async function loadPlaneacionView() {
 
 async function loadPlanAdvisorOptions() {
   const filterSelect = document.getElementById('plan-advisor-filter');
-  const assignmentSelect = document.getElementById('plan-assigned-advisor');
-  if (!filterSelect && !assignmentSelect) return;
+  if (!filterSelect) return;
   
   try {
     const res = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
@@ -3003,31 +3007,8 @@ async function loadPlanAdvisorOptions() {
       filterSelect.value = currentFilter;
     }
 
-    if (assignmentSelect) {
-      const currentAssignment = assignmentSelect.value;
-      assignmentSelect.innerHTML = '<option value="">Selecciona un asesor</option>';
-      activeAdvisers.forEach(a => {
-        assignmentSelect.innerHTML += `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`;
-      });
-      assignmentSelect.value = currentAssignment;
-    }
   } catch (err) {
     console.error(err);
-  }
-}
-
-function configurePlanAssignment(selectedAdvisorId = null, disabled = false) {
-  const group = document.getElementById('plan-assigned-advisor-group');
-  const select = document.getElementById('plan-assigned-advisor');
-  if (!group || !select) return;
-
-  const canAssign = user?.nivel_rol === 'Administrador';
-  group.style.display = canAssign ? 'block' : 'none';
-  select.required = canAssign;
-  select.disabled = !canAssign || disabled;
-  if (canAssign) {
-    const preferredAdvisorId = selectedAdvisorId || document.getElementById('plan-advisor-filter')?.value;
-    select.value = preferredAdvisorId && preferredAdvisorId !== 'ALL' ? String(preferredAdvisorId) : '';
   }
 }
 
@@ -3148,19 +3129,27 @@ async function loadWeeklySchedule() {
         const amtText = p.pronostico_monto_mxn > 0 ? `💰 $${p.pronostico_monto_mxn.toLocaleString('es-MX', {maximumFractionDigits: 0})}` : '';
         const forecastText = (bagsText || amtText) ? `<div style="font-size: 11px; margin-top: 4px; font-weight: 600; color: var(--accent);">${bagsText} ${amtText}</div>` : '';
         
+        const canManageOwnPlan = p.asesor_id === user.id || user.nivel_rol === 'Administrador';
+        const isAdmin = user.nivel_rol === 'Administrador';
         let actions = '';
-        if (p.realizada === 0 && (p.asesor_id === user.id || user.nivel_rol === 'Administrador')) {
-          const deleteLabel = user.nivel_rol === 'Administrador' ? 'Eliminar actividad' : 'Eliminar';
+        if (p.realizada === 0 && canManageOwnPlan) {
           actions = `
             <div style="display: flex; gap: 8px; margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 8px; justify-content: flex-end;">
               <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto;" onclick="openCompletePlanModal(${p.id})">✔️ Cerrar</button>
-              <button class="btn btn-secondary" title="${deleteLabel}" aria-label="${deleteLabel}" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--danger); color: var(--danger);" onclick="deletePlanActivity(${p.id})">🗑️</button>
+              ${isAdmin ? `<button class="btn btn-secondary" title="Eliminar actividad" aria-label="Eliminar actividad" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--danger); color: var(--danger);" onclick="deletePlanActivity(${p.id})">🗑️</button>` : ''}
             </div>
           `;
-        } else if (p.realizada === 3 && (p.asesor_id === user.id || user.nivel_rol === 'Administrador')) {
+        } else if (p.realizada === 3 && canManageOwnPlan) {
           actions = `
             <div style="display: flex; gap: 8px; margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 8px; justify-content: flex-end;">
               <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--accent); color: var(--accent);" onclick="reschedulePlanActivity(${p.id})">🔄 Reagendar</button>
+              ${isAdmin ? `<button class="btn btn-secondary" title="Eliminar actividad" aria-label="Eliminar actividad" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--danger); color: var(--danger);" onclick="deletePlanActivity(${p.id})">🗑️</button>` : ''}
+            </div>
+          `;
+        } else if (isAdmin) {
+          actions = `
+            <div style="display: flex; gap: 8px; margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 8px; justify-content: flex-end;">
+              <button class="btn btn-secondary" title="Eliminar actividad" aria-label="Eliminar actividad" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--danger); color: var(--danger);" onclick="deletePlanActivity(${p.id})">🗑️</button>
             </div>
           `;
         }
@@ -3194,6 +3183,7 @@ async function loadWeeklySchedule() {
           selectCheckbox.addEventListener('change', () => {
             calculateAndUpdateWeeklyStats();
             updateDayHeaderCheckboxes();
+            updatePlanSelectionControls();
           });
         }
       }
@@ -3202,7 +3192,7 @@ async function loadWeeklySchedule() {
     for (let i = 1; i <= 5; i++) {
       document.getElementById(`count-day-${i}`).textContent = dayCounts[i - 1];
     }
-    
+    updatePlanSelectionControls();
     loadPlanningMetaProgress(advisorId);
   } catch (err) {
     console.error(err);
@@ -3210,6 +3200,7 @@ async function loadWeeklySchedule() {
       const column = document.getElementById(`agenda-day-${i}`);
       if (column) column.innerHTML = '<div style="padding: 12px; color: var(--danger); font-size: 12px;">No fue posible cargar la agenda.</div>';
     }
+    updatePlanSelectionControls();
   }
 }
 
@@ -3257,6 +3248,7 @@ async function loadPlanningMetaProgress(advisorId = 'ALL') {
     
     calculateAndUpdateWeeklyStats();
     updateDayHeaderCheckboxes();
+    updatePlanSelectionControls();
   } catch (err) {
     console.error(err);
     document.getElementById('meta-progress-mxn-text').textContent = 'No disponible';
@@ -3360,7 +3352,20 @@ window.toggleDaySelection = function(dayIndex, isChecked) {
   });
   calculateAndUpdateWeeklyStats();
   updateDayHeaderCheckboxes();
+  updatePlanSelectionControls();
 };
+
+function updatePlanSelectionControls() {
+  const bulkDeleteBtn = document.getElementById('btn-delete-selected-plans');
+  const selectedCount = document.getElementById('selected-plans-count');
+  const selectedIds = Array.from(document.querySelectorAll('.card-select-checkbox:checked'));
+  const isAdmin = user?.nivel_rol === 'Administrador';
+  if (bulkDeleteBtn) {
+    bulkDeleteBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    bulkDeleteBtn.disabled = selectedIds.length === 0;
+  }
+  if (selectedCount) selectedCount.textContent = selectedIds.length;
+}
 
 // Binds week change and advisor filter change
 document.getElementById('plan-week-select').addEventListener('change', () => {
@@ -3389,7 +3394,6 @@ document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
   document.getElementById('plan-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('plan-client-search').value = '';
   loadPlanClientOptions();
-  configurePlanAssignment();
   
   // A report must be tied to a saved visit. It becomes available immediately
   // after the visit is created and the modal reopens in edit mode.
@@ -3426,7 +3430,6 @@ window.openEditPlanModal = function(p) {
   document.getElementById('plan-forecast-bags').value = p.pronostico_bolsas || 0;
   document.getElementById('plan-forecast-amount').value = p.pronostico_monto_mxn || 0;
   document.getElementById('plan-form-id').value = p.id;
-  configurePlanAssignment(p.asesor_id, p.realizada === 1 || p.realizada === 2);
   
   // Reports are available for a saved visit and use that visit's scheduled date.
   const stagesContainer = document.getElementById('plan-modal-stages-container');
@@ -3481,8 +3484,13 @@ document.getElementById('add-plan-form').addEventListener('submit', async (e) =>
     pronostico_bolsas: Number(document.getElementById('plan-forecast-bags').value) || 0,
     pronostico_monto_mxn: Number(document.getElementById('plan-forecast-amount').value) || 0.0
   };
-  if (user?.nivel_rol === 'Administrador') {
-    payload.asesor_id = Number(document.getElementById('plan-assigned-advisor').value);
+  if (user?.nivel_rol === 'Administrador' && !id) {
+    const selectedAdvisorId = document.getElementById('plan-advisor-filter')?.value;
+    if (!selectedAdvisorId || selectedAdvisorId === 'ALL') {
+      alert('Selecciona arriba al asesor responsable antes de programar la actividad.');
+      return;
+    }
+    payload.asesor_id = Number(selectedAdvisorId);
   }
   
   const url = id ? `${API_URL}/api/planificacion/${id}` : `${API_URL}/api/planificacion`;
@@ -3498,7 +3506,7 @@ document.getElementById('add-plan-form').addEventListener('submit', async (e) =>
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to save plan');
     
-    await loadWeeklySchedule();
+    await Promise.all([loadWeeklySchedule(), loadDashboardData()]);
     const savedPlan = id
       ? currentPlanList.find(plan => plan.id === Number(id))
       : currentPlanList.find(plan => plan.id === Number(data.id));
@@ -3586,7 +3594,7 @@ document.getElementById('complete-plan-form').addEventListener('submit', async (
     if (!res.ok) throw new Error(data.error || 'Failed to update plan status');
     
     closeModal('complete-plan-modal');
-    await loadWeeklySchedule();
+    await Promise.all([loadWeeklySchedule(), loadDashboardData()]);
     alert(statusVal === 1 ? 'Visita cerrada y registrada en bitácora CRM' : 'Visita cancelada');
   } catch (err) {
     alert(err.message);
@@ -3609,8 +3617,6 @@ window.reschedulePlanActivity = function(p) {
   document.getElementById('plan-objective').value = `[Reagenda] ${p.objetivo_visita || ''}`.replace('[Reagenda] [Reagenda]', '[Reagenda]');
   document.getElementById('plan-forecast-bags').value = p.pronostico_bolsas || 0;
   document.getElementById('plan-forecast-amount').value = p.pronostico_monto_mxn || 0.0;
-  configurePlanAssignment(p.asesor_id);
-
   document.querySelectorAll('#add-plan-form .form-input').forEach(input => {
     input.disabled = false;
   });
@@ -3628,7 +3634,7 @@ window.reschedulePlanActivity = function(p) {
 };
 
 window.deletePlanActivity = async function(id) {
-  if (!confirm('¿Eliminar esta actividad programada? Esta acción no se puede deshacer.')) return;
+  if (!confirm('¿Eliminar esta actividad? La bitácora CRM ya registrada se conservará.')) return;
   
   try {
     const res = await fetch(`${API_URL}/api/planificacion/${id}`, {
@@ -3639,11 +3645,39 @@ window.deletePlanActivity = async function(id) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to delete plan');
     
-    await loadWeeklySchedule();
+    await Promise.all([loadWeeklySchedule(), loadDashboardData()]);
   } catch (err) {
     alert(err.message);
   }
 };
+
+window.deleteSelectedPlanActivities = async function() {
+  const ids = Array.from(document.querySelectorAll('.card-select-checkbox:checked'))
+    .map(checkbox => Number(checkbox.dataset.id));
+  if (ids.length === 0) return;
+
+  if (!confirm(`¿Eliminar ${ids.length} actividad${ids.length === 1 ? '' : 'es'} seleccionada${ids.length === 1 ? '' : 's'}? La bitácora CRM ya registrada se conservará.`)) return;
+
+  const bulkDeleteBtn = document.getElementById('btn-delete-selected-plans');
+  if (bulkDeleteBtn) bulkDeleteBtn.disabled = true;
+  try {
+    const res = await fetch(`${API_URL}/api/planificacion/bulk-delete`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ ids })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible eliminar las actividades');
+
+    await Promise.all([loadWeeklySchedule(), loadDashboardData()]);
+    alert(`${data.deleted || ids.length} actividad${ids.length === 1 ? '' : 'es'} eliminada${ids.length === 1 ? '' : 's'}.`);
+  } catch (err) {
+    alert(err.message);
+    updatePlanSelectionControls();
+  }
+};
+
+document.getElementById('btn-delete-selected-plans')?.addEventListener('click', deleteSelectedPlanActivities);
 
 // -------------------------------------------------------------
 // METAS COMERCIALES (ADMIN) VIEW LOGIC

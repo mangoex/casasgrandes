@@ -2226,23 +2226,40 @@ app.post('/api/planificacion/:id/convertir-cotizacion', authenticateToken, async
 
 app.delete('/api/planificacion/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Solo un administrador puede eliminar actividades programadas.' });
+  }
   try {
     const plan = await db.get('SELECT * FROM planificacion_semanal WHERE id = ?', [id]);
     if (!plan) return res.status(404).json({ error: 'Planning not found' });
-    
-    if (req.user.nivel_rol === 'Asesor' && plan.asesor_id !== req.user.id) {
-      return res.status(403).json({ error: 'Unauthorized to delete this plan' });
-    }
-
-    if (Number(plan.realizada) !== 0) {
-      return res.status(400).json({ error: 'Solo se pueden eliminar actividades programadas pendientes.' });
-    }
     
     await db.run('DELETE FROM planificacion_semanal WHERE id = ?', [id]);
     res.json({ message: 'Plan deleted successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete plan' });
+  }
+});
+
+app.post('/api/planificacion/bulk-delete', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Solo un administrador puede eliminar actividades programadas.' });
+  }
+
+  const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : [])
+    .map(Number)
+    .filter(id => Number.isInteger(id) && id > 0))];
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'Selecciona al menos una actividad.' });
+  }
+
+  try {
+    const placeholders = ids.map(() => '?').join(', ');
+    const result = await db.run(`DELETE FROM planificacion_semanal WHERE id IN (${placeholders})`, ids);
+    res.json({ message: 'Plans deleted successfully', deleted: result.changes || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete plans' });
   }
 });
 
