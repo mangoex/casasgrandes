@@ -79,6 +79,9 @@ function getNetPrice(prod, volMultiplier, keyAccountDiscount, activeSeason) {
   const seasonPrice = getSeasonPrice(listPrice, prod.tipo_categoria, activeSeason);
 
   if (prod.descontar === 1) {
+    if (prod.precio_programado_mxn !== undefined && prod.precio_programado_mxn !== null) {
+      return Math.round(seasonPrice * volMultiplier) - keyAccountDiscount;
+    }
     // Semillas elegibles: aplicar descuento por volumen + cuenta clave
     // Fórmula: round(base_usd * volMultiplier, 2) * USD_FACTOR * EXCHANGE_RATE - descuento_cuenta_clave
     const usdPriceForTier = Math.round((prod.base_usd * volMultiplier) * 100) / 100;

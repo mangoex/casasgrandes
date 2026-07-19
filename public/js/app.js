@@ -2291,12 +2291,14 @@ function renderCatalogGrid() {
     const priceText = p.list_price_mxn > 0 ? `$${p.list_price_mxn.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN` : 'A cotizar';
     const detailText = p.descontar === 1 ? `Base USD: $${p.base_usd} | Escala volumen` : (p.descuento_fijo_quimicos > 0 ? `Descuento fijo: -$${p.descuento_fijo_quimicos} MXN` : 'Precio de lista neto');
     
+    const canEdit = user?.nivel_rol === 'Administrador';
+    const description = p.descripcion ? escapeHtml(p.descripcion) : detailText;
     grid.innerHTML += `
-      <div class="product-card">
+      <div class="product-card ${canEdit ? 'product-card-editable' : ''}" ${canEdit ? `role="button" tabindex="0" data-product-id="${p.id}" aria-label="Editar ${escapeAttribute(p.producto)}"` : ''}>
         <div class="product-image-placeholder">${emoji}</div>
         <div class="product-info">
           <h3>${p.producto}</h3>
-          <p>${p.tipo_categoria} | ${detailText}</p>
+          <p>${p.clave ? `${escapeHtml(p.clave)} | ` : ''}${p.tipo_categoria} | ${description}</p>
         </div>
         <div class="product-price-box">
           <span class="product-price">${priceText}</span>
@@ -2305,6 +2307,22 @@ function renderCatalogGrid() {
       </div>
     `;
   });
+
+  if (user?.nivel_rol === 'Administrador') {
+    grid.querySelectorAll('.product-card-editable').forEach(card => {
+      const openEditor = event => {
+        if (event.target.closest('button')) return;
+        window.openEditProductoModal(Number(card.dataset.productId));
+      };
+      card.addEventListener('click', openEditor);
+      card.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openEditor(event);
+        }
+      });
+    });
+  }
 }
 
 // Quick helper to add product from catalog directly to quote builder
@@ -2805,11 +2823,13 @@ if (document.getElementById('btn-open-producto-modal')) {
 }
 
 window.openEditProductoModal = function(id) {
-  const p = allAdminProductos.find(x => x.id === id);
+  const p = allAdminProductos.find(x => x.id === id) || allProducts.find(x => x.id === id);
   if (!p) return;
   
   document.getElementById('producto-form-id').value = p.id;
+  document.getElementById('prod-key').value = p.clave || '';
   document.getElementById('prod-name').value = p.producto;
+  document.getElementById('prod-description').value = p.descripcion || '';
   document.getElementById('prod-category').value = p.tipo_categoria;
   document.getElementById('prod-list-price').value = p.list_price_mxn;
   document.getElementById('prod-base-usd').value = p.base_usd;
@@ -2832,7 +2852,9 @@ document.getElementById('add-producto-form').addEventListener('submit', async (e
   
   const id = document.getElementById('producto-form-id').value;
   const payload = {
+    clave: document.getElementById('prod-key').value.trim(),
     producto: document.getElementById('prod-name').value.trim(),
+    descripcion: document.getElementById('prod-description').value.trim(),
     tipo_categoria: document.getElementById('prod-category').value,
     list_price_mxn: Number(document.getElementById('prod-list-price').value),
     base_usd: Number(document.getElementById('prod-base-usd').value) || 0.0,
@@ -2858,6 +2880,10 @@ document.getElementById('add-producto-form').addEventListener('submit', async (e
     
     closeModal('add-producto-modal');
     await loadAdminProductos();
+    await loadCatalogData();
+    if (selectedProgramacionProductId && Number(selectedProgramacionProductId) === Number(id || data.id)) {
+      await loadMonthlyPricingTable(selectedProgramacionProductId);
+    }
     alert(id ? 'Producto actualizado exitosamente' : 'Producto registrado exitosamente');
   } catch (err) {
     alert(err.message);
@@ -6426,6 +6452,7 @@ function bindIAViewEventListeners() {
 let programacionStages = [];
 let programacionProducts = [];
 let selectedProgramacionProductId = '';
+let monthlyPricePropagationStart = null;
 
 async function loadProgramacionView() {
   const isWritable = ['Administrador', 'Coordinador'].includes(user.nivel_rol);
@@ -6644,6 +6671,7 @@ function renderProgramacionTableContent(prices) {
   if (!tbody) return;
 
   tbody.innerHTML = '';
+  monthlyPricePropagationStart = null;
   const isWritable = ['Administrador', 'Coordinador'].includes(user.nivel_rol);
 
   monthNames.forEach((monthName, idx) => {
@@ -6688,6 +6716,17 @@ function renderProgramacionTableContent(prices) {
     });
 
     tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.pricing-input[data-field="precio"]').forEach(input => {
+    input.addEventListener('input', () => {
+      const startMonth = Number(input.dataset.month);
+      const value = input.value;
+      monthlyPricePropagationStart = startMonth;
+      tbody.querySelectorAll('.pricing-input[data-field="precio"]').forEach(target => {
+        if (Number(target.dataset.month) >= startMonth) target.value = value;
+      });
+    });
   });
 }
 
@@ -6797,7 +6836,8 @@ async function saveMonthlyPricing() {
       headers: getHeaders(),
       body: JSON.stringify({
         producto_id: parseInt(selectedProgramacionProductId),
-        precios: preciosArray
+        precios: preciosArray,
+        mes_inicio_propagacion: monthlyPricePropagationStart
       })
     });
 

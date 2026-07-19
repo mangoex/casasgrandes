@@ -33,6 +33,9 @@ async function initSchema() {
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_clavis REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cropprotection REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cosecha REAL DEFAULT 0.0');
+    await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS clave TEXT');
+    await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS descripcion TEXT');
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_productos_clave ON productos (clave) WHERE clave IS NOT NULL AND clave <> ''");
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_activos_nombre ON clientes (nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_asesor_activo_nombre ON clientes (asesor_id, nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_fecha ON cotizaciones (asesor_id, fecha_creacion DESC)');
