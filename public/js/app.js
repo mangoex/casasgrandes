@@ -39,6 +39,9 @@ window.fetch = async function(...args) {
 let activeClientId = null;
 let quoteItemsCount = 0;
 let allQuotes = [];
+let allProspects = [];
+let activeProspectId = null;
+let preserveProspectQuoteContext = false;
 let allClients = [];
 let selectedKanbanQuoteIds = new Set();
 let lastRenderedKanbanQuotes = [];
@@ -362,6 +365,7 @@ function switchView(viewId, title) {
   } else if (viewId === 'clientes-view') {
     loadClientesCatalog();
   } else if (viewId === 'cotizador-view') {
+    if (!preserveProspectQuoteContext) activeProspectId = null;
     loadCotizadorConfig();
   } else if (viewId === 'catalog-view') {
     loadCatalogData();
@@ -781,6 +785,10 @@ window.drop = async function(ev, targetStatus) {
   ev.preventDefault();
   const quoteId = ev.dataTransfer.getData("text/plain");
   if (!quoteId) return;
+  if (user?.nivel_rol !== 'Administrador') {
+    alert('Solo un administrador puede mover cotizaciones en el canal de ventas.');
+    return;
+  }
   
   try {
     const res = await fetch(`${API_URL}/api/cotizaciones/${quoteId}/status`, {
@@ -805,6 +813,10 @@ window.moveQuoteStatus = async function(quoteId, currentStatus, direction, event
   if (event) {
     event.stopPropagation();
     event.preventDefault();
+  }
+  if (user?.nivel_rol !== 'Administrador') {
+    alert('Solo un administrador puede mover cotizaciones en el canal de ventas.');
+    return;
   }
   
   const statuses = ['Borrador', 'Autorizada', 'Vendido', 'Entregado'];
@@ -986,21 +998,28 @@ async function loadCRMBoardData() {
     const cRes = await fetch(`${API_URL}/api/clientes`, { headers: getHeaders() });
     allClients = await cRes.json();
     
-    // Load quotes/deals
-    const qRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
+    const [qRes, pRes] = await Promise.all([
+      fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() }),
+      fetch(`${API_URL}/api/prospectos`, { headers: getHeaders() })
+    ]);
     allQuotes = await qRes.json();
+    allProspects = await pRes.json();
+    if (!qRes.ok || !pRes.ok || !Array.isArray(allQuotes) || !Array.isArray(allProspects)) {
+      throw new Error('No fue posible cargar el canal de ventas');
+    }
     
     if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') {
       await loadKanbanAdvisorOptions();
     }
     
     filterAndRenderKanban();
+    renderPendingQuoteAuthorizations(allQuotes);
   } catch (err) {
     console.error('Failed to load Sales Pipeline Board:', err);
   }
 }
 
-function renderKanbanBoard(quotesList) {
+function renderKanbanBoard(quotesList, prospectsList = []) {
   lastRenderedKanbanQuotes = quotesList;
   selectedKanbanQuoteIds = new Set(
     [...selectedKanbanQuoteIds].filter(id => quotesList.some(q => Number(q.id) === Number(id)))
@@ -1019,7 +1038,7 @@ function renderKanbanBoard(quotesList) {
   quotesList.forEach(q => {
     // Determine target column (map fallback statuses)
     let status = q.estatus;
-    if (status === 'Pendiente' || status === 'Pendiente Autorización') return; // Hide pending quotes from Sales Board until authorized
+    if (status === 'Borrador' || status === 'Pendiente' || status === 'Pendiente Autorización') return;
     if (status === 'Cancelado') return; // Hide canceled quotes from board
     
     const col = columns[status];
@@ -1031,8 +1050,8 @@ function renderKanbanBoard(quotesList) {
     const card = document.createElement('div');
     card.className = 'kanban-card';
     card.id = `quote-card-${q.id}`;
-    card.draggable = true;
-    card.addEventListener('dragstart', (e) => drag(e, q.id));
+    card.draggable = user?.nivel_rol === 'Administrador';
+    if (card.draggable) card.addEventListener('dragstart', (e) => drag(e, q.id));
     
     // single click to view detail modal (ignoring buttons)
     card.addEventListener('click', (e) => {
@@ -1046,12 +1065,10 @@ function renderKanbanBoard(quotesList) {
     const itemsSummary = q.items.map(i => `${i.producto_nombre.split(' ')[0]} (x${i.cantidad_ordenada || i.cantidad || 0})`).join(', ') || 'Sin productos';
     
     const prevLabels = {
-      'Autorizada': 'Prospecto',
       'Vendido': 'Cotizado',
       'Entregado': 'Cobrado'
     };
     const nextLabels = {
-      'Borrador': 'Cotizado',
       'Autorizada': 'Cobrado',
       'Vendido': 'Entregado'
     };
@@ -1072,12 +1089,32 @@ function renderKanbanBoard(quotesList) {
         <span class="kanban-card-price">$${q.total_mxn.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>
       </div>
       <div class="kanban-card-mobile-arrows">
-        ${status !== 'Borrador' ? `<button class="kanban-arrow-btn prev-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'up', event)">▲ ${prevLabel}</button>` : ''}
-        ${status !== 'Entregado' ? `<button class="kanban-arrow-btn next-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'down', event)">▼ ${nextLabel}</button>` : ''}
+        ${user?.nivel_rol === 'Administrador' && status !== 'Autorizada' ? `<button class="kanban-arrow-btn prev-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'up', event)">▲ ${prevLabel}</button>` : ''}
+        ${user?.nivel_rol === 'Administrador' && status !== 'Entregado' ? `<button class="kanban-arrow-btn next-stage" onclick="moveQuoteStatus(${q.id}, '${status}', 'down', event)">▼ ${nextLabel}</button>` : ''}
       </div>
     `;
     
     col.el.appendChild(card);
+  });
+
+  const prospectColumn = columns.Borrador;
+  prospectsList.forEach(prospect => {
+    prospectColumn.count++;
+    const card = document.createElement('div');
+    card.className = 'kanban-card';
+    card.style.cursor = 'pointer';
+    card.style.borderLeft = '4px solid var(--info)';
+    card.addEventListener('click', () => openProspectInCotizador(prospect.id));
+    card.innerHTML = `
+      <div class="kanban-card-title"><span>${escapeHtml(prospect.cliente_nombre)}</span></div>
+      <div class="kanban-card-desc">Prospecto sin cotización</div>
+      <div style="font-size:11px; color:var(--text-light); font-weight: 500;">Origen: visita de campo</div>
+      <div class="kanban-card-meta">
+        <span style="font-size: 11px; color: var(--text-light);">👤 ${escapeHtml((prospect.asesor_nombre || '').split(' ')[0])}</span>
+        <span class="badge badge-info">Prospecto</span>
+      </div>
+    `;
+    prospectColumn.el.appendChild(card);
   });
   
   // Render count badges
@@ -1087,10 +1124,33 @@ function renderKanbanBoard(quotesList) {
   updateKanbanSelectionControls();
 }
 
+function renderPendingQuoteAuthorizations(quotes) {
+  const panel = document.getElementById('pending-quote-authorizations');
+  const count = document.getElementById('pending-quote-count');
+  const list = document.getElementById('pending-quote-list');
+  if (!panel || !count || !list) return;
+
+  const canAuthorize = user?.nivel_rol === 'Administrador';
+  const pending = canAuthorize
+    ? quotes.filter(quote => ['Pendiente', 'Pendiente Autorización', 'Borrador'].includes(quote.estatus))
+    : [];
+
+  panel.style.display = pending.length ? 'block' : 'none';
+  count.textContent = pending.length;
+  list.innerHTML = pending.map(quote => `
+    <button type="button" class="kanban-card" style="width:100%; text-align:left; cursor:pointer;" onclick="showQuoteDetails(${quote.id})">
+      <strong>${escapeHtml(quote.cliente_nombre)}</strong>
+      <span style="display:block; font-size:12px; color:var(--text-light); margin-top:4px;">Folio: ${escapeHtml(quote.folio_cotizacion || '-')}</span>
+      <span style="display:block; font-size:12px; color:var(--text-light); margin-top:4px;">Asesor: ${escapeHtml(quote.asesor_nombre || '-')}</span>
+      <span style="display:block; margin-top:8px; color:var(--warning); font-weight:700;">Requiere autorización</span>
+    </button>
+  `).join('');
+}
+
 function getVisibleKanbanQuotesByStatus(status) {
   return lastRenderedKanbanQuotes.filter(q => {
     let quoteStatus = q.estatus;
-    if (quoteStatus === 'Pendiente' || quoteStatus === 'Pendiente Autorización') return false;
+    if (quoteStatus === 'Borrador' || quoteStatus === 'Pendiente' || quoteStatus === 'Pendiente Autorización') return false;
     return quoteStatus === status;
   });
 }
@@ -1102,7 +1162,6 @@ function getSelectedKanbanQuotes(status = null) {
 
 function updateKanbanSelectionControls() {
   const columnConfig = {
-    Borrador: 'prospecto',
     Autorizada: 'cotizado',
     Vendido: 'cobrado',
     Entregado: 'entregado'
@@ -1185,9 +1244,11 @@ window.filterAndRenderKanban = function() {
   const advisorId = advisorSelect ? advisorSelect.value : 'ALL';
   
   let filtered = allQuotes;
+  let filteredProspects = allProspects;
   
   if (advisorId && advisorId !== 'ALL') {
     filtered = filtered.filter(q => q.asesor_id === Number(advisorId));
+    filteredProspects = filteredProspects.filter(p => p.asesor_id === Number(advisorId));
   }
   
   if (term) {
@@ -1197,9 +1258,13 @@ window.filterAndRenderKanban = function() {
       q.asesor_nombre.toLowerCase().includes(term) ||
       q.items.some(i => i.producto_nombre.toLowerCase().includes(term))
     );
+    filteredProspects = filteredProspects.filter(p =>
+      p.cliente_nombre.toLowerCase().includes(term) ||
+      p.asesor_nombre.toLowerCase().includes(term)
+    );
   }
   
-  renderKanbanBoard(filtered);
+  renderKanbanBoard(filtered, filteredProspects);
 };
 
 // Search Filter on Kanban Board
@@ -1331,11 +1396,12 @@ window.showQuoteDetails = async function(quoteId) {
     // 4. Handle buttons visibility (Authorize, Edit, Delete)
     const isBorrador = quote.estatus === 'Borrador' || quote.estatus === 'Pendiente Autorización' || quote.estatus === 'Pendiente';
     const hasAdminOrCoordPermission = user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador';
+    const hasAdminAuthorizationPermission = user.nivel_rol === 'Administrador';
     const isOwner = quote.asesor_id === user.id;
 
-    // Authorize button: only Admin or Coordinator for Draft quotes
+    // Only an administrator can authorize a pending quotation.
     const authBtn = document.getElementById('btn-authorize-quote');
-    if (isBorrador && hasAdminOrCoordPermission) {
+    if (isBorrador && hasAdminAuthorizationPermission) {
       authBtn.style.display = 'inline-flex';
       authBtn.onclick = async () => {
         if (confirm(`¿Está seguro que desea autorizar la cotización con Folio ${quote.folio_cotizacion}?`)) {
@@ -1913,7 +1979,17 @@ function getQuotePayload() {
     }
   });
   
-  return { client_id, cliente_id: client_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas };
+  return {
+    client_id,
+    cliente_id: client_id,
+    ciclo_agricola,
+    condiciones_pago,
+    temporada_id,
+    items,
+    financiera,
+    notas,
+    prospecto_id: activeProspectId || undefined
+  };
 }
 
 // Debounced recalculation of quote
@@ -2201,6 +2277,7 @@ document.getElementById('quotation-form').addEventListener('submit', async (e) =
     document.getElementById('quotation-form').reset();
     document.getElementById('items-builder-container').innerHTML = '';
     quoteItemsCount = 0;
+    activeProspectId = null;
     addQuoteItemRow();
     switchView('dashboard-view', 'Tablero General');
   } catch (err) {
@@ -3112,11 +3189,7 @@ async function loadWeeklySchedule() {
         card.style.cursor = 'pointer';
         card.addEventListener('click', (e) => {
           if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
-          if (p.realizada === 3) {
-            reschedulePlanActivity(p);
-          } else {
-            openEditPlanModal(p);
-          }
+          openEditPlanModal(p);
         });
         
         let statusBadge = '';
@@ -3142,7 +3215,7 @@ async function loadWeeklySchedule() {
         } else if (p.realizada === 3 && canManageOwnPlan) {
           actions = `
             <div style="display: flex; gap: 8px; margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 8px; justify-content: flex-end;">
-              <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--accent); color: var(--accent);" onclick="reschedulePlanActivity(${p.id})">🔄 Reagendar</button>
+              <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--accent); color: var(--accent);" onclick="openEditPlanModal(currentPlanList.find(plan => plan.id === ${p.id}))">📋 Prospecto</button>
               ${isAdmin ? `<button class="btn btn-secondary" title="Eliminar actividad" aria-label="Eliminar actividad" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto; border-color: var(--danger); color: var(--danger);" onclick="deletePlanActivity(${p.id})">🗑️</button>` : ''}
             </div>
           `;
@@ -3442,7 +3515,7 @@ window.openEditPlanModal = function(p) {
   const submitBtn = document.getElementById('plan-submit-btn');
   const convertBtn = document.getElementById('btn-convert-to-prospect');
   
-  const isConcluded = p.realizada === 1 || p.realizada === 2;
+  const isReadOnly = p.realizada !== 0;
   
   if (modalTitle) {
     if (p.realizada === 1) {
@@ -3455,22 +3528,50 @@ window.openEditPlanModal = function(p) {
   }
   
   if (submitBtn) {
-    submitBtn.style.display = isConcluded ? 'none' : 'inline-block';
+    submitBtn.style.display = isReadOnly ? 'none' : 'inline-block';
     submitBtn.textContent = 'Guardar Cambios';
   }
   
-  if (convertBtn) {
-    convertBtn.style.display = p.realizada === 0 ? 'inline-block' : 'none';
-  }
+  if (convertBtn) configureProspectConversionButton(p);
   
   // Disable fields if the visit has already been concluded
   const form = document.getElementById('add-plan-form');
   form.querySelectorAll('.form-input').forEach(input => {
-    input.disabled = isConcluded;
+    input.disabled = isReadOnly;
   });
   
   openModal('add-plan-modal');
 };
+
+async function configureProspectConversionButton(plan) {
+  const button = document.getElementById('btn-convert-to-prospect');
+  if (!button) return;
+
+  const canConvert = user?.nivel_rol === 'Asesor' && [1, 3].includes(Number(plan.realizada));
+  button.style.display = canConvert ? 'inline-block' : 'none';
+  button.disabled = true;
+  button.textContent = '📋 Pasar a Prospecto';
+  button.title = 'Responde al menos una encuesta activa para habilitar esta acción.';
+  if (!canConvert) return;
+
+  try {
+    const res = await fetch(`${API_URL}/api/planificacion/${plan.id}/prospecto-elegibilidad`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible validar las encuestas');
+    if (data.prospect) {
+      button.style.display = 'none';
+      return;
+    }
+    button.disabled = !data.eligible;
+    button.title = data.eligible
+      ? 'Pasar esta visita al Canal de Ventas como prospecto.'
+      : 'Responde al menos una encuesta de las etapas activas antes de continuar.';
+  } catch (err) {
+    console.error(err);
+    button.disabled = true;
+    button.title = 'No fue posible validar las encuestas.';
+  }
+}
 
 document.getElementById('add-plan-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -3530,12 +3631,12 @@ if (convertBtn) {
     const id = document.getElementById('plan-form-id').value;
     if (!id) return;
     
-    if (!confirm('¿Estás seguro de que deseas enviar esta planificación al Canva como Prospecto? Se marcará como concluida en tu agenda y se creará una cotización en borrador.')) {
+    if (!confirm('¿Pasar esta visita a prospecto? Se enviará al Canal de Ventas sin generar una cotización.')) {
       return;
     }
     
     try {
-      const res = await fetch(`${API_URL}/api/planificacion/${id}/convertir-cotizacion`, {
+      const res = await fetch(`${API_URL}/api/planificacion/${id}/convertir-prospecto`, {
         method: 'POST',
         headers: getHeaders()
       });
@@ -3544,8 +3645,8 @@ if (convertBtn) {
       if (!res.ok) throw new Error(data.error || 'Failed to convert plan');
       
       closeModal('add-plan-modal');
-      await loadWeeklySchedule();
-      alert('Se ha enviado exitosamente al Canva en el Canal de Ventas como Prospecto.');
+      await Promise.all([loadWeeklySchedule(), loadCRMBoardData(), loadDashboardData()]);
+      alert('La visita se convirtió en prospecto. Ya puedes abrirlo desde Canal de Ventas para cotizarlo.');
     } catch (err) {
       alert(err.message);
     }
@@ -3595,6 +3696,10 @@ document.getElementById('complete-plan-form').addEventListener('submit', async (
     
     closeModal('complete-plan-modal');
     await Promise.all([loadWeeklySchedule(), loadDashboardData()]);
+    if (statusVal === 1) {
+      const completedPlan = currentPlanList.find(plan => Number(plan.id) === Number(id));
+      if (completedPlan) window.openEditPlanModal(completedPlan);
+    }
     alert(statusVal === 1 ? 'Visita cerrada y registrada en bitácora CRM' : 'Visita cancelada');
   } catch (err) {
     alert(err.message);
@@ -3607,30 +3712,7 @@ window.reschedulePlanActivity = function(p) {
   }
   if (!p) return;
   
-  document.getElementById('add-plan-form').reset();
-  document.getElementById('plan-form-id').value = '';
-  activePlanModalPlan = null;
-  
-  document.getElementById('plan-client-search').value = p.cliente_nombre || '';
-  setPlanClientSelection(p.cliente_id, p.cliente_nombre);
-  document.getElementById('plan-date').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('plan-objective').value = `[Reagenda] ${p.objetivo_visita || ''}`.replace('[Reagenda] [Reagenda]', '[Reagenda]');
-  document.getElementById('plan-forecast-bags').value = p.pronostico_bolsas || 0;
-  document.getElementById('plan-forecast-amount').value = p.pronostico_monto_mxn || 0.0;
-  document.querySelectorAll('#add-plan-form .form-input').forEach(input => {
-    input.disabled = false;
-  });
-  
-  const modalTitle = document.getElementById('plan-modal-title');
-  if (modalTitle) modalTitle.textContent = 'Reagendar Visita';
-  
-  const submitBtn = document.getElementById('plan-submit-btn');
-  if (submitBtn) submitBtn.textContent = 'Reagendar Actividad';
-  
-  const convertBtn = document.getElementById('btn-convert-to-prospect');
-  if (convertBtn) convertBtn.style.display = 'none';
-  
-  openModal('add-plan-modal');
+  window.openEditPlanModal(p);
 };
 
 window.deletePlanActivity = async function(id) {
@@ -4303,11 +4385,7 @@ function bindStageReportButtons(container) {
       event.preventDefault();
       const planId = Number(button.dataset.stagePlanId);
       const stageCode = button.dataset.stageCode;
-      if (stageCode === 'V') {
-        await window.openStageCotizador(planId, stageCode);
-      } else {
-        window.openStageReportModal(planId, stageCode);
-      }
+      window.openStageReportModal(planId, stageCode);
     });
   });
 }
@@ -4354,8 +4432,7 @@ window.openStageReportModal = function(planId, stageCode, clientName) {
   document.getElementById('stage-report-dv-dr-fields').style.display = ['DV', 'DR'].includes(stageCode) ? 'block' : 'none';
   document.getElementById('stage-report-c-fields').style.display = stageCode === 'C' ? 'block' : 'none';
   if (stageCode === 'V') {
-    document.getElementById('stage-report-cotizador-action').style.display = 'flex';
-    document.getElementById('stage-report-hint').textContent = 'La etapa Venta abre directamente el cotizador con el agricultor precargado.';
+    document.getElementById('stage-report-hint').textContent = 'Guarda este reporte de venta para habilitar el paso de la visita a prospecto.';
   }
   openModal('stage-report-modal');
 };
@@ -4391,7 +4468,10 @@ window.submitStageReport = async function() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to save stage report');
     closeModal('stage-report-modal');
-    alert('Reporte guardado correctamente en la bitácora CRM.');
+    await loadWeeklySchedule();
+    const refreshedPlan = currentPlanList.find(plan => Number(plan.id) === Number(payload.planificacion_id));
+    if (refreshedPlan) window.openEditPlanModal(refreshedPlan);
+    alert('Reporte guardado correctamente. Ya puedes pasar la visita a prospecto.');
   } catch (err) {
     alert(err.message);
   }
@@ -4434,6 +4514,31 @@ window.openStageCotizador = async function(planId, stageCode, clientName) {
   }
 };
 
+window.openProspectInCotizador = async function(prospectId) {
+  const prospect = allProspects.find(item => Number(item.id) === Number(prospectId));
+  if (!prospect) {
+    alert('No se encontró el prospecto. Actualiza el Canal de Ventas e inténtalo de nuevo.');
+    return;
+  }
+
+  activeProspectId = prospect.id;
+  preserveProspectQuoteContext = true;
+  try {
+    switchView('cotizador-view', 'Cotizador');
+    await loadCotizadorConfig();
+  } finally {
+    preserveProspectQuoteContext = false;
+  }
+
+  const clientSelect = document.getElementById('quote-client');
+  if (clientSelect) {
+    clientSelect.value = String(prospect.cliente_id);
+    clientSelect.dispatchEvent(new Event('change'));
+  }
+  const notes = document.getElementById('quote-notas');
+  if (notes) notes.value = `Cotización originada desde el prospecto de ${prospect.cliente_nombre}.`;
+};
+
 function countWords(value) {
   if (typeof value !== 'string') return 0;
   return value.trim().split(/\s+/).filter(Boolean).length;
@@ -4459,8 +4564,8 @@ function bindStageReportFormEvents() {
       if (!showDescription) {
         description.value = '';
       }
-      cotizadorAction.style.display = showDescription ? 'flex' : 'none';
-      hint.textContent = showDescription ? 'Registre la situación detectada y luego abra el cotizador.' : 'Guarde el reporte sin requerir descripción adicional.';
+      cotizadorAction.style.display = 'none';
+      hint.textContent = showDescription ? 'Registre la situación detectada y guarde el reporte.' : 'Guarde el reporte sin requerir descripción adicional.';
     });
   });
   const form = document.getElementById('stage-report-form');

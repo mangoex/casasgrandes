@@ -226,21 +226,27 @@
               </select>
             </div>
             <div style="display: flex; gap: 12px;">
-              <button id="btn-open-client-modal" class="btn btn-secondary" style="width: auto;">👤 Registrar Cliente</button>
+              <button id="btn-open-client-modal" class="btn btn-secondary admin-or-coordinator-only" style="width: auto; display: none;">👤 Registrar Cliente</button>
             </div>
           </div>
+
+          <section id="pending-quote-authorizations" class="admin-only" style="display:none; margin: 16px 0 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+              <h3 style="margin:0; font-size:16px;">Cotizaciones pendientes de autorización</h3>
+              <span id="pending-quote-count" class="badge badge-warning">0</span>
+            </div>
+            <div id="pending-quote-list" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:10px; margin-top:10px;"></div>
+          </section>
 
           <!-- Trello-style Kanban Pipeline -->
           <div class="kanban-board">
             <!-- Column 1: Prospecto -->
-            <div class="kanban-column" id="col-prospecto" ondragover="allowDrop(event)" ondrop="drop(event, 'Borrador')">
+            <div class="kanban-column" id="col-prospecto">
               <div class="kanban-column-header">
                 <div class="kanban-column-heading">
-                  <input type="checkbox" id="kanban-select-all-prospecto" class="kanban-select-all" title="Seleccionar todos en Prospecto" aria-label="Seleccionar todos en Prospecto" onchange="toggleKanbanColumnSelection('Borrador', this.checked)">
-                  <span class="kanban-column-title">Prospecto (Borrador)</span>
+                  <span class="kanban-column-title">Prospecto</span>
                 </div>
                 <div class="kanban-column-actions">
-                  <button class="kanban-delete-selected" title="Borrar seleccionados" aria-label="Borrar seleccionados" onclick="deleteSelectedKanbanQuotes('Borrador')">🗑️</button>
                   <span class="kanban-column-count" id="count-prospecto">0</span>
                 </div>
               </div>

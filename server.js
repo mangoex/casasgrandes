@@ -188,7 +188,9 @@ app.post('/api/clientes', authenticateToken, async (req, res) => {
     const existing = await db.get('SELECT id FROM clientes WHERE nombre = ?', [nombre.trim()]);
     if (existing) return res.status(400).json({ error: 'A client with this name already exists' });
     
-    const assignedAsesor = (asesor_id === null || asesor_id === '') ? null : (asesor_id || req.user.id);
+    const assignedAsesor = req.user.nivel_rol === 'Asesor'
+      ? req.user.id
+      : ((asesor_id === null || asesor_id === '') ? null : (asesor_id || req.user.id));
     const ccId = cuenta_clave_id || 1; // Default: General / None
     
     const result = await db.run(`
@@ -222,7 +224,7 @@ app.put('/api/clientes/:id', authenticateToken, async (req, res) => {
       WHERE id = ?
     `, [
       nombre || client.nombre,
-      asesor_id !== undefined ? (asesor_id === '' ? null : asesor_id) : client.asesor_id,
+      req.user.nivel_rol === 'Asesor' ? req.user.id : (asesor_id !== undefined ? (asesor_id === '' ? null : asesor_id) : client.asesor_id),
       cuenta_clave_id || client.cuenta_clave_id,
       contacto !== undefined ? contacto : client.contacto,
       telefono !== undefined ? telefono : client.telefono,
@@ -298,8 +300,11 @@ app.post('/api/clientes/bulk-delete', authenticateToken, async (req, res) => {
 app.get('/api/clientes/:id/visitas', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
-    const client = await db.get('SELECT id FROM clientes WHERE id = ? AND activo = 1', [id]);
+    const client = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to view this client history' });
+    }
 
     const visits = await db.all(`
       SELECT v.*, a.nombre as asesor_nombre
@@ -340,8 +345,11 @@ app.post('/api/clientes/:id/visitas', authenticateToken, async (req, res) => {
   if (!comentarios_bitacora) return res.status(400).json({ error: 'Comentarios are required' });
   
   try {
-    const client = await db.get('SELECT id FROM clientes WHERE id = ? AND activo = 1', [id]);
+    const client = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to register a visit for this client' });
+    }
     
     const now = new Date().toISOString().slice(0, 10);
     await db.run(`
@@ -824,6 +832,9 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
   try {
     const client = await db.get('SELECT * FROM clientes WHERE id = ?', [cliente_id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'No puedes cotizar para un cliente asignado a otro asesor.' });
+    }
     
     // Determine key account tier and season
     const ccId = cuenta_clave_id || client.cuenta_clave_id || 1;
@@ -901,7 +912,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
 
 // CREATE QUOTATION / ORDER
 app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
-  const { cliente_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas } = req.body;
+  const { cliente_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas, prospecto_id } = req.body;
   
   if (!cliente_id || !ciclo_agricola || !condiciones_pago || !items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Missing required header or items list' });
@@ -919,7 +930,22 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     let calcResData;
     
     // Manual local function call logic to compute pricing safely
-    const client = await db.get('SELECT * FROM clientes WHERE id = ?', [cliente_id]);
+    const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [cliente_id]);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to quote for this client' });
+    }
+    let prospectId = null;
+    let quoteAdvisorId = req.user.id;
+    if (prospecto_id !== undefined && prospecto_id !== null) {
+      const prospect = await db.get('SELECT * FROM crm_prospectos WHERE id = ?', [Number(prospecto_id)]);
+      if (!prospect || prospect.cliente_id !== Number(cliente_id) || prospect.estado !== 'Prospecto'
+        || (req.user.nivel_rol === 'Asesor' && prospect.asesor_id !== req.user.id)) {
+        return res.status(400).json({ error: 'El prospecto seleccionado no está disponible para cotizar.' });
+      }
+      prospectId = prospect.id;
+      quoteAdvisorId = prospect.asesor_id;
+    }
     const ccId = client.cuenta_clave_id || 1;
     const keyAccount = await db.get('SELECT * FROM cuentas_clave WHERE id = ?', [ccId]);
     const keyAccountDesc = keyAccount ? keyAccount.descuento_mxn : 0.0;
@@ -973,9 +999,9 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     const defaultStatus = 'Pendiente';
     
     const result = await db.run(`
-      INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [now, cliente_id, req.user.id, ciclo_agricola, condiciones_pago, prefix, mesShort, defaultStatus, grandTotal, anticipoApartado, notas, financiera || null]);
+      INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera, prospecto_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [now, cliente_id, quoteAdvisorId, ciclo_agricola, condiciones_pago, prefix, mesShort, defaultStatus, grandTotal, anticipoApartado, notas, financiera || null, prospectId]);
     
     const cotId = result.id;
     
@@ -984,6 +1010,10 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
         INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
         VALUES (?, ?, ?, ?, 0, ?, ?, ?)
       `, [cotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
+    }
+
+    if (prospectId) {
+      await db.run("UPDATE crm_prospectos SET estado = 'En cotización', cotizacion_id = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?", [cotId, prospectId]);
     }
     
     res.status(201).json({ id: cotId, folio: prefix, total_mxn: grandTotal, status: defaultStatus, message: 'Quotation submitted successfully' });
@@ -1042,6 +1072,21 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
     if (req.user.nivel_rol === 'Asesor' && q.asesor_id !== req.user.id) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
+    if (req.user.nivel_rol !== 'Administrador') {
+      return res.status(403).json({ error: 'Solo un administrador puede autorizar o mover una cotización en el canal de ventas.' });
+    }
+
+    const allowedTransitions = {
+      'Borrador': ['Autorizada'],
+      'Pendiente': ['Autorizada'],
+      'Pendiente Autorización': ['Autorizada'],
+      'Autorizada': ['Vendido'],
+      'Vendido': ['Autorizada', 'Entregado'],
+      'Entregado': ['Vendido']
+    };
+    if (!allowedTransitions[q.estatus]?.includes(estatus)) {
+      return res.status(400).json({ error: 'El movimiento solicitado no es válido para el estatus actual de la cotización.' });
+    }
     
     // Check if stock is currently deducted (indicated by a Salida movement for this quote)
     const stockDeducted = await db.get(
@@ -1095,6 +1140,9 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
     }
     
     await db.run('UPDATE cotizaciones SET estatus = ? WHERE id = ?', [estatus, id]);
+    if (estatus === 'Autorizada' && q.prospecto_id) {
+      await db.run("UPDATE crm_prospectos SET estado = 'Convertido', actualizado_en = CURRENT_TIMESTAMP WHERE id = ?", [q.prospecto_id]);
+    }
     
     res.json({ message: 'Quotation status updated successfully' });
   } catch (err) {
@@ -1116,6 +1164,9 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       if (q.asesor_id !== req.user.id) {
         return res.status(403).json({ error: 'Unauthorized to delete this quote' });
       }
+      if (!['Borrador', 'Pendiente', 'Pendiente Autorización'].includes(q.estatus)) {
+        return res.status(403).json({ error: 'Un asesor solo puede eliminar sus cotizaciones pendientes de autorización.' });
+      }
     }
     
     client = await db.pool.connect();
@@ -1123,6 +1174,9 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
 
     // The warehouse rows reference the quotation and must be removed before its header.
     await client.query('DELETE FROM almacen_movimientos WHERE cotizacion_id = $1', [id]);
+    if (q.prospecto_id) {
+      await client.query("UPDATE crm_prospectos SET estado = 'Prospecto', cotizacion_id = NULL, actualizado_en = CURRENT_TIMESTAMP WHERE id = $1", [q.prospecto_id]);
+    }
     await client.query('DELETE FROM cotizaciones WHERE id = $1', [id]);
 
     // Rebuild the running stock from the movements that remain in the warehouse.
@@ -1171,6 +1225,9 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
     
     if (req.user.nivel_rol === 'Asesor' && q.asesor_id !== req.user.id) {
       return res.status(403).json({ error: 'Unauthorized to edit this quote' });
+    }
+    if (req.user.nivel_rol === 'Asesor' && !['Borrador', 'Pendiente', 'Pendiente Autorización'].includes(q.estatus)) {
+      return res.status(403).json({ error: 'Solo puedes editar tus cotizaciones pendientes de autorización.' });
     }
     
     // Step 1: Revert stock if currently deducted
@@ -1588,7 +1645,12 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
       WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'
       ORDER BY sales_total DESC, a.nombre ASC
     `;
-    const performance = await db.all(performanceSql, [ciclo, ciclo]);
+    const performanceParams = [ciclo, ciclo];
+    const scopedPerformanceSql = req.user.nivel_rol === 'Asesor'
+      ? performanceSql.replace("WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'", "WHERE a.activo = 1 AND a.nivel_rol = 'Asesor' AND a.id = ?")
+      : performanceSql;
+    if (req.user.nivel_rol === 'Asesor') performanceParams.push(req.user.id);
+    const performance = await db.all(scopedPerformanceSql, performanceParams);
 
     // Backward compatible
     let visitsSql = `
@@ -1998,6 +2060,24 @@ function getLocalISODate() {
   return localDate.toISOString().slice(0, 10);
 }
 
+async function getPlanProspectEligibility(plan) {
+  const stageRows = await db.all('SELECT clave, fecha_inicio, fecha_fin FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
+  const activeStageCodes = getActiveStageCodesForDate(stageRows, plan.fecha_programada);
+  const reports = activeStageCodes.length
+    ? await db.all(
+      `SELECT etapa_clave FROM crm_reportes_etapa
+       WHERE planificacion_id = ? AND etapa_clave IN (${activeStageCodes.map(() => '?').join(', ')})`,
+      [plan.id, ...activeStageCodes]
+    )
+    : [];
+  const answeredStageCodes = [...new Set(reports.map(report => String(report.etapa_clave || '').trim().toUpperCase()))];
+  return {
+    activeStageCodes,
+    answeredStageCodes,
+    eligible: answeredStageCodes.length > 0
+  };
+}
+
 app.get('/api/planificacion', authenticateToken, async (req, res) => {
   const { fecha_inicio, fecha_fin, asesor_id } = req.query;
   try {
@@ -2081,6 +2161,14 @@ app.post('/api/planificacion', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'El asesor seleccionado no está activo.' });
     }
 
+    const client = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [cliente_id]);
+    if (!client) {
+      return res.status(404).json({ error: 'El agricultor seleccionado no existe o está inactivo.' });
+    }
+    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Solo puedes programar actividades para tus propios agricultores.' });
+    }
+
     const result = await db.run(`
       INSERT INTO planificacion_semanal (asesor_id, cliente_id, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, realizada)
       VALUES (?, ?, ?, ?, ?, ?, 0)
@@ -2113,6 +2201,15 @@ app.put('/api/planificacion/:id', authenticateToken, async (req, res) => {
     
     if (plan.realizada === 3) {
       return res.status(400).json({ error: 'No se puede modificar una planificación vencida.' });
+    }
+
+    const selectedClientId = cliente_id !== undefined ? Number(cliente_id) : plan.cliente_id;
+    const selectedClient = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [selectedClientId]);
+    if (!selectedClient) {
+      return res.status(404).json({ error: 'El agricultor seleccionado no existe o está inactivo.' });
+    }
+    if (req.user.nivel_rol === 'Asesor' && selectedClient.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Solo puedes usar agricultores asignados a tu cuenta.' });
     }
 
     let assignedAdvisorId = plan.asesor_id;
@@ -2173,6 +2270,8 @@ app.put('/api/planificacion/:id', authenticateToken, async (req, res) => {
 
 app.post('/api/planificacion/:id/convertir-cotizacion', authenticateToken, async (req, res) => {
   const { id } = req.params;
+  return res.status(410).json({ error: 'Las visitas ahora deben convertirse primero en prospectos y cotizarse desde el Cotizador.' });
+  /* Legacy automatic quotation flow retained below only for migration reference.
   try {
     const plan = await db.get('SELECT * FROM planificacion_semanal WHERE id = ?', [id]);
     if (!plan) return res.status(404).json({ error: 'Planning not found' });
@@ -2221,6 +2320,73 @@ app.post('/api/planificacion/:id/convertir-cotizacion', authenticateToken, async
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to convert plan' });
+  }
+  */
+});
+
+app.get('/api/planificacion/:id/prospecto-elegibilidad', authenticateToken, async (req, res) => {
+  try {
+    const plan = await db.get('SELECT * FROM planificacion_semanal WHERE id = ?', [Number(req.params.id)]);
+    if (!plan) return res.status(404).json({ error: 'Planning not found' });
+    if (req.user.nivel_rol === 'Asesor' && plan.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to view this planning activity' });
+    }
+    const eligibility = await getPlanProspectEligibility(plan);
+    const prospect = await db.get('SELECT id, estado FROM crm_prospectos WHERE planificacion_id = ?', [plan.id]);
+    res.json({ ...eligibility, prospect });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to validate prospect eligibility' });
+  }
+});
+
+app.post('/api/planificacion/:id/convertir-prospecto', authenticateToken, async (req, res) => {
+  try {
+    const plan = await db.get('SELECT * FROM planificacion_semanal WHERE id = ?', [Number(req.params.id)]);
+    if (!plan) return res.status(404).json({ error: 'Planning not found' });
+    if (req.user.nivel_rol === 'Asesor' && plan.asesor_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to convert this planning activity' });
+    }
+
+    const existing = await db.get('SELECT id, estado FROM crm_prospectos WHERE planificacion_id = ?', [plan.id]);
+    if (existing) return res.json({ id: existing.id, estado: existing.estado, message: 'Prospect already exists' });
+
+    const eligibility = await getPlanProspectEligibility(plan);
+    if (!eligibility.eligible) {
+      return res.status(400).json({ error: 'Responde al menos una encuesta de las etapas activas antes de pasar la visita a prospecto.' });
+    }
+
+    const result = await db.run(`
+      INSERT INTO crm_prospectos (planificacion_id, cliente_id, asesor_id, estado)
+      VALUES (?, ?, ?, 'Prospecto')
+    `, [plan.id, plan.cliente_id, plan.asesor_id]);
+    await db.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [plan.id]);
+    res.status(201).json({ id: result.id, message: 'Plan converted to prospect successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to convert plan to prospect' });
+  }
+});
+
+app.get('/api/prospectos', authenticateToken, async (req, res) => {
+  try {
+    let query = `
+      SELECT p.*, c.nombre AS cliente_nombre, a.nombre AS asesor_nombre
+      FROM crm_prospectos p
+      JOIN clientes c ON c.id = p.cliente_id
+      JOIN asesores a ON a.id = p.asesor_id
+      WHERE p.estado = 'Prospecto'
+    `;
+    const params = [];
+    if (req.user.nivel_rol === 'Asesor') {
+      query += ' AND p.asesor_id = ?';
+      params.push(req.user.id);
+    }
+    query += ' ORDER BY p.creado_en DESC';
+    res.json(await db.all(query, params));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch prospects' });
   }
 });
 

@@ -35,6 +35,7 @@ async function initSchema() {
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cosecha REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS clave TEXT');
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS descripcion TEXT');
+    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS prospecto_id INTEGER');
     await pool.query("CREATE INDEX IF NOT EXISTS idx_productos_clave ON productos (clave) WHERE clave IS NOT NULL AND clave <> ''");
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_activos_nombre ON clientes (nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_asesor_activo_nombre ON clientes (asesor_id, nombre) WHERE activo = 1');
@@ -44,6 +45,7 @@ async function initSchema() {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizacion_detalles_cotizacion ON cotizacion_detalles (cotizacion_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_planificacion_asesor_realizada ON planificacion_semanal (asesor_id, realizada)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_planificacion_estado_fecha ON planificacion_semanal (realizada, fecha_programada)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_prospecto ON cotizaciones (prospecto_id) WHERE prospecto_id IS NOT NULL');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_metas_asesor_ciclo_activo ON metas_ventas (asesor_id, ciclo_agricola) WHERE activo = 1');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS crm_pujas (
@@ -207,6 +209,32 @@ async function initSchema() {
         UNIQUE(planificacion_id, etapa_clave)
       )
     `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_prospectos (
+        id SERIAL PRIMARY KEY,
+        planificacion_id INTEGER UNIQUE REFERENCES planificacion_semanal(id) ON DELETE SET NULL,
+        cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+        asesor_id INTEGER NOT NULL REFERENCES asesores(id),
+        estado VARCHAR(30) NOT NULL DEFAULT 'Prospecto',
+        cotizacion_id INTEGER,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'cotizaciones_prospecto_id_fkey'
+        ) THEN
+          ALTER TABLE cotizaciones
+          ADD CONSTRAINT cotizaciones_prospecto_id_fkey
+          FOREIGN KEY (prospecto_id) REFERENCES crm_prospectos(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_prospectos_asesor_estado ON crm_prospectos (asesor_id, estado)');
 
     // Create crm_precios_mensuales table
     await pool.query(`
