@@ -36,6 +36,13 @@ async function initSchema() {
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS clave TEXT');
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS descripcion TEXT');
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS prospecto_id INTEGER');
+    await pool.query('ALTER TABLE cuentas_clave ADD COLUMN IF NOT EXISTS descripcion TEXT');
+    for (const tierName of ['Adquirir', 'Desarrollar', 'Retener', 'Retener GOLD']) {
+      await pool.query(
+        'INSERT INTO cuentas_clave (tier_name, descripcion, descuento_mxn) SELECT $1, NULL, 0 WHERE NOT EXISTS (SELECT 1 FROM cuentas_clave WHERE LOWER(tier_name) = LOWER($1))',
+        [tierName]
+      );
+    }
     await pool.query("CREATE INDEX IF NOT EXISTS idx_productos_clave ON productos (clave) WHERE clave IS NOT NULL AND clave <> ''");
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_activos_nombre ON clientes (nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_asesor_activo_nombre ON clientes (asesor_id, nombre) WHERE activo = 1');

@@ -122,7 +122,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // -------------------------------------------------------------
 
 app.get('/api/clientes', authenticateToken, async (req, res) => {
-  const { asesor_id, q, page, limit } = req.query;
+  const { asesor_id, cuenta_clave_id, q, page, limit } = req.query;
   try {
     const usesPagination = page !== undefined || limit !== undefined || q !== undefined;
     const requestedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
@@ -137,6 +137,11 @@ app.get('/api/clientes', authenticateToken, async (req, res) => {
     } else if (asesor_id) {
       whereSql += ' AND c.asesor_id = ?';
       params.push(asesor_id);
+    }
+
+    if (cuenta_clave_id && cuenta_clave_id !== 'ALL') {
+      whereSql += ' AND c.cuenta_clave_id = ?';
+      params.push(Number(cuenta_clave_id));
     }
 
     const search = String(q || '').trim();
@@ -588,6 +593,75 @@ app.get('/api/cuentas-clave', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch key account tiers' });
+  }
+});
+
+app.post('/api/cuentas-clave', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Solo un administrador puede crear cuentas clave.' });
+  }
+  const nombre = String(req.body.nombre || '').trim();
+  const descripcion = String(req.body.descripcion || '').trim();
+  const descuento = Number(req.body.descuento_mxn) || 0;
+  if (!nombre) return res.status(400).json({ error: 'El nombre de la cuenta clave es obligatorio.' });
+  if (descuento < 0) return res.status(400).json({ error: 'El descuento no puede ser negativo.' });
+  try {
+    const existing = await db.get('SELECT id FROM cuentas_clave WHERE LOWER(tier_name) = LOWER(?)', [nombre]);
+    if (existing) return res.status(409).json({ error: 'Ya existe una cuenta clave con ese nombre.' });
+    const result = await db.run(
+      'INSERT INTO cuentas_clave (tier_name, descripcion, descuento_mxn) VALUES (?, ?, ?)',
+      [nombre, descripcion || null, descuento]
+    );
+    res.status(201).json({ id: result.id, message: 'Cuenta clave creada correctamente.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible crear la cuenta clave.' });
+  }
+});
+
+app.put('/api/cuentas-clave/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Solo un administrador puede modificar cuentas clave.' });
+  }
+  const id = Number(req.params.id);
+  const nombre = String(req.body.nombre || '').trim();
+  const descripcion = String(req.body.descripcion || '').trim();
+  const descuento = Number(req.body.descuento_mxn) || 0;
+  if (!nombre) return res.status(400).json({ error: 'El nombre de la cuenta clave es obligatorio.' });
+  if (descuento < 0) return res.status(400).json({ error: 'El descuento no puede ser negativo.' });
+  try {
+    const tier = await db.get('SELECT id FROM cuentas_clave WHERE id = ?', [id]);
+    if (!tier) return res.status(404).json({ error: 'Cuenta clave no encontrada.' });
+    const duplicate = await db.get('SELECT id FROM cuentas_clave WHERE LOWER(tier_name) = LOWER(?) AND id <> ?', [nombre, id]);
+    if (duplicate) return res.status(409).json({ error: 'Ya existe una cuenta clave con ese nombre.' });
+    await db.run(
+      'UPDATE cuentas_clave SET tier_name = ?, descripcion = ?, descuento_mxn = ? WHERE id = ?',
+      [nombre, descripcion || null, descuento, id]
+    );
+    res.json({ message: 'Cuenta clave actualizada correctamente.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible actualizar la cuenta clave.' });
+  }
+});
+
+app.delete('/api/cuentas-clave/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Solo un administrador puede eliminar cuentas clave.' });
+  }
+  const id = Number(req.params.id);
+  try {
+    const tier = await db.get('SELECT id FROM cuentas_clave WHERE id = ?', [id]);
+    if (!tier) return res.status(404).json({ error: 'Cuenta clave no encontrada.' });
+    const linkedClients = await db.get('SELECT COUNT(*)::int AS total FROM clientes WHERE cuenta_clave_id = ?', [id]);
+    if (Number(linkedClients?.total) > 0) {
+      return res.status(409).json({ error: 'No se puede eliminar porque hay agricultores asignados a esta cuenta clave.' });
+    }
+    await db.run('DELETE FROM cuentas_clave WHERE id = ?', [id]);
+    res.json({ message: 'Cuenta clave eliminada correctamente.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible eliminar la cuenta clave.' });
   }
 });
 

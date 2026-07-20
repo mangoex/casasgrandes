@@ -2609,6 +2609,7 @@ document.getElementById('produccion-uan-form').addEventListener('submit', async 
 let adminActiveTab = 'asesores';
 let allAdminAsesores = [];
 let allAdminProductos = [];
+let allAdminKeyAccounts = [];
 
 // Tab switching
 if (document.getElementById('tab-admin-asesores')) {
@@ -2616,6 +2617,7 @@ if (document.getElementById('tab-admin-asesores')) {
   document.getElementById('tab-admin-productos').addEventListener('click', () => switchAdminTab('productos'));
   document.getElementById('tab-admin-metas').addEventListener('click', () => switchAdminTab('metas'));
   document.getElementById('tab-admin-ciclos').addEventListener('click', () => switchAdminTab('ciclos'));
+  document.getElementById('tab-admin-cuentas').addEventListener('click', () => switchAdminTab('cuentas'));
   document.getElementById('tab-admin-mantenimiento').addEventListener('click', () => switchAdminTab('mantenimiento'));
 }
 
@@ -2625,10 +2627,12 @@ function switchAdminTab(tabName) {
   document.getElementById('tab-admin-productos').classList.remove('active');
   document.getElementById('tab-admin-metas').classList.remove('active');
   document.getElementById('tab-admin-ciclos').classList.remove('active');
+  document.getElementById('tab-admin-cuentas').classList.remove('active');
   document.getElementById('panel-admin-asesores').style.display = 'none';
   document.getElementById('panel-admin-productos').style.display = 'none';
   document.getElementById('panel-admin-metas').style.display = 'none';
   document.getElementById('panel-admin-ciclos').style.display = 'none';
+  document.getElementById('panel-admin-cuentas').style.display = 'none';
   document.getElementById('panel-admin-mantenimiento').style.display = 'none';
   
   document.getElementById(`tab-admin-${tabName}`).classList.add('active');
@@ -2646,8 +2650,97 @@ async function loadAdminData() {
     await loadAdminMetas();
   } else if (adminActiveTab === 'ciclos') {
     await loadAdminCiclos();
+  } else if (adminActiveTab === 'cuentas') {
+    await loadAdminKeyAccounts();
   }
 }
+
+async function loadAdminKeyAccounts() {
+  const tbody = document.getElementById('admin-cuentas-clave-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-light);">Cargando cuentas clave...</td></tr>';
+  try {
+    const res = await fetch(`${API_URL}/api/cuentas-clave`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data)) throw new Error(data.error || 'No fue posible cargar las cuentas clave');
+    allAdminKeyAccounts = data;
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-light);">No hay cuentas clave registradas.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(account => `
+      <tr>
+        <td><strong>${escapeHtml(account.tier_name)}</strong></td>
+        <td>${escapeHtml(account.descripcion || '-')}</td>
+        <td style="text-align:right; font-weight:600;">$${Number(account.descuento_mxn || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+        <td>
+          <button class="btn btn-secondary" style="width:auto; padding:4px 8px; font-size:12px; margin:0;" onclick="openEditCuentaClaveModal(${account.id})">Editar</button>
+          <button class="btn btn-secondary" style="width:auto; padding:4px 8px; font-size:12px; margin-left:8px; border-color:var(--danger); color:var(--danger);" onclick="deleteCuentaClave(${account.id})">Eliminar</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Error: ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+document.getElementById('btn-open-cuenta-clave-modal')?.addEventListener('click', () => {
+  document.getElementById('add-cuenta-clave-form').reset();
+  document.getElementById('cuenta-clave-id').value = '';
+  document.getElementById('cuenta-clave-descuento').value = '0';
+  document.getElementById('cuenta-clave-modal-title').textContent = 'Registrar Cuenta Clave';
+  openModal('add-cuenta-clave-modal');
+});
+
+window.openEditCuentaClaveModal = function(id) {
+  const account = allAdminKeyAccounts.find(item => Number(item.id) === Number(id));
+  if (!account) return;
+  document.getElementById('cuenta-clave-id').value = account.id;
+  document.getElementById('cuenta-clave-nombre').value = account.tier_name || '';
+  document.getElementById('cuenta-clave-descripcion').value = account.descripcion || '';
+  document.getElementById('cuenta-clave-descuento').value = Number(account.descuento_mxn || 0);
+  document.getElementById('cuenta-clave-modal-title').textContent = 'Editar Cuenta Clave';
+  openModal('add-cuenta-clave-modal');
+};
+
+document.getElementById('add-cuenta-clave-form')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  const id = document.getElementById('cuenta-clave-id').value;
+  const payload = {
+    nombre: document.getElementById('cuenta-clave-nombre').value.trim(),
+    descripcion: document.getElementById('cuenta-clave-descripcion').value.trim(),
+    descuento_mxn: Number(document.getElementById('cuenta-clave-descuento').value) || 0
+  };
+  try {
+    const res = await fetch(id ? `${API_URL}/api/cuentas-clave/${id}` : `${API_URL}/api/cuentas-clave`, {
+      method: id ? 'PUT' : 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible guardar la cuenta clave');
+    closeModal('add-cuenta-clave-modal');
+    catalogKeyAccountsLoaded = false;
+    await loadAdminKeyAccounts();
+    alert('Cuenta clave guardada correctamente.');
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+window.deleteCuentaClave = async function(id) {
+  if (!confirm('¿Eliminar esta cuenta clave? Solo es posible si no tiene agricultores asignados.')) return;
+  try {
+    const res = await fetch(`${API_URL}/api/cuentas-clave/${id}`, { method: 'DELETE', headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible eliminar la cuenta clave');
+    catalogKeyAccountsLoaded = false;
+    await loadAdminKeyAccounts();
+    alert('Cuenta clave eliminada correctamente.');
+  } catch (err) {
+    alert(err.message);
+  }
+};
 
 const openProductionCleanupBtn = document.getElementById('btn-open-production-cleanup');
 if (openProductionCleanupBtn) {
@@ -4227,6 +4320,7 @@ let allCatalogClients = [];
 let selectedCatalogClientIds = new Set();
 let catalogStageStates = [];
 let catalogAdvisorsLoaded = false;
+let catalogKeyAccountsLoaded = false;
 let catalogEventsBound = false;
 let catalogSearchTimer = null;
 let catalogRequestController = null;
@@ -4665,6 +4759,11 @@ function bindCatalogClientEvents() {
     });
   }
 
+  const keyAccountFilter = document.getElementById('catalog-client-key-account-filter');
+  if (keyAccountFilter) {
+    keyAccountFilter.addEventListener('change', () => loadClientesCatalog({ page: 1 }));
+  }
+
   const selectAll = document.getElementById('catalog-select-all-clients');
   if (selectAll) {
     selectAll.addEventListener('change', () => {
@@ -4751,6 +4850,25 @@ async function loadCatalogClientAdvisorOptions() {
   }
 }
 
+async function loadCatalogKeyAccountOptions() {
+  const filterSelect = document.getElementById('catalog-client-key-account-filter');
+  if (!filterSelect || catalogKeyAccountsLoaded) return;
+  try {
+    const res = await fetch(`${API_URL}/api/cuentas-clave`, { headers: getHeaders() });
+    const accounts = await res.json();
+    if (!res.ok || !Array.isArray(accounts)) throw new Error('No fue posible cargar las cuentas clave');
+    const previousValue = filterSelect.value || 'ALL';
+    filterSelect.innerHTML = '<option value="ALL">Todas las Cuentas Clave</option>';
+    accounts.forEach(account => {
+      filterSelect.innerHTML += `<option value="${account.id}">${escapeHtml(account.tier_name)}</option>`;
+    });
+    filterSelect.value = Array.from(filterSelect.options).some(option => option.value === previousValue) ? previousValue : 'ALL';
+    catalogKeyAccountsLoaded = true;
+  } catch (err) {
+    console.error('Failed to load key-account filter options:', err);
+  }
+}
+
 function renderCatalogPagination() {
   const container = document.getElementById('catalog-pagination');
   const summary = document.getElementById('catalog-pagination-summary');
@@ -4786,15 +4904,18 @@ window.loadClientesCatalog = async function({ page = catalogPagination.page } = 
     
     const preloaders = [];
     if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') preloaders.push(loadCatalogClientAdvisorOptions());
+    preloaders.push(loadCatalogKeyAccountOptions());
     if (user.nivel_rol === 'Asesor') preloaders.push(loadCatalogStageStates());
 
     if (catalogRequestController) catalogRequestController.abort();
     catalogRequestController = new AbortController();
     const search = document.getElementById('catalog-client-search')?.value.trim() || '';
     const advisorId = document.getElementById('catalog-client-advisor-filter')?.value || 'ALL';
+    const keyAccountId = document.getElementById('catalog-client-key-account-filter')?.value || 'ALL';
     const params = new URLSearchParams({ page: String(page), limit: String(catalogPagination.limit) });
     if (search) params.set('q', search);
     if (user.nivel_rol !== 'Asesor' && advisorId !== 'ALL') params.set('asesor_id', advisorId);
+    if (keyAccountId !== 'ALL') params.set('cuenta_clave_id', keyAccountId);
 
     const [response] = await Promise.all([
       fetch(`${API_URL}/api/clientes?${params.toString()}`, { headers: getHeaders(), signal: catalogRequestController.signal }),
