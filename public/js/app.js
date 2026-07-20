@@ -1017,7 +1017,6 @@ async function loadCRMBoardData() {
     }
     
     filterAndRenderKanban();
-    renderPendingQuoteAuthorizations(allQuotes);
   } catch (err) {
     console.error('Failed to load Sales Pipeline Board:', err);
   }
@@ -1042,8 +1041,33 @@ function renderKanbanBoard(quotesList, prospectsList = []) {
   quotesList.forEach(q => {
     // Determine target column (map fallback statuses)
     let status = q.estatus;
-    if (status === 'Borrador' || status === 'Pendiente' || status === 'Pendiente Autorización') return;
     if (status === 'Cancelado') return; // Hide canceled quotes from board
+
+    const pendingAuthorization = ['Borrador', 'Pendiente', 'Pendiente Autorización'].includes(status);
+    if (pendingAuthorization) {
+      const col = columns.Borrador;
+      col.count++;
+      const card = document.createElement('div');
+      card.className = 'kanban-card';
+      card.style.cursor = 'pointer';
+      card.style.borderLeft = '4px solid var(--warning)';
+      card.addEventListener('click', () => showQuoteDetails(q.id));
+      const itemsSummary = (q.items || [])
+        .map(item => `${item.producto_nombre.split(' ')[0]} (x${item.cantidad_ordenada || item.cantidad || 0})`)
+        .join(', ') || 'Sin productos';
+      card.innerHTML = `
+        <div class="kanban-card-title"><span>${escapeHtml(q.cliente_nombre)}</span></div>
+        <div class="kanban-card-desc">${escapeHtml(itemsSummary)}</div>
+        <div style="font-size:11px; color:var(--text-light); font-weight:500;">Folio: ${escapeHtml(q.folio_cotizacion || '-')}</div>
+        <div class="kanban-card-meta">
+          <span style="font-size:11px; color:var(--text-light);">👤 ${escapeHtml((q.asesor_nombre || '').split(' ')[0])}</span>
+          <span class="kanban-card-price">$${Number(q.total_mxn || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>
+        </div>
+        <div style="margin-top:8px;"><span class="badge badge-warning">Pendiente de autorización</span></div>
+      `;
+      col.el.appendChild(card);
+      return;
+    }
     
     const col = columns[status];
     if (!col) return;
@@ -1126,29 +1150,6 @@ function renderKanbanBoard(quotesList, prospectsList = []) {
     columns[k].countEl.textContent = columns[k].count;
   });
   updateKanbanSelectionControls();
-}
-
-function renderPendingQuoteAuthorizations(quotes) {
-  const panel = document.getElementById('pending-quote-authorizations');
-  const count = document.getElementById('pending-quote-count');
-  const list = document.getElementById('pending-quote-list');
-  if (!panel || !count || !list) return;
-
-  const canAuthorize = user?.nivel_rol === 'Administrador';
-  const pending = canAuthorize
-    ? quotes.filter(quote => ['Pendiente', 'Pendiente Autorización', 'Borrador'].includes(quote.estatus))
-    : [];
-
-  panel.style.display = pending.length ? 'block' : 'none';
-  count.textContent = pending.length;
-  list.innerHTML = pending.map(quote => `
-    <button type="button" class="kanban-card" style="width:100%; text-align:left; cursor:pointer;" onclick="showQuoteDetails(${quote.id})">
-      <strong>${escapeHtml(quote.cliente_nombre)}</strong>
-      <span style="display:block; font-size:12px; color:var(--text-light); margin-top:4px;">Folio: ${escapeHtml(quote.folio_cotizacion || '-')}</span>
-      <span style="display:block; font-size:12px; color:var(--text-light); margin-top:4px;">Asesor: ${escapeHtml(quote.asesor_nombre || '-')}</span>
-      <span style="display:block; margin-top:8px; color:var(--warning); font-weight:700;">Requiere autorización</span>
-    </button>
-  `).join('');
 }
 
 function getVisibleKanbanQuotesByStatus(status) {
