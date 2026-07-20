@@ -41,7 +41,7 @@ app.use(cors((req, callback) => {
   }
   return callback(new Error('Origin not allowed by CORS'));
 }));
-app.use(express.json());
+app.use(express.json({ limit: '12mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Authentication Middleware
@@ -1152,6 +1152,83 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create quotation' });
+  }
+});
+
+async function getAttachmentQuoteAccess(quoteId, user) {
+  const quote = await db.get('SELECT id, asesor_id, condiciones_pago FROM cotizaciones WHERE id = ?', [quoteId]);
+  if (!quote) return { error: 'Cotización no encontrada.', status: 404 };
+  if (user.nivel_rol === 'Asesor' && quote.asesor_id !== user.id) {
+    return { error: 'No tienes acceso a los anexos de esta cotización.', status: 403 };
+  }
+  return { quote };
+}
+
+app.post('/api/cotizaciones/:id/adjuntos', authenticateToken, async (req, res) => {
+  const quoteId = Number(req.params.id);
+  const nombreArchivo = String(req.body.nombre_archivo || '').trim();
+  const mimeType = String(req.body.mime_type || '').trim().toLowerCase();
+  const contenidoBase64 = String(req.body.contenido_base64 || '').replace(/^data:application\/pdf;base64,/, '');
+  if (!nombreArchivo || mimeType !== 'application/pdf' || !contenidoBase64) {
+    return res.status(400).json({ error: 'Selecciona un archivo PDF válido.' });
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(contenidoBase64)) {
+    return res.status(400).json({ error: 'El contenido del PDF no es válido.' });
+  }
+  const contenido = Buffer.from(contenidoBase64, 'base64');
+  if (!contenido.length || contenido.length > 8 * 1024 * 1024 || contenido.subarray(0, 4).toString() !== '%PDF') {
+    return res.status(400).json({ error: 'El anexo debe ser un PDF de hasta 8 MB.' });
+  }
+  try {
+    const access = await getAttachmentQuoteAccess(quoteId, req.user);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    if (access.quote.condiciones_pago !== 'CREDITO') {
+      return res.status(400).json({ error: 'Solo las cotizaciones a crédito pueden tener un PDF adjunto.' });
+    }
+    const result = await db.run(
+      'INSERT INTO cotizacion_adjuntos (cotizacion_id, nombre_archivo, mime_type, contenido, tamano_bytes) VALUES (?, ?, ?, ?, ?)',
+      [quoteId, nombreArchivo.slice(0, 255), mimeType, contenido, contenido.length]
+    );
+    res.status(201).json({ id: result.id, message: 'PDF adjuntado correctamente.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible guardar el PDF adjunto.' });
+  }
+});
+
+app.get('/api/cotizaciones/:id/adjuntos', authenticateToken, async (req, res) => {
+  const quoteId = Number(req.params.id);
+  try {
+    const access = await getAttachmentQuoteAccess(quoteId, req.user);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const rows = await db.all(
+      'SELECT id, nombre_archivo, mime_type, tamano_bytes, creado_en FROM cotizacion_adjuntos WHERE cotizacion_id = ? ORDER BY creado_en ASC',
+      [quoteId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible consultar los anexos.' });
+  }
+});
+
+app.get('/api/cotizaciones/:id/adjuntos/:adjuntoId/descargar', authenticateToken, async (req, res) => {
+  const quoteId = Number(req.params.id);
+  const attachmentId = Number(req.params.adjuntoId);
+  try {
+    const access = await getAttachmentQuoteAccess(quoteId, req.user);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const attachment = await db.get(
+      'SELECT nombre_archivo, mime_type, contenido FROM cotizacion_adjuntos WHERE id = ? AND cotizacion_id = ?',
+      [attachmentId, quoteId]
+    );
+    if (!attachment) return res.status(404).json({ error: 'Anexo no encontrado.' });
+    res.type(attachment.mime_type);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.nombre_archivo)}"`);
+    res.send(attachment.contenido);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible descargar el anexo.' });
   }
 });
 

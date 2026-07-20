@@ -359,7 +359,10 @@
 
               <div style="margin-top: 25px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; gap: 12px;">
                 <button type="submit" class="btn btn-primary" style="height: 50px; flex: 1;">💾 Guardar y Registrar Cotización</button>
+                <input id="quote-credit-pdf-input" type="file" accept="application/pdf,.pdf" hidden>
+                <button id="btn-attach-credit-pdf" type="button" class="btn btn-secondary" style="display:none; height:50px; width:auto; white-space:nowrap;">📎 Anexar PDF</button>
               </div>
+              <div id="quote-credit-pdf-status" style="display:none; margin-top:8px; color:var(--text-light); font-size:12px;"></div>
             </form>
           </div>
 

@@ -43,6 +43,7 @@ let allProspects = [];
 let activeProspectId = null;
 let activePlanningQuoteContext = null;
 let preserveProspectQuoteContext = false;
+let selectedCreditAttachmentFile = null;
 let allClients = [];
 let selectedKanbanQuoteIds = new Set();
 let lastRenderedKanbanQuotes = [];
@@ -2004,6 +2005,67 @@ function getQuotePayload() {
   };
 }
 
+function updateCreditAttachmentControl() {
+  const condition = document.getElementById('quote-condicion')?.value;
+  const attachButton = document.getElementById('btn-attach-credit-pdf');
+  const status = document.getElementById('quote-credit-pdf-status');
+  if (!attachButton || !status) return;
+  const isCredit = condition === 'CREDITO';
+  attachButton.style.display = isCredit ? 'inline-flex' : 'none';
+  status.style.display = isCredit && selectedCreditAttachmentFile ? 'block' : 'none';
+  if (!isCredit) {
+    selectedCreditAttachmentFile = null;
+    const input = document.getElementById('quote-credit-pdf-input');
+    if (input) input.value = '';
+    status.textContent = '';
+  }
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No fue posible leer el PDF seleccionado.'));
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadCreditAttachment(quoteId, file) {
+  const contenidoBase64 = await readFileAsBase64(file);
+  const res = await fetch(`${API_URL}/api/cotizaciones/${quoteId}/adjuntos`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({
+      nombre_archivo: file.name,
+      mime_type: 'application/pdf',
+      contenido_base64: contenidoBase64
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'No fue posible adjuntar el PDF.');
+}
+
+document.getElementById('quote-condicion')?.addEventListener('change', updateCreditAttachmentControl);
+document.getElementById('btn-attach-credit-pdf')?.addEventListener('click', () => {
+  document.getElementById('quote-credit-pdf-input')?.click();
+});
+document.getElementById('quote-credit-pdf-input')?.addEventListener('change', event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (!isPdf || file.size > 8 * 1024 * 1024) {
+    selectedCreditAttachmentFile = null;
+    event.target.value = '';
+    alert('Selecciona un PDF válido de hasta 8 MB.');
+    updateCreditAttachmentControl();
+    return;
+  }
+  selectedCreditAttachmentFile = file;
+  const status = document.getElementById('quote-credit-pdf-status');
+  if (status) status.textContent = `PDF seleccionado: ${file.name}`;
+  updateCreditAttachmentControl();
+});
+
 // Debounced recalculation of quote
 function debouncedLiveCalculation() {
   clearTimeout(calcDebounceTimeout);
@@ -2302,11 +2364,22 @@ document.getElementById('quotation-form').addEventListener('submit', async (e) =
     
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to submit quote');
+
+    let attachmentMessage = '';
+    if (payload.condiciones_pago === 'CREDITO' && selectedCreditAttachmentFile) {
+      try {
+        await uploadCreditAttachment(data.id, selectedCreditAttachmentFile);
+        attachmentMessage = ' PDF de crédito adjuntado.';
+      } catch (attachmentError) {
+        attachmentMessage = ` La cotización fue creada, pero el PDF no se adjuntó: ${attachmentError.message}`;
+      }
+    }
     
     const cameFromSaleVisit = Boolean(activePlanningQuoteContext?.planId);
-    alert(cameFromSaleVisit
+    const successMessage = cameFromSaleVisit
       ? `Cotización ${data.folio} enviada a autorización. La visita quedó registrada como prospecto.`
-      : `Pedido registrado exitosamente con Folio: ${data.folio}`);
+      : `Pedido registrado exitosamente con Folio: ${data.folio}`;
+    alert(`${successMessage}${attachmentMessage}`);
     
     // Reset Form & Switch view
     document.getElementById('quotation-form').reset();
@@ -2314,6 +2387,9 @@ document.getElementById('quotation-form').addEventListener('submit', async (e) =
     quoteItemsCount = 0;
     activeProspectId = null;
     activePlanningQuoteContext = null;
+    selectedCreditAttachmentFile = null;
+    document.getElementById('quote-credit-pdf-input').value = '';
+    updateCreditAttachmentControl();
     addQuoteItemRow();
     switchView('dashboard-view', 'Tablero General');
   } catch (err) {
