@@ -941,6 +941,13 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     
     for (const { item, prod, monthlyPricing } of dbItems) {
       const maxDiscountMxn = monthlyPricing.maxDiscountMxn;
+      const { netPrice: priceBeforeKeyAccount } = calculateItemPricing(
+        prod,
+        item.cantidad,
+        volMultiplier,
+        0,
+        activeSeason
+      );
       
       const { netPrice, subtotal } = calculateItemPricing(
         prod,
@@ -959,7 +966,9 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
         cantidad: item.cantidad,
         precio_lista: monthlyPricing.listPrice,
         precio_temporada: getSeasonPrice(prod.list_price_mxn, prod.tipo_categoria, activeSeason),
+        precio_antes_cuenta_clave: priceBeforeKeyAccount,
         precio_neto: netPrice,
+        descuento_cuenta_clave_mxn: Math.max(priceBeforeKeyAccount - netPrice, 0),
         max_discount_mxn: maxDiscountMxn,
         subtotal
       });
@@ -969,6 +978,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     res.json({
       cliente_nombre: client.nombre,
       cuenta_clave_nombre: keyAccount ? keyAccount.tier_name : 'General',
+      descuento_cuenta_clave_mxn: Number(keyAccountDesc) || 0,
       temporada_nombre: activeSeason ? activeSeason.actividad : 'Precio Lleno',
       vol_multiplier: volMultiplier,
       total_discountable_seeds: totalDiscountableSeeds,

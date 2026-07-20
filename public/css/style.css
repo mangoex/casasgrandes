@@ -1221,11 +1221,16 @@ tr:hover td {
   gap: 12px;
   align-items: center;
   padding: 8px 0 10px 0;
-  background: linear-gradient(135deg, rgba(245,158,11,0.04), rgba(16,185,129,0.04));
+  background: linear-gradient(135deg, rgba(37,99,235,0.05), rgba(245,158,11,0.05), rgba(16,185,129,0.04));
   border-radius: var(--radius);
   padding: 10px 12px;
   margin-top: 4px;
-  border: 1px dashed rgba(245,158,11,0.3);
+  border: 1px dashed rgba(37,99,235,0.28);
+}
+
+.item-key-account-step {
+  border-right: 1px solid rgba(37, 99, 235, 0.18);
+  padding-right: 12px;
 }
 
 .item-discount-row label {

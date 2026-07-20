@@ -1922,16 +1922,21 @@ function addQuoteItemRow() {
       </div>
       <button type="button" class="btn-remove" onclick="removeQuoteItemRow(${rowNum})">🗑️</button>
     </div>
-    <!-- Fila de descuento asesor: visible solo cuando el producto tiene promo_dinero > 0 -->
+    <!-- La Cuenta Clave se aplica antes del descuento adicional del asesor. -->
     <div class="item-discount-row" id="discount-row-${rowNum}" style="display:none;">
-      <div>
+      <div class="item-key-account-step" style="display:none;">
+        <label>🔑 Cuenta Clave</label>
+        <div class="item-key-account-name" style="font-size:11px; color:#2563eb; font-weight:700;">-</div>
+        <div class="item-key-account-amount" style="font-weight:700; font-size:15px; color:#2563eb;">-$0.00 MXN</div>
+      </div>
+      <div class="item-advisor-discount-control">
         <label>🎚️ Descuento Asesor</label>
         <input type="range" class="discount-slider item-discount-slider"
                min="0" max="0" step="1" value="0"
                data-row="${rowNum}"
                oninput="onDiscountSliderChange(this)">
       </div>
-      <div style="text-align:center;">
+      <div class="item-advisor-discount-amount" style="text-align:center;">
         <label>Descuento aplicado</label>
         <div class="item-discount-amount" style="font-weight:700; font-size:15px; color:var(--accent);">$0 MXN</div>
         <div style="font-size:10px; color:var(--text-light); margin-top:2px;">
@@ -2029,19 +2034,38 @@ function debouncedLiveCalculation() {
         const select = wrapper.querySelector('.item-product-select');
         const unitPriceInput = wrapper.querySelector('.item-calc-unit-price');
         const discountRow = wrapper.querySelector('.item-discount-row');
+        const keyAccountStep = wrapper.querySelector('.item-key-account-step');
+        const keyAccountName = wrapper.querySelector('.item-key-account-name');
+        const keyAccountAmount = wrapper.querySelector('.item-key-account-amount');
+        const advisorControl = wrapper.querySelector('.item-advisor-discount-control');
+        const advisorAmount = wrapper.querySelector('.item-advisor-discount-amount');
         const slider = wrapper.querySelector('.item-discount-slider');
         const maxLabel = wrapper.querySelector('.item-discount-max-label');
         
         if (select && select.value && unitPriceInput) {
           const calcItem = calc.items.find(i => i.producto_id === Number(select.value));
           if (calcItem) {
-            // Show base price
-            unitPriceInput.value = `$${calcItem.precio_neto.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            const keyAccountDiscount = Number(calcItem.descuento_cuenta_clave_mxn || 0);
+            const maxDisc = Number(calcItem.max_discount_mxn || 0);
+            const hasKeyAccountDiscount = keyAccountDiscount > 0;
+            const hasAdvisorDiscount = maxDisc > 0;
+
+            // Base is shown before Cuenta Clave, then the advisor slider continues from the reduced price.
+            unitPriceInput.value = `$${Number(calcItem.precio_antes_cuenta_clave || calcItem.precio_neto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            if (keyAccountStep) keyAccountStep.style.display = hasKeyAccountDiscount ? 'block' : 'none';
+            if (keyAccountName) keyAccountName.textContent = calc.cuenta_clave_nombre || 'Cuenta Clave';
+            if (keyAccountAmount) keyAccountAmount.textContent = `-$${keyAccountDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            if (advisorControl) advisorControl.style.display = hasAdvisorDiscount ? 'block' : 'none';
+            if (advisorAmount) advisorAmount.style.display = hasAdvisorDiscount ? 'block' : 'none';
+            if (discountRow) {
+              discountRow.style.display = (hasKeyAccountDiscount || hasAdvisorDiscount) ? 'grid' : 'none';
+              discountRow.style.gridTemplateColumns = hasKeyAccountDiscount && hasAdvisorDiscount
+                ? '1fr 1.2fr 1fr 1fr'
+                : (hasAdvisorDiscount ? '1.2fr 1fr 1fr' : '1fr 1fr');
+            }
             
             // Configure discount slider
-            const maxDisc = calcItem.max_discount_mxn || 0;
-            if (maxDisc > 0 && discountRow && slider) {
-              discountRow.style.display = 'grid';
+            if (hasAdvisorDiscount && slider) {
               slider.max = maxDisc;
               // Only reset to 0 if the max changed (new product selection)
               if (parseFloat(slider.getAttribute('data-max-prev') || 0) !== maxDisc) {
@@ -2053,12 +2077,13 @@ function debouncedLiveCalculation() {
               slider.setAttribute('data-base-price', calcItem.precio_neto);
               // Update slider display
               onDiscountSliderChange(slider);
-            } else if (discountRow) {
-              discountRow.style.display = 'none';
-              if (slider) {
-                slider.value = 0;
-                slider.setAttribute('data-base-price', calcItem.precio_neto);
-              }
+            } else if (slider) {
+              slider.value = 0;
+              slider.setAttribute('data-max-prev', '0');
+              slider.style.setProperty('--slider-pct', '0%');
+              slider.setAttribute('data-base-price', calcItem.precio_neto);
+              const finalEl = wrapper.querySelector('.item-final-price');
+              if (finalEl) finalEl.textContent = `$${Number(calcItem.precio_neto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
             }
           }
         }
