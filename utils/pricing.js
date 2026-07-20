@@ -77,23 +77,26 @@ function getSeasonPrice(listPrice, tipoCategoria, activeSeason) {
 function getNetPrice(prod, volMultiplier, keyAccountDiscount, activeSeason) {
   const listPrice = prod.list_price_mxn;
   const seasonPrice = getSeasonPrice(listPrice, prod.tipo_categoria, activeSeason);
+  let priceBeforeKeyAccount;
 
   if (prod.descontar === 1) {
     if (prod.precio_programado_mxn !== undefined && prod.precio_programado_mxn !== null) {
-      return Math.round(seasonPrice * volMultiplier) - keyAccountDiscount;
+      priceBeforeKeyAccount = Math.round(seasonPrice * volMultiplier);
+    } else {
+      // Semillas elegibles: aplicar descuento por volumen antes de Cuenta Clave.
+      const usdPriceForTier = Math.round((prod.base_usd * volMultiplier) * 100) / 100;
+      priceBeforeKeyAccount = Math.round(usdPriceForTier * USD_FACTOR * EXCHANGE_RATE);
     }
-    // Semillas elegibles: aplicar descuento por volumen + cuenta clave
-    // Fórmula: round(base_usd * volMultiplier, 2) * USD_FACTOR * EXCHANGE_RATE - descuento_cuenta_clave
-    const usdPriceForTier = Math.round((prod.base_usd * volMultiplier) * 100) / 100;
-    const mxnVolumePrice = Math.round(usdPriceForTier * USD_FACTOR * EXCHANGE_RATE);
-    return mxnVolumePrice - keyAccountDiscount;
   } else if (prod.tipo_categoria === 'Híbrido') {
-    // Semillas sin descuento de volumen: solo precio de temporada redondeado
-    return Math.round(seasonPrice);
+    // Semillas sin descuento de volumen: precio de temporada antes de Cuenta Clave.
+    priceBeforeKeyAccount = Math.round(seasonPrice);
   } else {
-    // Agroquímicos y fertilizantes: precio lista (sin temporada) menos descuento fijo de catálogo
-    return seasonPrice - (prod.descuento_fijo_quimicos || 0.0);
+    // Agroquímicos y fertilizantes: descuento de catálogo antes de Cuenta Clave.
+    priceBeforeKeyAccount = seasonPrice - (prod.descuento_fijo_quimicos || 0.0);
   }
+
+  // Cuenta Clave es un beneficio del agricultor y se aplica antes del descuento del asesor.
+  return Math.max(priceBeforeKeyAccount - (Number(keyAccountDiscount) || 0), 0);
 }
 
 /**

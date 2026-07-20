@@ -26,3 +26,15 @@ test('conserva el cálculo legado cuando no hay un precio mensual programado', (
 
   assert.notEqual(getNetPrice(product, 0.8, 100, null), 6210 * 0.8 - 100);
 });
+
+test('aplica el descuento de cuenta clave a un híbrido sin escala de volumen', () => {
+  const product = {
+    list_price_mxn: 6500,
+    tipo_categoria: 'Híbrido',
+    descontar: 0,
+    base_usd: 0,
+    descuento_fijo_quimicos: 0
+  };
+
+  assert.equal(getNetPrice(product, 1, 40, null), 6460);
+});
