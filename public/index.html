@@ -1346,6 +1346,11 @@
             <p style="color: var(--text-light); margin-bottom: 16px;">Elimina cotizaciones, sus detalles, movimientos de venta y visitas programadas. Conserva agricultores, productos, metas, inventario manual y bitácora CRM.</p>
             <button id="btn-open-production-cleanup" class="btn btn-danger" type="button" style="width: auto;">🗑️ Limpiar Ventas y Planificación</button>
           </div>
+          <div class="card" style="max-width: 720px; margin-top: 18px; border-color: #fecaca;">
+            <h3 style="margin-bottom: 8px;">Reinicio de Almacén</h3>
+            <p style="color: var(--text-light); margin-bottom: 16px;">Elimina todos los movimientos del Kardex. Las existencias físicas de todos los productos quedarán en cero. Se crea un respaldo antes de limpiar.</p>
+            <button id="btn-open-warehouse-cleanup" class="btn btn-danger" type="button" style="width: auto;">🗑️ Limpiar Movimientos de Almacén</button>
+          </div>
         </div>
       </div>
       <div id="ia-view" class="view-section admin-or-coordinator-only">
@@ -2146,6 +2151,23 @@
           <input id="production-cleanup-confirmation" class="form-input" autocomplete="off">
         </div>
         <button id="btn-confirm-production-cleanup" class="btn btn-danger" type="button">🗑️ Crear Respaldo y Limpiar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="warehouse-cleanup-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2>Limpiar Movimientos de Almacén</h2>
+        <button class="modal-close" onclick="closeModal('warehouse-cleanup-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-top: 0; color: var(--text-light);">Se respaldará el Kardex y después se eliminarán todos sus movimientos. Las existencias físicas se mostrarán en cero.</p>
+        <div class="form-group">
+          <label for="warehouse-cleanup-confirmation">Escribe LIMPIAR ALMACEN para confirmar</label>
+          <input id="warehouse-cleanup-confirmation" class="form-input" autocomplete="off">
+        </div>
+        <button id="btn-confirm-warehouse-cleanup" class="btn btn-danger" type="button">🗑️ Crear Respaldo y Limpiar Almacén</button>
       </div>
     </div>
   </div>

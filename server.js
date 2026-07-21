@@ -2793,6 +2793,58 @@ app.post('/api/admin/limpiar-operacion', authenticateToken, async (req, res) => 
   }
 });
 
+app.post('/api/admin/limpiar-almacen', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  if (req.body?.confirmacion !== 'LIMPIAR ALMACEN') {
+    return res.status(400).json({ error: 'La confirmación exacta es requerida.' });
+  }
+
+  let client;
+  try {
+    client = await db.pool.connect();
+    await client.query('BEGIN');
+    const backupResult = await client.query(`
+      SELECT jsonb_build_object(
+        'movimientos_almacen', COALESCE((SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM almacen_movimientos m), '[]'::jsonb)
+      ) AS datos,
+      jsonb_build_object(
+        'movimientos_almacen', (SELECT count(*) FROM almacen_movimientos),
+        'productos_existencia_cero', (SELECT count(*) FROM productos WHERE activo = 1)
+      ) AS resumen
+    `);
+    const { datos, resumen } = backupResult.rows[0];
+    const backupInsert = await client.query(
+      `INSERT INTO crm_respaldos_limpieza_operacion (creado_por_id, alcance, resumen, datos)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [req.user.id, 'movimientos_almacen_y_existencias_fisicas_cero', resumen, datos]
+    );
+
+    const deleted = await client.query('DELETE FROM almacen_movimientos');
+    await client.query('COMMIT');
+    res.json({
+      message: 'Movimientos de almacén eliminados. Todas las existencias físicas quedaron en cero.',
+      respaldo_id: backupInsert.rows[0].id,
+      eliminado: { movimientos_almacen: deleted.rowCount },
+      existencias_fisicas: 0
+    });
+  } catch (err) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('Failed to roll back warehouse cleanup:', rollbackErr);
+      }
+    }
+    console.error('Failed to clean warehouse movements:', err);
+    res.status(500).json({ error: 'No fue posible limpiar el almacén. No se aplicaron cambios.' });
+  } finally {
+    client?.release();
+  }
+});
+
 // -------------------------------------------------------------
 // PROYECCIONES REPORT ENDPOINT
 // -------------------------------------------------------------

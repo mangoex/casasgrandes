@@ -2999,6 +2999,44 @@ if (confirmProductionCleanupBtn) {
   });
 }
 
+const openWarehouseCleanupBtn = document.getElementById('btn-open-warehouse-cleanup');
+if (openWarehouseCleanupBtn) {
+  openWarehouseCleanupBtn.addEventListener('click', () => {
+    document.getElementById('warehouse-cleanup-confirmation').value = '';
+    openModal('warehouse-cleanup-modal');
+  });
+}
+
+const confirmWarehouseCleanupBtn = document.getElementById('btn-confirm-warehouse-cleanup');
+if (confirmWarehouseCleanupBtn) {
+  confirmWarehouseCleanupBtn.addEventListener('click', async () => {
+    const confirmation = document.getElementById('warehouse-cleanup-confirmation').value.trim();
+    if (confirmation !== 'LIMPIAR ALMACEN') {
+      alert('Escribe LIMPIAR ALMACEN para confirmar la limpieza.');
+      return;
+    }
+
+    confirmWarehouseCleanupBtn.disabled = true;
+    try {
+      const res = await fetch(`${API_URL}/api/admin/limpiar-almacen`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ confirmacion: confirmation })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No fue posible limpiar el almacén');
+
+      closeModal('warehouse-cleanup-modal');
+      await loadAlmacenData();
+      alert(`Limpieza de almacén completada. Respaldo #${data.respaldo_id}. Se eliminaron ${data.eliminado.movimientos_almacen} movimientos y las existencias quedaron en cero.`);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      confirmWarehouseCleanupBtn.disabled = false;
+    }
+  });
+}
+
 // 1. ASESORES ADMIN LOGIC
 async function loadAdminAsesores() {
   const tbody = document.getElementById('admin-asesores-tbody');
