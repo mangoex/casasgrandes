@@ -53,6 +53,8 @@ let currentPlanList = [];
 let currentCycleMetaMxn = 0;
 let currentCycleMetaBags = 0;
 let allMovements = [];
+let allWarehouseStocks = [];
+let warehouseMovementFormCollapsed = false;
 let stageReportFormEventsBound = false;
 
 // On Page Load
@@ -215,16 +217,7 @@ async function showAppView() {
     tabProd.style.display = canProduce ? 'block' : 'none';
   }
 
-  // Adjust movement form visibility
-  const showMovementForm = ['Administrador', 'Almacen', 'Acopio'].includes(user.nivel_rol);
-  const formCard = document.getElementById('add-movement-form')?.closest('.card');
-  if (formCard) {
-    formCard.style.display = showMovementForm ? 'block' : 'none';
-    const parentGrid = formCard.parentElement;
-    if (parentGrid) {
-      parentGrid.style.gridTemplateColumns = showMovementForm ? '1fr 1.5fr' : '1fr';
-    }
-  }
+  updateWarehouseMovementLayout();
   
   // Bind Nav Links
   const navItems = document.querySelectorAll('.nav-links .nav-item');
@@ -2570,6 +2563,106 @@ function toggleAlmacenTab(tabName) {
   loadAlmacenData();
 }
 
+function updateWarehouseMovementLayout() {
+  const layout = document.getElementById('warehouse-movements-layout');
+  const entryContainer = document.getElementById('movement-entry-container');
+  const entryCard = document.getElementById('movement-entry-card');
+  const toggleButton = document.getElementById('btn-toggle-movement-form');
+  if (!layout || !entryContainer || !entryCard || !toggleButton) return;
+
+  const canRegisterMovements = ['Administrador', 'Almacen', 'Acopio'].includes(user?.nivel_rol);
+  if (!canRegisterMovements) {
+    entryContainer.style.display = 'none';
+    layout.style.gridTemplateColumns = 'minmax(0, 1fr)';
+    return;
+  }
+
+  entryContainer.style.display = 'block';
+  entryCard.style.display = warehouseMovementFormCollapsed ? 'none' : 'block';
+  entryContainer.style.width = warehouseMovementFormCollapsed ? '38px' : '';
+  layout.style.gridTemplateColumns = warehouseMovementFormCollapsed
+    ? '38px minmax(0, 1fr)'
+    : 'minmax(300px, 1fr) minmax(0, 1.5fr)';
+  toggleButton.textContent = warehouseMovementFormCollapsed ? '›' : '‹';
+  toggleButton.title = warehouseMovementFormCollapsed ? 'Expandir registro de movimientos' : 'Contraer registro de movimientos';
+  toggleButton.setAttribute('aria-label', toggleButton.title);
+  toggleButton.style.right = warehouseMovementFormCollapsed ? '0' : '-15px';
+}
+
+function populateWarehouseProductControls() {
+  const moveProdSelect = document.getElementById('move-prod');
+  const filterSelect = document.getElementById('movement-filter-product');
+  const selectedMovementProduct = moveProdSelect?.value || '';
+  const selectedFilterProduct = filterSelect?.value || '';
+
+  if (moveProdSelect) {
+    moveProdSelect.innerHTML = '<option value="">-- Selecciona un Producto --</option>';
+    allProducts.filter(product => product.activo === 1).forEach(product => {
+      moveProdSelect.innerHTML += `<option value="${product.id}">${escapeHtml(product.producto)}</option>`;
+    });
+    moveProdSelect.value = selectedMovementProduct;
+  }
+  if (filterSelect) {
+    filterSelect.innerHTML = '<option value="">Todos los productos</option>';
+    allProducts.forEach(product => {
+      filterSelect.innerHTML += `<option value="${product.id}">${escapeHtml(product.producto)}</option>`;
+    });
+    filterSelect.value = selectedFilterProduct;
+  }
+}
+
+async function loadWarehouseMovementTypes() {
+  const select = document.getElementById('movement-filter-type');
+  if (!select) return;
+  const selectedType = select.value;
+  const res = await fetch(`${API_URL}/api/almacen/movimientos/tipos`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('No fue posible cargar los tipos de movimiento.');
+  const types = await res.json();
+  select.innerHTML = '<option value="">Todos los movimientos</option>';
+  types.forEach(type => {
+    select.innerHTML += `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`;
+  });
+  select.value = selectedType;
+}
+
+function renderWarehouseMovements(movements) {
+  const movesTbody = document.getElementById('movements-tbody');
+  if (!movesTbody) return;
+  if (movements.length === 0) {
+    movesTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-light);">No hay movimientos con estos filtros.</td></tr>';
+    return;
+  }
+  movesTbody.innerHTML = movements.map(movement => {
+    const dateOnly = movement.fecha_movimiento.slice(0, 16).replace('T', ' ');
+    const valEnt = movement.cantidad_entrante > 0 ? movement.cantidad_entrante.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
+    const valSal = movement.cantidad_saliente > 0 ? movement.cantidad_saliente.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
+    const movementIsEntry = movement.tipo_movimiento.startsWith('Entrada') || movement.tipo_movimiento.includes('Reversión');
+    return `
+      <tr>
+        <td style="font-size: 12px; color: var(--text-light);">${dateOnly}</td>
+        <td><span class="badge ${movementIsEntry ? 'badge-success' : 'badge-warning'}">${escapeHtml(movement.tipo_movimiento)}</span></td>
+        <td><strong>${escapeHtml(movement.producto_nombre)}</strong></td>
+        <td style="text-align: right; color: var(--success); font-weight: 500;">${valEnt}</td>
+        <td style="text-align: right; color: var(--danger); font-weight: 500;">${valSal}</td>
+        <td style="text-align: right; font-weight: 600;">${movement.existencias_resultantes.toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function loadWarehouseMovements() {
+  const type = document.getElementById('movement-filter-type')?.value || '';
+  const productId = document.getElementById('movement-filter-product')?.value || '';
+  const params = new URLSearchParams();
+  if (type) params.set('tipo_movimiento', type);
+  if (productId) params.set('producto_id', productId);
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/api/almacen/movimientos${query ? `?${query}` : ''}`, { headers: getHeaders() });
+  if (!res.ok) throw new Error('No fue posible cargar el historial de movimientos.');
+  allMovements = await res.json();
+  renderWarehouseMovements(allMovements);
+}
+
 async function loadAlmacenData() {
   try {
     if (allProducts.length === 0) {
@@ -2580,17 +2673,19 @@ async function loadAlmacenData() {
     // 1. Load Current Stocks
     const stockRes = await fetch(`${API_URL}/api/almacen/existencias`, { headers: getHeaders() });
     const stocks = await stockRes.json();
+    allWarehouseStocks = stocks;
     
     const stockTbody = document.getElementById('stock-tbody');
     stockTbody.innerHTML = '';
     
+    const canAdjustStock = user?.nivel_rol === 'Administrador';
     stocks.forEach(s => {
       const isLow = s.existencias <= 0;
       const statusBadge = isLow ? `<span class="badge badge-danger">Sin Stock</span>` : `<span class="badge badge-success">Disponible</span>`;
       const qtyFormatted = s.existencias.toLocaleString('es-MX', { minimumFractionDigits: 3 });
       
       stockTbody.innerHTML += `
-        <tr style="${isLow ? 'background-color: #fff5f5;' : ''}">
+        <tr ${canAdjustStock ? `onclick="openStockAdjustmentModal(${s.id})" title="Editar existencias físicas de ${escapeHtml(s.producto)}"` : ''} style="${isLow ? 'background-color: #fff5f5;' : ''}${canAdjustStock ? ' cursor: pointer;' : ''}">
           <td><strong>${s.producto}</strong></td>
           <td>${s.tipo_categoria}</td>
           <td style="text-align: right; font-weight: 600; ${isLow ? 'color: var(--danger);' : ''}">${qtyFormatted}</td>
@@ -2599,43 +2694,65 @@ async function loadAlmacenData() {
       `;
     });
     
-    // 2. Load History Movements
-    const movesRes = await fetch(`${API_URL}/api/almacen/movimientos`, { headers: getHeaders() });
-    const movements = await movesRes.json();
-    allMovements = movements;
-    
-    const movesTbody = document.getElementById('movements-tbody');
-    let movesHtml = '';
-    
-    movements.forEach(m => {
-      const dateOnly = m.fecha_movimiento.slice(0, 16).replace('T', ' ');
-      const valEnt = m.cantidad_entrante > 0 ? m.cantidad_entrante.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
-      const valSal = m.cantidad_saliente > 0 ? m.cantidad_saliente.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
-      
-      movesHtml += `
-        <tr>
-          <td style="font-size: 12px; color: var(--text-light);">${dateOnly}</td>
-          <td><span class="badge ${m.tipo_movimiento.startsWith('Entrada') || m.tipo_movimiento.includes('Reversión') ? 'badge-success' : 'badge-warning'}">${m.tipo_movimiento}</span></td>
-          <td><strong>${m.producto_nombre}</strong></td>
-          <td style="text-align: right; color: var(--success); font-weight: 500;">${valEnt}</td>
-          <td style="text-align: right; color: var(--danger); font-weight: 500;">${valSal}</td>
-          <td style="text-align: right; font-weight: 600;">${m.existencias_resultantes.toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
-        </tr>
-      `;
-    });
-    movesTbody.innerHTML = movesHtml;
-    
-    // 3. Load Form select options
-    const moveProdSelect = document.getElementById('move-prod');
-    moveProdSelect.innerHTML = '<option value="">-- Selecciona un Producto --</option>';
-    allProducts.forEach(p => {
-      moveProdSelect.innerHTML += `<option value="${p.id}">${p.producto}</option>`;
-    });
+    populateWarehouseProductControls();
+    await loadWarehouseMovementTypes();
+    await loadWarehouseMovements();
     
   } catch (err) {
     console.error('Failed to load Almacen inventory log:', err);
   }
 }
+
+window.openStockAdjustmentModal = function(productId) {
+  if (user?.nivel_rol !== 'Administrador') return;
+  const stock = allWarehouseStocks.find(item => Number(item.id) === Number(productId));
+  if (!stock) return;
+  document.getElementById('stock-adjustment-product-id').value = stock.id;
+  document.getElementById('stock-adjustment-product-name').value = stock.producto;
+  document.getElementById('stock-adjustment-current').value = Number(stock.existencias).toLocaleString('es-MX', { minimumFractionDigits: 3 });
+  document.getElementById('stock-adjustment-quantity').value = stock.existencias;
+  document.getElementById('stock-adjustment-notes').value = '';
+  openModal('stock-adjustment-modal');
+};
+
+document.getElementById('stock-adjustment-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const productId = document.getElementById('stock-adjustment-product-id').value;
+  const existencias = Number(document.getElementById('stock-adjustment-quantity').value);
+  if (!Number.isFinite(existencias) || existencias < 0) {
+    alert('Indica una existencia física válida, igual o mayor a cero.');
+    return;
+  }
+  try {
+    const res = await fetch(`${API_URL}/api/almacen/existencias/${productId}/ajuste`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        existencias,
+        notas: document.getElementById('stock-adjustment-notes').value.trim()
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible ajustar las existencias.');
+    closeModal('stock-adjustment-modal');
+    await loadAlmacenData();
+    alert(data.message);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.getElementById('btn-toggle-movement-form').addEventListener('click', () => {
+  warehouseMovementFormCollapsed = !warehouseMovementFormCollapsed;
+  updateWarehouseMovementLayout();
+});
+
+document.getElementById('movement-filter-type').addEventListener('change', () => {
+  loadWarehouseMovements().catch(err => alert(err.message));
+});
+document.getElementById('movement-filter-product').addEventListener('change', () => {
+  loadWarehouseMovements().catch(err => alert(err.message));
+});
 
 // Manual movement submission handler
 document.getElementById('add-movement-form').addEventListener('submit', async (e) => {

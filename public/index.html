@@ -644,9 +644,11 @@
 
         <!-- 2. Movements history & Register form -->
         <div id="panel-movimientos" class="almacen-panel" style="display: none;">
-          <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 30px;">
+          <div id="warehouse-movements-layout" style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 30px;">
             <!-- Register Movement -->
-            <div class="card" style="height: fit-content;">
+            <div id="movement-entry-container" style="position: relative; min-width: 0;">
+              <button id="btn-toggle-movement-form" type="button" class="btn btn-secondary" title="Contraer registro de movimientos" aria-label="Contraer registro de movimientos" style="position: absolute; top: 12px; right: -15px; z-index: 1; width: 30px; height: 30px; padding: 0; border-radius: 50%;">‹</button>
+            <div id="movement-entry-card" class="card" style="height: fit-content;">
               <h3 style="margin-bottom: 16px;">Registrar Entrada / Salida</h3>
               <form id="add-movement-form">
                 <div class="form-group">
@@ -682,6 +684,7 @@
                 <button type="submit" class="btn btn-primary">Registrar Movimiento</button>
               </form>
             </div>
+            </div>
             
             <!-- History Table -->
             <div class="card">
@@ -691,6 +694,14 @@
                   <button id="btn-export-kardex-csv" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 12px; margin: 0; line-height: 1.2;">📥 Excel (CSV)</button>
                   <button id="btn-export-kardex-pdf" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 12px; margin: 0; line-height: 1.2;">📄 PDF</button>
                 </div>
+              </div>
+              <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+                <select id="movement-filter-type" class="form-input" aria-label="Filtrar por movimiento" style="width: min(220px, 100%); margin: 0; padding: 8px 12px;">
+                  <option value="">Todos los movimientos</option>
+                </select>
+                <select id="movement-filter-product" class="form-input" aria-label="Filtrar por producto" style="width: min(240px, 100%); margin: 0; padding: 8px 12px;">
+                  <option value="">Todos los productos</option>
+                </select>
               </div>
               <div class="table-container" style="max-height: 500px; overflow-y: auto;">
                 <table>
@@ -2033,6 +2044,39 @@
             </div>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top: 10px;" id="producto-submit-btn">Registrar Producto</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="stock-adjustment-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2>Ajustar Existencias Físicas</h2>
+        <button class="modal-close" onclick="closeModal('stock-adjustment-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="stock-adjustment-form">
+          <input type="hidden" id="stock-adjustment-product-id">
+          <div class="form-group">
+            <label for="stock-adjustment-product-name">Producto</label>
+            <input id="stock-adjustment-product-name" type="text" class="form-input" readonly>
+          </div>
+          <div class="input-grid">
+            <div class="form-group">
+              <label for="stock-adjustment-current">Existencia actual</label>
+              <input id="stock-adjustment-current" type="text" class="form-input" readonly>
+            </div>
+            <div class="form-group">
+              <label for="stock-adjustment-quantity">Existencia física nueva</label>
+              <input id="stock-adjustment-quantity" type="number" class="form-input" min="0" step="0.001" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="stock-adjustment-notes">Motivo del ajuste</label>
+            <textarea id="stock-adjustment-notes" class="form-input" rows="2" placeholder="Conteo físico, corrección, merma..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Guardar Ajuste</button>
         </form>
       </div>
     </div>

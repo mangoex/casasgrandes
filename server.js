@@ -1589,18 +1589,86 @@ app.get('/api/almacen/existencias', authenticateToken, async (req, res) => {
 
 app.get('/api/almacen/movimientos', authenticateToken, async (req, res) => {
   try {
+    const conditions = [];
+    const params = [];
+    const productId = Number(req.query.producto_id);
+    const movementType = String(req.query.tipo_movimiento || '').trim();
+    if (Number.isInteger(productId) && productId > 0) {
+      conditions.push('m.producto_id = ?');
+      params.push(productId);
+    }
+    if (movementType) {
+      conditions.push('m.tipo_movimiento = ?');
+      params.push(movementType);
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = await db.all(`
       SELECT m.*, p.producto as producto_nombre, a.nombre as asesor_nombre, c.folio_cotizacion
       FROM almacen_movimientos m
       JOIN productos p ON m.producto_id = p.id
       LEFT JOIN asesores a ON m.asesor_id = a.id
       LEFT JOIN cotizaciones c ON m.cotizacion_id = c.id
+      ${whereClause}
       ORDER BY m.id DESC LIMIT 300
-    `);
+    `, params);
     res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch warehouse movements' });
+  }
+});
+
+app.get('/api/almacen/movimientos/tipos', authenticateToken, async (req, res) => {
+  try {
+    const rows = await db.all('SELECT DISTINCT tipo_movimiento FROM almacen_movimientos ORDER BY tipo_movimiento ASC');
+    res.json(rows.map(row => row.tipo_movimiento));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch warehouse movement types' });
+  }
+});
+
+app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Solo un administrador puede ajustar existencias físicas.' });
+  }
+
+  const productId = Number(req.params.productoId);
+  const targetStock = Number(req.body.existencias);
+  const notes = String(req.body.notas || '').trim();
+  if (!Number.isInteger(productId) || productId <= 0 || !Number.isFinite(targetStock) || targetStock < 0) {
+    return res.status(400).json({ error: 'Indica una existencia física válida, igual o mayor a cero.' });
+  }
+
+  try {
+    const product = await db.get('SELECT id, producto FROM productos WHERE id = ?', [productId]);
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado.' });
+
+    const lastMove = await db.get(
+      'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+      [productId]
+    );
+    const currentStock = Number(lastMove?.existencias_resultantes || 0);
+    const difference = targetStock - currentStock;
+    if (difference === 0) return res.json({ existencias: currentStock, message: 'Las existencias ya tienen ese valor.' });
+
+    await db.run(`
+      INSERT INTO almacen_movimientos
+        (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, referencia_factura, asesor_id, notas)
+      VALUES (?, 'Ajuste de Inventario', ?, ?, ?, ?, 'Ajuste manual', ?, ?)
+    `, [
+      new Date().toISOString(),
+      productId,
+      difference > 0 ? difference : 0,
+      difference < 0 ? Math.abs(difference) : 0,
+      targetStock,
+      req.user.id,
+      notes || `Ajuste de existencias físicas de ${currentStock} a ${targetStock}.`
+    ]);
+    res.status(201).json({ existencias: targetStock, message: 'Existencias ajustadas correctamente.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible ajustar las existencias.' });
   }
 });
 
