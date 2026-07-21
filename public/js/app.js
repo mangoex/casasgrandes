@@ -2970,6 +2970,7 @@ async function loadAdminProductos() {
                 ? `<button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 12px; margin: 0; border-color: var(--danger); color: var(--danger);" onclick="toggleProductoActiveStatus(${p.id}, false)">Desactivar</button>`
                 : `<button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 12px; margin: 0; border-color: var(--success); color: var(--success);" onclick="toggleProductoActiveStatus(${p.id}, true)">Activar</button>`
               }
+              <button class="btn btn-secondary" title="Eliminar producto" aria-label="Eliminar ${escapeHtml(p.producto)}" style="width: auto; padding: 4px 8px; font-size: 12px; margin: 0; border-color: var(--danger); color: var(--danger);" onclick="deleteProducto(${p.id})">🗑️</button>
             </div>
           </td>
         </tr>
@@ -3200,6 +3201,27 @@ window.toggleProductoActiveStatus = async function(id, activate) {
     if (!res.ok) throw new Error(data.error || 'Failed to toggle product status');
     
     await loadAdminProductos();
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+window.deleteProducto = async function(id) {
+  const product = allAdminProductos.find(item => item.id === id);
+  if (!product) return;
+  if (!confirm(`¿Eliminar definitivamente "${product.producto}"? Esta acción no se puede deshacer.`)) return;
+
+  try {
+    const res = await fetch(`${API_URL}/api/productos/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible eliminar el producto.');
+
+    await loadAdminProductos();
+    await loadCatalogData();
+    alert('Producto eliminado correctamente.');
   } catch (err) {
     alert(err.message);
   }

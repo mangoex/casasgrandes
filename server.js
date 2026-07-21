@@ -561,14 +561,24 @@ app.delete('/api/productos/:id', authenticateToken, async (req, res) => {
   }
   const { id } = req.params;
   try {
-    const prod = await db.get('SELECT * FROM productos WHERE id = ?', [id]);
+    const prod = await db.get('SELECT id, producto FROM productos WHERE id = ?', [id]);
     if (!prod) return res.status(404).json({ error: 'Product not found' });
-    
-    await db.run('UPDATE productos SET activo = 0 WHERE id = ?', [id]);
-    res.json({ message: 'Product deactivated successfully' });
+
+    const [quotationUsage, warehouseUsage] = await Promise.all([
+      db.get('SELECT COUNT(*) AS total FROM cotizacion_detalles WHERE producto_id = ?', [id]),
+      db.get('SELECT COUNT(*) AS total FROM almacen_movimientos WHERE producto_id = ?', [id])
+    ]);
+    if (Number(quotationUsage.total) > 0 || Number(warehouseUsage.total) > 0) {
+      return res.status(409).json({
+        error: 'No se puede eliminar un producto con cotizaciones o movimientos de almacén. Desactívalo para conservar su historial.'
+      });
+    }
+
+    await db.run('DELETE FROM productos WHERE id = ?', [id]);
+    res.json({ message: 'Product deleted successfully' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to deactivate product' });
+    res.status(500).json({ error: 'Failed to delete product' });
   }
 });
 
