@@ -3245,6 +3245,27 @@ window.toggleAsesorActiveStatus = async function(id, activate) {
 };
 
 // PRODUCTOS FORM HANDLERS
+const PRODUCT_CATEGORIES = [
+  { value: 'Híbrido', label: 'Híbrido (Semilla)' },
+  { value: 'Agroquímico', label: 'Agroquímico' },
+  { value: 'Fertilizante', label: 'Fertilizante' }
+];
+
+function populateProductCategorySelect(selectedCategory = 'Híbrido') {
+  const select = document.getElementById('prod-category');
+  if (!select) return;
+
+  const categories = [...PRODUCT_CATEGORIES];
+  if (selectedCategory && !categories.some(category => category.value === selectedCategory)) {
+    categories.push({ value: selectedCategory, label: selectedCategory });
+  }
+
+  select.innerHTML = categories
+    .map(category => `<option value="${escapeAttribute(category.value)}">${escapeHtml(category.label)}</option>`)
+    .join('');
+  select.value = selectedCategory || 'Híbrido';
+}
+
 if (document.getElementById('btn-open-producto-modal')) {
   document.getElementById('btn-open-producto-modal').addEventListener('click', () => {
     document.getElementById('add-producto-form').reset();
@@ -3252,6 +3273,7 @@ if (document.getElementById('btn-open-producto-modal')) {
     document.getElementById('producto-modal-title').textContent = 'Registrar Nuevo Producto';
     document.getElementById('producto-submit-btn').textContent = 'Registrar Producto';
     document.getElementById('prod-status').value = '1';
+    populateProductCategorySelect();
     
     // Show stock field for new entries
     document.getElementById('group-stock-inicial').style.display = 'block';
@@ -3268,7 +3290,7 @@ window.openEditProductoModal = function(id) {
   document.getElementById('prod-key').value = p.clave || '';
   document.getElementById('prod-name').value = p.producto;
   document.getElementById('prod-description').value = p.descripcion || '';
-  document.getElementById('prod-category').value = p.tipo_categoria;
+  populateProductCategorySelect(p.tipo_categoria);
   document.getElementById('prod-list-price').value = p.list_price_mxn;
   document.getElementById('prod-base-usd').value = p.base_usd;
   document.getElementById('prod-fixed-discount').value = p.descuento_fijo_quimicos;
