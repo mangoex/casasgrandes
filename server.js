@@ -2361,9 +2361,15 @@ app.get('/api/planificacion', authenticateToken, async (req, res) => {
   const { fecha_inicio, fecha_fin, asesor_id } = req.query;
   try {
     const localToday = getLocalISODate();
-    // Auto transition expired plans (realizada = 0 and in the past) to vencida (realizada = 3)
+    // A visit remains available for seven calendar days, including its scheduled date.
+    // Restore visits that the previous next-day rule marked as expired too early.
     await db.run(
-      "UPDATE planificacion_semanal SET realizada = 3 WHERE realizada = 0 AND fecha_programada < ?",
+      "UPDATE planificacion_semanal SET realizada = 0 WHERE realizada = 3 AND fecha_programada + 7 > ?",
+      [localToday]
+    );
+    // It expires on the seventh day after its scheduled date.
+    await db.run(
+      "UPDATE planificacion_semanal SET realizada = 3 WHERE realizada = 0 AND fecha_programada + 7 <= ?",
       [localToday]
     );
 
