@@ -412,7 +412,8 @@ app.get('/api/productos', authenticateToken, async (req, res) => {
   try {
     let query = 'SELECT * FROM productos';
     const params = [];
-    if (req.user.nivel_rol !== 'Administrador') {
+    const includeInactive = req.user.nivel_rol === 'Administrador' && req.query.include_inactive === '1';
+    if (!includeInactive) {
       query += ' WHERE activo = 1';
     }
     query += ' ORDER BY activo DESC, tipo_categoria DESC, producto ASC';
@@ -935,8 +936,8 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     const dbItems = [];
     
     for (const item of items) {
-      const prod = await db.get('SELECT * FROM productos WHERE id = ?', [item.producto_id]);
-      if (!prod) return res.status(404).json({ error: `Product ID ${item.producto_id} not found` });
+      const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
+      if (!prod) return res.status(400).json({ error: `El producto seleccionado ya no está disponible para cotizar.` });
       
       const monthlyPricing = await getMonthlyProductPricing(prod, currentMonth);
       dbItems.push({ item, prod: monthlyPricing.product, monthlyPricing });
@@ -1076,8 +1077,8 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     let grandTotal = 0.0;
     
     for (const item of items) {
-      const prod = await db.get('SELECT * FROM productos WHERE id = ?', [item.producto_id]);
-      if (!prod) return res.status(404).json({ error: `Product ID ${item.producto_id} not found` });
+      const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
+      if (!prod) return res.status(400).json({ error: `El producto seleccionado ya no está disponible para cotizar.` });
       const monthlyPricing = await getMonthlyProductPricing(prod, currentMonth);
       if (monthlyPricing.product.descontar === 1) totalDiscountableSeeds += item.cantidad;
       calculatedItems.push({ item, prod: monthlyPricing.product, monthlyPricing });
@@ -1477,8 +1478,8 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
     const calculatedRows = [];
     
     for (const item of items) {
-      const prod = await db.get('SELECT * FROM productos WHERE id = ?', [item.producto_id]);
-      if (!prod) return res.status(404).json({ error: `Product ID ${item.producto_id} not found` });
+      const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
+      if (!prod) return res.status(400).json({ error: `El producto seleccionado ya no está disponible para cotizar.` });
       
       const monthlyPricing = await getMonthlyProductPricing(prod, currentMonth);
       if (monthlyPricing.product.descontar === 1) {

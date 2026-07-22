@@ -3092,7 +3092,7 @@ async function loadAdminProductos() {
   tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-light);">Cargando...</td></tr>';
   
   try {
-    const res = await fetch(`${API_URL}/api/productos`, { headers: getHeaders() });
+    const res = await fetch(`${API_URL}/api/productos?include_inactive=1`, { headers: getHeaders() });
     allAdminProductos = await res.json();
     
     tbody.innerHTML = '';
