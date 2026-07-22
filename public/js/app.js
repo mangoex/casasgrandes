@@ -3386,8 +3386,9 @@ window.deleteProducto = async function(id) {
 // WEEKLY PLANNING VIEW LOGIC
 // -------------------------------------------------------------
 let activePlanWeek = '';
-let planClientSearchTimer = null;
 let planClientSearchController = null;
+let allPlanClients = [];
+let planClientAdvisorId = null;
 let activeStageReportContext = null;
 let activePlanModalPlan = null;
 
@@ -3471,30 +3472,66 @@ async function loadPlanAdvisorOptions() {
   }
 }
 
-async function loadPlanClientOptions(searchTerm = '') {
+function getPlanClientAdvisorId() {
+  if (!['Administrador', 'Coordinador'].includes(user?.nivel_rol)) return user?.id || null;
+  const advisorId = document.getElementById('plan-advisor-filter')?.value;
+  return advisorId && advisorId !== 'ALL' ? advisorId : null;
+}
+
+function renderPlanClientOptions(searchTerm = '') {
   const select = document.getElementById('plan-client');
   if (!select) return;
-  
+
+  const normalizedSearch = String(searchTerm || '').trim().toLocaleLowerCase('es-MX');
+  const matchingClients = normalizedSearch
+    ? allPlanClients.filter(client => [client.nombre, client.ubicacion, client.contacto]
+      .some(value => String(value || '').toLocaleLowerCase('es-MX').includes(normalizedSearch)))
+    : allPlanClients;
+  const selectedClientId = select.value;
+  select.replaceChildren(new Option(
+    matchingClients.length ? '-- Selecciona un Agricultor --' : 'Sin coincidencias',
+    ''
+  ));
+  matchingClients.forEach(client => select.add(new Option(client.nombre, String(client.id))));
+  if (matchingClients.some(client => String(client.id) === selectedClientId)) {
+    select.value = selectedClientId;
+  }
+}
+
+async function loadPlanClientOptions(searchTerm = '', forceReload = false) {
+  const select = document.getElementById('plan-client');
+  if (!select) return;
+
+  const advisorId = getPlanClientAdvisorId();
+  if (['Administrador', 'Coordinador'].includes(user?.nivel_rol) && !advisorId) {
+    allPlanClients = [];
+    planClientAdvisorId = null;
+    select.replaceChildren(new Option('Selecciona un asesor responsable primero', ''));
+    return;
+  }
+
   try {
-    const term = searchTerm.trim();
-    if (term.length < 2) {
-      select.replaceChildren(new Option('Escribe al menos 2 letras para buscar', ''));
+    if (!forceReload && planClientAdvisorId === String(advisorId)) {
+      renderPlanClientOptions(searchTerm);
       return;
     }
 
     if (planClientSearchController) planClientSearchController.abort();
     planClientSearchController = new AbortController();
-    select.replaceChildren(new Option('Buscando agricultores...', ''));
-    const params = new URLSearchParams({ page: '1', limit: '50', q: term });
+    select.replaceChildren(new Option('Cargando agricultores...', ''));
+    const params = new URLSearchParams();
+    if (advisorId) params.set('asesor_id', advisorId);
     const res = await fetch(`${API_URL}/api/clientes?${params.toString()}`, {
       headers: getHeaders(),
       signal: planClientSearchController.signal
     });
     const payload = await res.json();
-    if (!res.ok || !Array.isArray(payload.data)) throw new Error(payload.error || 'No fue posible buscar agricultores');
+    if (!res.ok || !Array.isArray(payload)) throw new Error(payload.error || 'No fue posible cargar agricultores');
+    if (String(getPlanClientAdvisorId()) !== String(advisorId)) return;
 
-    select.replaceChildren(new Option(payload.data.length ? '-- Selecciona un Cliente --' : 'Sin coincidencias', ''));
-    payload.data.forEach(c => select.add(new Option(c.nombre, String(c.id))));
+    allPlanClients = payload;
+    planClientAdvisorId = String(advisorId);
+    renderPlanClientOptions(document.getElementById('plan-client-search')?.value || searchTerm);
   } catch (err) {
     if (err.name === 'AbortError') return;
     console.error(err);
@@ -3831,14 +3868,18 @@ const planAdvFilter = document.getElementById('plan-advisor-filter');
 if (planAdvFilter) {
   planAdvFilter.addEventListener('change', () => {
     loadWeeklySchedule();
+    const planModal = document.getElementById('add-plan-modal');
+    if (planModal?.classList.contains('active') && !activePlanModalPlan) {
+      document.getElementById('plan-client-search').value = '';
+      loadPlanClientOptions('', true);
+    }
   });
 }
 
 const planClientSearch = document.getElementById('plan-client-search');
 if (planClientSearch) {
   planClientSearch.addEventListener('input', () => {
-    window.clearTimeout(planClientSearchTimer);
-    planClientSearchTimer = window.setTimeout(() => loadPlanClientOptions(planClientSearch.value), 250);
+    renderPlanClientOptions(planClientSearch.value);
   });
 }
 
