@@ -37,6 +37,15 @@ async function initSchema() {
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS descripcion TEXT');
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS prospecto_id INTEGER');
     await pool.query('ALTER TABLE cuentas_clave ADD COLUMN IF NOT EXISTS descripcion TEXT');
+    // The original import stored this hash while documenting password123 as the default,
+    // but it does not validate that password. Repair only accounts that still have it.
+    await pool.query(
+      'UPDATE asesores SET password_hash = $1 WHERE password_hash = $2',
+      [
+        '$2b$10$fgcwgOeS3gyws4l95smgDOBhuagB/mIxKZmg5UgJLAfE5BFXBN0Vq',
+        '$2b$10$Ly0wcxrAZmfzIOSLPRzwdO3YxJQ2dPT6osFpn0j0hlAT9uK7ojTKm'
+      ]
+    );
     for (const tierName of ['Adquirir', 'Desarrollar', 'Retener', 'Retener GOLD']) {
       await pool.query(
         'INSERT INTO cuentas_clave (tier_name, descripcion, descuento_mxn) SELECT $1, NULL, 0 WHERE NOT EXISTS (SELECT 1 FROM cuentas_clave WHERE LOWER(tier_name) = LOWER($1))',

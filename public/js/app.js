@@ -3503,13 +3503,6 @@ async function loadPlanClientOptions(searchTerm = '', forceReload = false) {
   if (!select) return;
 
   const advisorId = getPlanClientAdvisorId();
-  if (['Administrador', 'Coordinador'].includes(user?.nivel_rol) && !advisorId) {
-    allPlanClients = [];
-    planClientAdvisorId = null;
-    select.replaceChildren(new Option('Selecciona un asesor responsable primero', ''));
-    return;
-  }
-
   try {
     if (!forceReload && planClientAdvisorId === String(advisorId)) {
       renderPlanClientOptions(searchTerm);
