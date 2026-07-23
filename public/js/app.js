@@ -691,26 +691,25 @@ async function loadDashboardData() {
       } else {
         let cardsHtml = `<div class="advisor-cards-container">`;
         stats.advisers_performance.forEach(adv => {
-          // Calculate compliance percentage safely converting types from PostgreSQL
+          // Calculate compliance percentage: (visitas realizadas / total de visitas programadas)
           const planCompleted = Number(adv.plan_completed || 0);
-          const planExpired = Number(adv.plan_expired || 0);
           const planTotal = Number(adv.plan_total || 0);
-          const plansEvaluated = planCompleted + planExpired;
 
           let compliance = 0;
-          if (plansEvaluated > 0) {
-            compliance = Math.round((planCompleted / plansEvaluated) * 100);
+          if (planTotal > 0) {
+            compliance = Math.round((planCompleted / planTotal) * 100);
           } else {
-            compliance = 0; // Sin visitas evaluadas o sin agenda -> 0%
+            compliance = 0; // Sin visitas programadas en agenda -> 0%
           }
 
           let complianceLabel = `${compliance}%`;
           let complianceClass = 'badge-secondary';
-          if (planTotal > 0 || plansEvaluated > 0) {
+          if (planTotal > 0) {
             if (compliance >= 80) complianceClass = 'badge-success';
             else if (compliance >= 50) complianceClass = 'badge-warning';
             else complianceClass = 'badge-danger';
           }
+
 
           
           const ratingVal = Number(adv.calificacion) || 5.0;
