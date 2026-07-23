@@ -691,23 +691,27 @@ async function loadDashboardData() {
       } else {
         let cardsHtml = `<div class="advisor-cards-container">`;
         stats.advisers_performance.forEach(adv => {
-          // Calculate compliance percentage
-          let compliance = 100;
-          const plansEvaluated = adv.plan_completed + adv.plan_expired;
+          // Calculate compliance percentage safely converting types from PostgreSQL
+          const planCompleted = Number(adv.plan_completed || 0);
+          const planExpired = Number(adv.plan_expired || 0);
+          const planTotal = Number(adv.plan_total || 0);
+          const plansEvaluated = planCompleted + planExpired;
+
+          let compliance = 0;
           if (plansEvaluated > 0) {
-            compliance = Math.round((adv.plan_completed / plansEvaluated) * 100);
-          } else if (adv.plan_total === 0) {
-            compliance = null; // No visits planned
-          }
-          
-          let complianceLabel = compliance !== null ? `${compliance}%` : 'N/A';
-          let complianceClass = 'badge-success';
-          if (compliance !== null) {
-            if (compliance < 50) complianceClass = 'badge-danger';
-            else if (compliance < 80) complianceClass = 'badge-warning';
+            compliance = Math.round((planCompleted / plansEvaluated) * 100);
           } else {
-            complianceClass = 'badge-secondary';
+            compliance = 0; // Sin visitas evaluadas o sin agenda -> 0%
           }
+
+          let complianceLabel = `${compliance}%`;
+          let complianceClass = 'badge-secondary';
+          if (planTotal > 0 || plansEvaluated > 0) {
+            if (compliance >= 80) complianceClass = 'badge-success';
+            else if (compliance >= 50) complianceClass = 'badge-warning';
+            else complianceClass = 'badge-danger';
+          }
+
           
           const ratingVal = Number(adv.calificacion) || 5.0;
           const nameInitials = getInitials(adv.nombre);
