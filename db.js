@@ -288,6 +288,13 @@ async function initSchema() {
       )
     `);
 
+    // Ensure clean state: if operational data (cotizaciones) has been reset, purge leftover test planning records
+    const quoteCountRes = await pool.query('SELECT count(*)::int AS count FROM cotizaciones');
+    if (quoteCountRes.rows[0]?.count === 0) {
+      await pool.query('DELETE FROM planificacion_semanal');
+      console.log('Operational data clean state verified: cleared leftover test planning records.');
+    }
+
     console.log('PostgreSQL schema auto-updates checked/applied successfully.');
   } catch (err) {
     console.error('Error checking/applying PostgreSQL schema updates:', err.message);
