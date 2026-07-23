@@ -1604,8 +1604,10 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
           SUM(CASE WHEN realizada = 1 THEN 1 ELSE 0 END) as plan_completed,
           SUM(CASE WHEN realizada = 3 THEN 1 ELSE 0 END) as plan_expired
         FROM planificacion_semanal 
+        WHERE fecha_programada >= (CURRENT_DATE - 7)
         GROUP BY asesor_id
       ) p ON p.asesor_id = a.id
+
       WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'
       ORDER BY sales_total DESC, a.nombre ASC
     `;
