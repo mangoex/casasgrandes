@@ -1580,7 +1580,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
         COALESCE(p.plan_total, 0) as plan_total
       FROM asesores a
       LEFT JOIN (
-        SELECT asesor_id, COUNT(*) as client_count 
+        SELECT asesor_id, COUNT(DISTINCT COALESCE(cliente_principal_id, id)) as client_count 
         FROM clientes 
         WHERE activo = 1 
         GROUP BY asesor_id

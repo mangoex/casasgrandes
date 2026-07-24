@@ -35,9 +35,10 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     let query = `
-      SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.contacto, c.telefono,
+      SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
              c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
-             a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn
+             a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
+             (SELECT COUNT(*)::int FROM clientes sub WHERE sub.cliente_principal_id = c.id AND sub.activo = 1) as asociados_count
       FROM clientes c
       LEFT JOIN asesores a ON c.asesor_id = a.id
       LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
@@ -250,10 +251,56 @@ router.post('/:id/visitas', authenticateToken, async (req, res) => {
     `, [now, id, req.user.id, comentarios_bitacora, proxima_cita || null]);
     
     res.status(201).json({ message: 'Visit logged successfully' });
+// POST /api/clientes/asociar
+router.post('/asociar', authenticateToken, async (req, res) => {
+  const { principal_id, asociados_ids } = req.body;
+  if (!principal_id || !Array.isArray(asociados_ids) || asociados_ids.length === 0) {
+    return res.status(400).json({ error: 'principal_id and asociados_ids array are required' });
+  }
+
+  const pId = Number(principal_id);
+  const targetIds = asociados_ids.map(Number).filter(id => Number.isInteger(id) && id > 0 && id !== pId);
+
+  if (targetIds.length === 0) {
+    return res.status(400).json({ error: 'At least one secondary client id is required' });
+  }
+
+  try {
+    const principal = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [pId]);
+    if (!principal) return res.status(404).json({ error: 'Principal client not found' });
+
+    // Clear any principal relationship from principal itself to prevent nesting/cycles
+    await db.run('UPDATE clientes SET cliente_principal_id = NULL WHERE id = ?', [pId]);
+
+    const placeholders = targetIds.map((_, idx) => `$${idx + 2}`).join(', ');
+    await db.pool.query(
+      `UPDATE clientes SET cliente_principal_id = $1 WHERE id IN (${placeholders}) AND activo = 1`,
+      [pId, ...targetIds]
+    );
+
+    res.json({ message: 'Farmers associated successfully', principal_id: pId, count: targetIds.length });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to log visit' });
+    res.status(500).json({ error: 'Failed to associate farmers' });
+  }
+});
+
+// POST /api/clientes/desasociar
+router.post('/desasociar', authenticateToken, async (req, res) => {
+  const { cliente_id } = req.body;
+  const cId = Number(cliente_id);
+  if (!cId || !Number.isInteger(cId)) {
+    return res.status(400).json({ error: 'Valid cliente_id is required' });
+  }
+
+  try {
+    await db.run('UPDATE clientes SET cliente_principal_id = NULL WHERE id = ?', [cId]);
+    res.json({ message: 'Farmer disassociated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to disassociate farmer' });
   }
 });
 
 module.exports = router;
+

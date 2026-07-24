@@ -5145,7 +5145,7 @@ function updateCatalogSelectionControls(visibleClients = getFilteredCatalogClien
   const checkedVisibleCount = visibleIds.filter(id => selectedCatalogClientIds.has(id)).length;
 
   if (selectAll) {
-    selectAll.style.display = isAdmin ? '' : 'none';
+    selectAll.style.display = '';
     selectAll.checked = visibleIds.length > 0 && checkedVisibleCount === visibleIds.length;
     selectAll.indeterminate = checkedVisibleCount > 0 && checkedVisibleCount < visibleIds.length;
     selectAll.disabled = visibleIds.length === 0;
@@ -5293,6 +5293,97 @@ window.loadClientesCatalog = async function({ page = catalogPagination.page } = 
   }
 };
 
+let expandedAssociatedGroupIds = new Set();
+
+window.toggleAssociatedGroup = function(parentId) {
+  if (expandedAssociatedGroupIds.has(parentId)) {
+    expandedAssociatedGroupIds.delete(parentId);
+  } else {
+    expandedAssociatedGroupIds.add(parentId);
+  }
+  renderCatalogClientes();
+};
+
+window.openAsociarModal = function() {
+  const selectedClients = allCatalogClients.filter(c => selectedCatalogClientIds.has(c.id));
+  if (selectedClients.length < 2) {
+    alert('Por favor selecciona 2 o más agricultores mediante las casillas de verificación para formar una asociación.');
+    return;
+  }
+
+  const container = document.getElementById('asociar-farmers-list');
+  if (!container) return;
+
+  container.innerHTML = '';
+  selectedClients.forEach((c, idx) => {
+    container.innerHTML += `
+      <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-hover, #f8fafc); border-radius: 6px; cursor: pointer; border: 1px solid var(--border);">
+        <input type="radio" name="principal_radio" value="${c.id}" ${idx === 0 ? 'checked' : ''}>
+        <div>
+          <strong style="display: block; font-size: 14px; color: var(--text);">${escapeHtml(c.nombre)}</strong>
+          <span style="font-size: 12px; color: var(--text-light);">${escapeHtml(c.ubicacion || 'Sin ubicación')} ${c.asesor_nombre ? ' • ' + escapeHtml(c.asesor_nombre) : ''}</span>
+        </div>
+      </label>
+    `;
+  });
+
+  openModal('modal-asociar-agricultores');
+};
+
+window.confirmarAsociacion = async function() {
+  const selectedRadio = document.querySelector('input[name="principal_radio"]:checked');
+  if (!selectedRadio) {
+    alert('Por favor selecciona cuál será el Asociado Principal.');
+    return;
+  }
+
+  const principalId = Number(selectedRadio.value);
+  const selectedIds = Array.from(selectedCatalogClientIds);
+  const asociadosIds = selectedIds.filter(id => id !== principalId);
+
+  if (asociadosIds.length === 0) {
+    alert('Debes seleccionar al menos un agricultor secundario para asociar.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/api/clientes/asociar`, {
+      method: 'POST',
+      headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ principal_id: principalId, asociados_ids: asociadosIds })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to associate farmers');
+
+    closeModal('modal-asociar-agricultores');
+    selectedCatalogClientIds.clear();
+    expandedAssociatedGroupIds.add(principalId);
+    alert('¡Agricultores asociados exitosamente!');
+    loadClientesCatalog();
+  } catch (err) {
+    console.error('Error al asociar agricultores:', err);
+    alert(`Error: ${err.message}`);
+  }
+};
+
+window.desasociarCliente = async function(clienteId) {
+  if (!confirm('¿Deseas remover este agricultor de la asociación?')) return;
+  try {
+    const res = await fetch(`${API_URL}/api/clientes/desasociar`, {
+      method: 'POST',
+      headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cliente_id: clienteId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to disassociate farmer');
+
+    loadClientesCatalog();
+  } catch (err) {
+    console.error('Error al desasociar agricultor:', err);
+    alert(`Error: ${err.message}`);
+  }
+};
+
 window.renderCatalogClientes = function() {
   const tbody = document.getElementById('catalog-clientes-tbody');
   if (!tbody) return;
@@ -5312,24 +5403,59 @@ window.renderCatalogClientes = function() {
     return;
   }
   
-  let catalogHtml = '';
+  // Group clients into hierarchy (Principals with their Associated secondaries)
+  const clientMap = new Map();
+  const principals = [];
+  const secondaries = [];
+
   filtered.forEach(c => {
-    let badgeClass = c.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
+    clientMap.set(c.id, { ...c, asociados: [] });
+  });
+
+  filtered.forEach(c => {
+    const item = clientMap.get(c.id);
+    if (c.cliente_principal_id && clientMap.has(c.cliente_principal_id)) {
+      secondaries.push(item);
+    } else {
+      principals.push(item);
+    }
+  });
+
+  secondaries.forEach(sec => {
+    const parent = clientMap.get(sec.cliente_principal_id);
+    if (parent) parent.asociados.push(sec);
+  });
+
+  let catalogHtml = '';
+  
+  principals.forEach(c => {
     const isSelected = selectedCatalogClientIds.has(c.id);
-    const selectionControl = user.nivel_rol === 'Administrador'
-      ? `<input type="checkbox" class="catalog-row-checkbox" ${isSelected ? 'checked' : ''} title="Seleccionar agricultor" aria-label="Seleccionar agricultor" onchange="toggleCatalogClientSelection(${c.id}, this.checked)">`
+    const hasAsociados = Array.isArray(c.asociados) && c.asociados.length > 0;
+    const isExpanded = expandedAssociatedGroupIds.has(c.id);
+
+    const accordionToggle = (hasAsociados || c.asociados_count > 0)
+      ? `<button class="btn btn-secondary icon-action-btn" title="${isExpanded ? 'Contraer asociados' : 'Desglosar asociados'}" style="padding: 2px 6px; font-size: 11px; margin-right: 6px;" onclick="toggleAssociatedGroup(${c.id})">${isExpanded ? '▼' : '▶'}</button>`
       : '';
+    const asociadosBadge = (hasAsociados || c.asociados_count > 0)
+      ? `<span class="badge badge-info" style="font-size: 11px; margin-left: 6px; cursor: pointer;" onclick="toggleAssociatedGroup(${c.id})">🔗 ${c.asociados ? c.asociados.length : c.asociados_count} asociados</span>`
+      : '';
+
+    let badgeClass = c.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
+    const selectionControl = `<input type="checkbox" class="catalog-row-checkbox" ${isSelected ? 'checked' : ''} title="Seleccionar agricultor" aria-label="Seleccionar agricultor" onchange="toggleCatalogClientSelection(${c.id}, this.checked)">`;
+    
     const deleteButton = user.nivel_rol === 'Administrador'
       ? `<button class="btn btn-secondary icon-action-btn danger" title="Borrar agricultor" aria-label="Borrar agricultor" onclick="deleteCatalogClient(${c.id})">🗑️</button>`
       : '';
-    const nameContent = user.nivel_rol === 'Asesor'
-      ? `<div class="catalog-name-cell"><strong>${escapeHtml(c.nombre)}</strong></div>`
-      : `<div class="catalog-name-cell"><strong>${escapeHtml(c.nombre)}</strong>${selectionControl}</div>`;
-    
+
     catalogHtml += `
-      <tr>
+      <tr class="${hasAsociados ? 'principal-farmer-row' : ''}">
         <td>
-          ${nameContent}
+          <div class="catalog-name-cell">
+            ${accordionToggle}
+            <strong>${escapeHtml(c.nombre)}</strong>
+            ${asociadosBadge}
+            ${selectionControl}
+          </div>
         </td>
         ${user.nivel_rol !== 'Asesor' ? `<td>${escapeHtml(c.asesor_nombre || 'Sin Asesor')}</td>` : ''}
         <td>${escapeHtml(c.cuenta_clave_nombre || '-')}</td>
@@ -5346,7 +5472,42 @@ window.renderCatalogClientes = function() {
         </td>
       </tr>
     `;
+
+    // Render secondary associated rows indented if expanded
+    if (hasAsociados && isExpanded) {
+      c.asociados.forEach(sec => {
+        const secIsSelected = selectedCatalogClientIds.has(sec.id);
+        const secSelectionControl = `<input type="checkbox" class="catalog-row-checkbox" ${secIsSelected ? 'checked' : ''} title="Seleccionar agricultor" aria-label="Seleccionar agricultor" onchange="toggleCatalogClientSelection(${sec.id}, this.checked)">`;
+        const secBadgeClass = sec.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
+
+        catalogHtml += `
+          <tr class="associated-secondary-row" style="background-color: rgba(96, 165, 250, 0.05);">
+            <td style="padding-left: 36px;">
+              <div class="catalog-name-cell">
+                <span style="color: var(--text-light); font-size: 13px; margin-right: 4px;">↳ 🔗</span>
+                <span style="font-weight: 500;">${escapeHtml(sec.nombre)}</span>
+                ${secSelectionControl}
+              </div>
+            </td>
+            ${user.nivel_rol !== 'Asesor' ? `<td>${escapeHtml(sec.asesor_nombre || 'Sin Asesor')}</td>` : ''}
+            <td>${escapeHtml(sec.cuenta_clave_nombre || '-')}</td>
+            <td>${escapeHtml(sec.contacto || '-')}</td>
+            <td>${escapeHtml(sec.telefono || '-')}</td>
+            <td>${escapeHtml(sec.ubicacion || '-')}</td>
+            <td>${escapeHtml(sec.superficie_text || '-')}</td>
+            <td><span class="badge ${secBadgeClass}">${escapeHtml(sec.estado_status)}</span></td>
+            <td style="text-align: center;">
+              <div class="catalog-row-actions">
+                <button class="btn btn-secondary icon-action-btn danger" title="Desasociar del grupo" aria-label="Desasociar del grupo" onclick="desasociarCliente(${sec.id})">❌</button>
+                <button class="btn btn-secondary icon-action-btn" title="Editar agricultor" aria-label="Editar agricultor" onclick="editCatalogClient(${sec.id})">✏️</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+    }
   });
+
   tbody.innerHTML = catalogHtml;
 };
 

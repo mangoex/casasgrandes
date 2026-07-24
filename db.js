@@ -28,6 +28,7 @@ const pool = connectionString
 async function initSchema() {
   try {
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS disponible_para_puja INTEGER DEFAULT 0');
+    await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cliente_principal_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL');
     await pool.query('ALTER TABLE asesores ADD COLUMN IF NOT EXISTS calificacion REAL DEFAULT 5.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_faena REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_clavis REAL DEFAULT 0.0');
@@ -55,6 +56,7 @@ async function initSchema() {
     await pool.query("CREATE INDEX IF NOT EXISTS idx_productos_clave ON productos (clave) WHERE clave IS NOT NULL AND clave <> ''");
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_activos_nombre ON clientes (nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_asesor_activo_nombre ON clientes (asesor_id, nombre) WHERE activo = 1');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_principal ON clientes (cliente_principal_id) WHERE cliente_principal_id IS NOT NULL');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_fecha ON cotizaciones (asesor_id, fecha_creacion DESC)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_ciclo_estatus ON cotizaciones (asesor_id, ciclo_agricola, estatus)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_cliente_estatus ON cotizaciones (cliente_id, estatus)');
