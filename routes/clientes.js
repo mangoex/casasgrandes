@@ -308,5 +308,22 @@ router.post('/desasociar', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/clientes/disolver-grupo
+router.post('/disolver-grupo', authenticateToken, async (req, res) => {
+  const { principal_id } = req.body;
+  const pId = Number(principal_id);
+  if (!pId || !Number.isInteger(pId)) {
+    return res.status(400).json({ error: 'Valid principal_id is required' });
+  }
+
+  try {
+    await db.run('UPDATE clientes SET cliente_principal_id = NULL WHERE cliente_principal_id = ?', [pId]);
+    res.json({ message: 'Association group disbanded successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to disband group' });
+  }
+});
+
 module.exports = router;
 

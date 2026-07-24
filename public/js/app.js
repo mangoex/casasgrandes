@@ -5511,6 +5511,26 @@ window.renderCatalogClientes = function() {
   tbody.innerHTML = catalogHtml;
 };
 
+window.disolverGrupoAsociados = async function(principalId) {
+  if (!confirm('¿Estás seguro de disolver esta asociación de grupo?\nTodos los agricultores asociados pasarán a tratarse como individuales.')) return;
+  try {
+    const res = await fetch(`${API_URL}/api/clientes/disolver-grupo`, {
+      method: 'POST',
+      headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ principal_id: principalId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to disband group');
+
+    closeModal('add-client-modal');
+    alert('¡La asociación de grupo ha sido disuelta! Todos los agricultores ahora son individuales.');
+    loadClientesCatalog();
+  } catch (err) {
+    console.error('Error al disolver grupo:', err);
+    alert(`Error: ${err.message}`);
+  }
+};
+
 window.editCatalogClient = async function(clientId) {
   const c = allCatalogClients.find(x => x.id === clientId);
   if (!c) return;
@@ -5524,6 +5544,37 @@ window.editCatalogClient = async function(clientId) {
   document.getElementById('client-ubicacion').value = c.ubicacion || '';
   document.getElementById('client-superficie').value = c.superficie_text || '';
   document.getElementById('client-submit-btn').textContent = 'Guardar Cambios';
+
+  const assocContainer = document.getElementById('client-association-actions');
+  if (assocContainer) {
+    const isPrincipal = (c.asociados_count > 0) || (Array.isArray(c.asociados) && c.asociados.length > 0);
+    if (isPrincipal) {
+      assocContainer.style.display = 'block';
+      assocContainer.innerHTML = `
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div>
+            <strong style="color: var(--danger); font-size: 13px; display: block;">🔗 Asociado Principal de Grupo</strong>
+            <span style="font-size: 12px; color: var(--text-light);">Este agricultor encabeza un grupo. Al disolver la asociación, todos volverán a tratarse como individuales.</span>
+          </div>
+          <button type="button" class="btn btn-danger" style="white-space: nowrap; font-size: 12px; padding: 8px 14px;" onclick="disolverGrupoAsociados(${c.id})">🔓 Disolver Grupo</button>
+        </div>
+      `;
+    } else if (c.cliente_principal_id) {
+      assocContainer.style.display = 'block';
+      assocContainer.innerHTML = `
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div>
+            <strong style="color: var(--danger); font-size: 13px; display: block;">🔗 Pertenece a una Asociación</strong>
+            <span style="font-size: 12px; color: var(--text-light);">Al salir de la asociación, este agricultor pasará a tratarse como un agricultor individual.</span>
+          </div>
+          <button type="button" class="btn btn-danger" style="white-space: nowrap; font-size: 12px; padding: 8px 14px;" onclick="desasociarCliente(${c.id}); closeModal('add-client-modal');">🔓 Salir de Asociación</button>
+        </div>
+      `;
+    } else {
+      assocContainer.style.display = 'none';
+      assocContainer.innerHTML = '';
+    }
+  }
   
   await loadCRMClientFormConfig(c.cuenta_clave_id, c.asesor_id);
   openModal('add-client-modal');

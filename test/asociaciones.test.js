@@ -48,3 +48,20 @@ test('agrupa la jerarquía de principales y secundarios en forma de árbol', () 
   assert.equal(agro1.asociados[0].id, 2);
   assert.equal(agro1.asociados[1].id, 3);
 });
+
+test('al disolver una asociación todos los miembros vuelven a ser independientes', () => {
+  let clients = [
+    { id: 10, nombre: 'Principal X', cliente_principal_id: null },
+    { id: 11, nombre: 'Secundario Y', cliente_principal_id: 10 },
+    { id: 12, nombre: 'Secundario Z', cliente_principal_id: 10 }
+  ];
+  assert.equal(calculateConsolidatedClientCount(clients), 1);
+
+  // Simular disolución de grupo (cliente_principal_id = null)
+  clients = clients.map(c => ({ ...c, cliente_principal_id: null }));
+  assert.equal(calculateConsolidatedClientCount(clients), 3);
+  const hierarchy = groupClientsHierarchy(clients);
+  assert.equal(hierarchy.length, 3);
+  assert.equal(hierarchy[0].asociados.length, 0);
+});
+
