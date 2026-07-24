@@ -251,6 +251,12 @@ router.post('/:id/visitas', authenticateToken, async (req, res) => {
     `, [now, id, req.user.id, comentarios_bitacora, proxima_cita || null]);
     
     res.status(201).json({ message: 'Visit logged successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to log visit' });
+  }
+});
+
 // POST /api/clientes/asociar
 router.post('/asociar', authenticateToken, async (req, res) => {
   const { principal_id, asociados_ids } = req.body;
