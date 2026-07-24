@@ -2771,6 +2771,23 @@ tr:hover td {
   }
 }
 
+/* Default hidden state for mobile dashboard components on desktop/tablet > 768px */
+.asesor-mobile-dashboard {
+  display: none !important;
+}
+
+@media (min-width: 769px) {
+  .asesor-mobile-dashboard {
+    display: none !important;
+  }
+  .desktop-dashboard-only {
+    display: grid !important;
+  }
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+}
+
 /* =========================================================
    ASESOR MOBILE REDESIGN (Viewport <= 768px)
    ========================================================= */
@@ -2835,7 +2852,7 @@ tr:hover td {
   }
 
   body.role-asesor .asesor-mobile-dashboard {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     gap: 16px;
     padding: 8px 4px;
