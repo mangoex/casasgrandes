@@ -2770,3 +2770,290 @@ tr:hover td {
     opacity: 1;
   }
 }
+
+/* =========================================================
+   ASESOR MOBILE REDESIGN (Viewport <= 768px)
+   ========================================================= */
+@media (max-width: 768px) {
+  /* Mobile Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 64px;
+    background-color: #ffffff;
+    border-top: 1px solid var(--border, #e2e8f0);
+    z-index: 1000;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.06);
+    justify-content: space-around;
+    align-items: center;
+    padding: 4px 8px;
+  }
+
+  body.role-asesor .mobile-bottom-nav {
+    display: flex !important;
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+  }
+
+  .mobile-nav-item .mobile-nav-icon {
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+
+  .mobile-nav-item.active {
+    color: #10b981;
+    font-weight: 700;
+    background-color: rgba(16, 185, 129, 0.1);
+  }
+
+  /* Main content padding adjustment for mobile asesor */
+  body.role-asesor main {
+    padding-bottom: 80px !important;
+  }
+
+  /* Asesor Mobile Dashboard Container */
+  .asesor-mobile-dashboard {
+    display: none;
+  }
+
+  body.role-asesor .asesor-mobile-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 8px 4px;
+  }
+
+  body.role-asesor .desktop-dashboard-only {
+    display: none !important;
+  }
+
+  /* Mobile Greeting Header */
+  .mobile-greeting-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px 20px;
+    border: 1px solid var(--border, #e2e8f0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  }
+
+  .mobile-greeting-card h2 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 2px 0;
+  }
+
+  .mobile-greeting-card .role-badge {
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  /* Mobile Progress Card: Ventas del Día */
+  .mobile-progress-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 18px 20px;
+    border: 1px solid var(--border, #e2e8f0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  }
+
+  .mobile-progress-card .progress-card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 12px;
+  }
+
+  .mobile-progress-card .progress-metric-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #0f172a;
+    margin-bottom: 10px;
+  }
+
+  .mobile-progress-bar-bg {
+    width: 100%;
+    height: 10px;
+    background-color: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .mobile-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #059669);
+    border-radius: 999px;
+    transition: width 0.4s ease;
+  }
+
+  .mobile-progress-card .progress-metric-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #0f172a;
+  }
+
+  /* Mobile Action Cards */
+  .mobile-action-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mobile-action-card {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px 20px;
+    border: 1px solid var(--border, #e2e8f0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .mobile-action-card:active {
+    transform: scale(0.98);
+  }
+
+  .mobile-action-card .action-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-right: 16px;
+    flex-shrink: 0;
+    background-color: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+  }
+
+  .mobile-action-card .action-card-info {
+    flex-grow: 1;
+  }
+
+  .mobile-action-card .action-card-info h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 2px 0;
+  }
+
+  .mobile-action-card .action-card-info p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .mobile-action-card .action-card-arrow {
+    font-size: 22px;
+    color: #10b981;
+    font-weight: 700;
+  }
+
+  /* Horizontal Scrolling Category Filters */
+  .catalog-filters {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .catalog-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .catalog-filters .filter-pill {
+    white-space: nowrap;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border, #e2e8f0);
+    background-color: #ffffff;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .catalog-filters .filter-pill.active {
+    background-color: #10b981;
+    color: #ffffff;
+    border-color: #10b981;
+  }
+
+  /* Mobile Client Cards */
+  .mobile-client-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px 20px;
+    border: 1px solid var(--border, #e2e8f0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mobile-client-card .client-info h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 4px 0;
+    color: #0f172a;
+  }
+
+  .mobile-client-card .client-info p {
+    font-size: 12px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .mobile-client-card .btn-pedido {
+    background-color: #10b981;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+  }
+}
+
+@keyframes barGrow {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}

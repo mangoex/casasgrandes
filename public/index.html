@@ -123,7 +123,63 @@
 
       <!-- A. DASHBOARD VIEW -->
       <div id="dashboard-view" class="view-section active">
-        <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+        <!-- ASESOR MOBILE DASHBOARD (Visible on mobile viewports for Asesores) -->
+        <div id="asesor-mobile-dashboard" class="asesor-mobile-dashboard">
+          <div class="mobile-greeting-card">
+            <div class="greeting-text">
+              <h2 id="mobile-greeting-name">Hola, Usuario</h2>
+              <span class="role-badge">Asesor de Ventas</span>
+            </div>
+          </div>
+
+          <!-- Ventas del Día Progress Card -->
+          <div class="mobile-progress-card">
+            <div class="progress-card-title">Ventas del Día</div>
+            <div class="progress-metric-row">
+              <span class="metric-icon">📈</span>
+              <span class="metric-text">Objetivo de Venta: <strong id="mobile-sales-real">$0</strong> / <span id="mobile-sales-target">$10,000</span></span>
+            </div>
+            <div class="mobile-progress-bar-bg">
+              <div id="mobile-sales-progress-fill" class="mobile-progress-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div class="progress-metric-sub">
+              <span class="sub-icon">✓</span>
+              <span>Pedidos Realizados: <strong id="mobile-orders-count">0</strong></span>
+            </div>
+          </div>
+
+          <!-- Quick Action Navigation Cards -->
+          <div class="mobile-action-cards">
+            <div class="mobile-action-card" onclick="switchView('clientes-view')">
+              <div class="action-card-icon user-icon">👤</div>
+              <div class="action-card-info">
+                <h3>Mis Clientes</h3>
+                <p>Gestión y seguimiento</p>
+              </div>
+              <span class="action-card-arrow">›</span>
+            </div>
+
+            <div class="mobile-action-card" onclick="switchView('cotizador-view')">
+              <div class="action-card-icon cart-icon">🛒</div>
+              <div class="action-card-info">
+                <h3>Nuevo Pedido</h3>
+                <p>Crear y procesar pedidos</p>
+              </div>
+              <span class="action-card-arrow">›</span>
+            </div>
+
+            <div class="mobile-action-card" onclick="switchView('catalog-view')">
+              <div class="action-card-icon box-icon">📦</div>
+              <div class="action-card-info">
+                <h3>Catálogo de Productos</h3>
+                <p>Explorar productos y precios</p>
+              </div>
+              <span class="action-card-arrow">›</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-grid desktop-dashboard-only" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
           <div class="card">
             <div class="card-title">Ventas Totales Cobradas</div>
             <div id="stat-sales" class="card-value card-accent" style="font-size: 20px;">$0.00 MXN</div>
@@ -1549,28 +1605,23 @@
       </div>
     </main>
 
-    <!-- Bottom Navigation Bar for Mobile -->
-    <div class="mobile-bottom-nav">
+    <!-- Bottom Navigation Bar for Mobile Asesor -->
+    <div id="mobile-bottom-nav" class="mobile-bottom-nav">
       <div class="mobile-nav-item active" data-target="dashboard-view">
         <span class="mobile-nav-icon">📊</span>
+        <span class="mobile-nav-label">Dashboard</span>
       </div>
-      <div class="mobile-nav-item" data-target="crm-view">
-        <span class="mobile-nav-icon">🔄</span>
-      </div>
-      <div class="mobile-nav-item" data-target="planeacion-view">
-        <span class="mobile-nav-icon">📅</span>
-      </div>
-      <div class="mobile-nav-item admin-or-coordinator-only" data-target="programacion-view" style="display: none;">
-        <span class="mobile-nav-icon">📆</span>
+      <div class="mobile-nav-item" data-target="clientes-view">
+        <span class="mobile-nav-icon">👥</span>
+        <span class="mobile-nav-label">Clientes</span>
       </div>
       <div class="mobile-nav-item" data-target="cotizador-view">
         <span class="mobile-nav-icon">📝</span>
+        <span class="mobile-nav-label">Pedidos</span>
       </div>
       <div class="mobile-nav-item" data-target="catalog-view">
         <span class="mobile-nav-icon">🌾</span>
-      </div>
-      <div class="mobile-nav-item admin-or-coordinator-only" data-target="ia-view" style="display: none;">
-        <span class="mobile-nav-icon">🤖</span>
+        <span class="mobile-nav-label">Catálogo</span>
       </div>
     </div>
 

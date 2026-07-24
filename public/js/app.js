@@ -171,6 +171,12 @@ async function showAppView() {
   // Set User Profile Display
   document.getElementById('user-display-name').textContent = user.nombre;
   document.getElementById('user-display-role').textContent = user.nivel_rol;
+
+  document.body.classList.toggle('role-asesor', user.nivel_rol === 'Asesor');
+  const greetingEl = document.getElementById('mobile-greeting-name');
+  if (greetingEl) {
+    greetingEl.textContent = user.nombre ? `Hola, ${user.nombre.split(' ')[0]}` : 'Hola';
+  }
   
   // Handle Admin Sidebar Visibility
   if (user.nivel_rol === 'Administrador') {
@@ -344,6 +350,16 @@ function switchView(viewId, title) {
     return;
   }
   
+  if (!title) {
+    const defaultTitles = {
+      'dashboard-view': 'Tablero General',
+      'clientes-view': 'Catálogo de Clientes / Agricultores',
+      'cotizador-view': 'Cotizador de Productos',
+      'catalog-view': 'Catálogo de Semillas e Insumos'
+    };
+    title = defaultTitles[viewId] || 'AgriSales Pro';
+  }
+  
   document.getElementById('view-title').textContent = title;
   
   const sections = document.querySelectorAll('.view-section');
@@ -351,6 +367,11 @@ function switchView(viewId, title) {
   
   const targetEl = document.getElementById(viewId);
   if (targetEl) targetEl.classList.add('active');
+  
+  // Sync mobile bottom nav items active state
+  document.querySelectorAll('.mobile-nav-item').forEach(item => {
+    item.classList.toggle('active', item.getAttribute('data-target') === viewId);
+  });
   
   // Refresh specific views data
   if (viewId === 'dashboard-view') {
@@ -499,6 +520,24 @@ async function loadDashboardData() {
     if (document.getElementById('stat-sales-promesa')) {
       const promesaVal = Number(stats.promesa_sales_mxn) || 0.0;
       document.getElementById('stat-sales-promesa').textContent = `$${promesaVal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
+    }
+
+    // Populate Asesor Mobile Dashboard metrics
+    if (document.getElementById('mobile-sales-real')) {
+      const salesVal = Number(stats.total_sales_mxn) || 0.0;
+      const targetVal = 10000;
+      document.getElementById('mobile-sales-real').textContent = `$${salesVal.toLocaleString('es-MX')}`;
+      const pct = Math.min(Math.round((salesVal / targetVal) * 100), 100);
+      const fillEl = document.getElementById('mobile-sales-progress-fill');
+      if (fillEl) fillEl.style.width = `${pct}%`;
+    }
+    if (document.getElementById('mobile-orders-count')) {
+      let ordersCount = 0;
+      if (Array.isArray(stats.advisers_performance)) {
+        const adv = stats.advisers_performance.find(a => a.id === user.id);
+        if (adv) ordersCount = Number(adv.quote_count) || 0;
+      }
+      document.getElementById('mobile-orders-count').textContent = ordersCount;
     }
     
     // Render goals progress table
