@@ -5315,6 +5315,9 @@ window.loadClientesCatalog = async function({ page = catalogPagination.page } = 
     }
     
     allCatalogClients = data.data;
+    if (Array.isArray(data.data)) {
+      data.data.forEach(c => catalogClientsMap.set(c.id, c));
+    }
     catalogPagination = {
       page: data.page,
       limit: data.limit,
@@ -5332,6 +5335,7 @@ window.loadClientesCatalog = async function({ page = catalogPagination.page } = 
   }
 };
 
+let catalogClientsMap = new Map();
 let expandedAssociatedGroupIds = new Set();
 
 window.toggleAssociatedGroup = function(parentId) {
@@ -5343,8 +5347,31 @@ window.toggleAssociatedGroup = function(parentId) {
   renderCatalogClientes();
 };
 
-window.openAsociarModal = function() {
-  const selectedClients = allCatalogClients.filter(c => selectedCatalogClientIds.has(c.id));
+window.openAsociarModal = async function() {
+  const selectedIds = Array.from(selectedCatalogClientIds);
+  if (selectedIds.length < 2) {
+    alert('Por favor selecciona 2 o más agricultores mediante las casillas de verificación para formar una asociación.');
+    return;
+  }
+
+  // Retrieve all selected clients across different pages
+  const selectedClients = [];
+  for (const id of selectedIds) {
+    let clientObj = catalogClientsMap.get(id);
+    if (!clientObj) {
+      try {
+        const res = await fetch(`${API_URL}/api/clientes/${id}`, { headers: getHeaders() });
+        if (res.ok) {
+          clientObj = await res.json();
+          if (clientObj) catalogClientsMap.set(id, clientObj);
+        }
+      } catch (err) {
+        console.error(`Error loading client ID ${id} for association:`, err);
+      }
+    }
+    if (clientObj) selectedClients.push(clientObj);
+  }
+
   if (selectedClients.length < 2) {
     alert('Por favor selecciona 2 o más agricultores mediante las casillas de verificación para formar una asociación.');
     return;

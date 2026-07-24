@@ -69,6 +69,29 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/clientes/:id
+router.get('/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const client = await db.get(`
+      SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
+             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
+             a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
+             (SELECT COUNT(*)::int FROM clientes sub WHERE sub.cliente_principal_id = c.id AND sub.activo = 1) as asociados_count
+      FROM clientes c
+      LEFT JOIN asesores a ON c.asesor_id = a.id
+      LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
+      WHERE c.id = ? AND c.activo = 1
+    `, [id]);
+
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    res.json(client);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch client' });
+  }
+});
+
 // POST /api/clientes
 router.post('/', authenticateToken, async (req, res) => {
   const { nombre, asesor_id, cuenta_clave_id, contacto, telefono, correo, cumpleanos, ubicacion, superficie_text } = req.body;
