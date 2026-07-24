@@ -75,8 +75,38 @@ router.post('/', authenticateToken, async (req, res) => {
   if (!nombre) return res.status(400).json({ error: 'Client name is required' });
   
   try {
-    const existing = await db.get('SELECT id FROM clientes WHERE nombre = ?', [nombre.trim()]);
-    if (existing) return res.status(400).json({ error: 'A client with this name already exists' });
+    const trimmedName = nombre.trim();
+    const existing = await db.get('SELECT id, activo FROM clientes WHERE LOWER(nombre) = LOWER(?)', [trimmedName]);
+    
+    if (existing) {
+      if (Number(existing.activo) === 1) {
+        return res.status(400).json({ error: 'Un agricultor activo con este nombre ya existe en el sistema.' });
+      }
+      
+      // Reactivate previously soft-deleted farmer (activo = 0)
+      const assignedAsesor = req.user.nivel_rol === 'Asesor'
+        ? req.user.id
+        : ((asesor_id === null || asesor_id === '') ? null : (asesor_id || req.user.id));
+      const ccId = cuenta_clave_id || 1;
+
+      await db.run(`
+        UPDATE clientes
+        SET activo = 1,
+            disponible_para_puja = 0,
+            asesor_id = ?,
+            cuenta_clave_id = ?,
+            contacto = ?,
+            telefono = ?,
+            correo = ?,
+            cumpleanos = ?,
+            estado_status = 'Nuevo',
+            ubicacion = ?,
+            superficie_text = ?
+        WHERE id = ?
+      `, [assignedAsesor, ccId, contacto || null, telefono || null, correo || null, cumpleanos || null, ubicacion || null, superficie_text || null, existing.id]);
+
+      return res.status(200).json({ id: existing.id, message: 'Agricultor reactivado y registrado exitosamente' });
+    }
     
     const assignedAsesor = req.user.nivel_rol === 'Asesor'
       ? req.user.id
@@ -84,9 +114,9 @@ router.post('/', authenticateToken, async (req, res) => {
     const ccId = cuenta_clave_id || 1;
     
     const result = await db.run(`
-      INSERT INTO clientes (nombre, asesor_id, cuenta_clave_id, contacto, telefono, correo, cumpleanos, estado_status, ubicacion, superficie_text)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'Nuevo', ?, ?)
-    `, [nombre.trim(), assignedAsesor, ccId, contacto, telefono, correo, cumpleanos, ubicacion, superficie_text]);
+      INSERT INTO clientes (nombre, asesor_id, cuenta_clave_id, contacto, telefono, correo, cumpleanos, estado_status, ubicacion, superficie_text, activo)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'Nuevo', ?, ?, 1)
+    `, [trimmedName, assignedAsesor, ccId, contacto, telefono, correo, cumpleanos, ubicacion, superficie_text]);
     
     res.status(201).json({ id: result.id, message: 'Client registered successfully' });
   } catch (err) {
