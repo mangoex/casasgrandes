@@ -858,14 +858,17 @@ window.closeModal = function(modalId) {
 };
 
 // Bind Open Add Client Modal
-document.getElementById('btn-open-client-modal').addEventListener('click', () => {
-  document.getElementById('client-modal-title').textContent = 'Registrar Nuevo Cliente';
-  document.getElementById('client-form-id').value = '';
-  document.getElementById('client-submit-btn').textContent = 'Registrar Cliente';
-  document.getElementById('add-client-form').reset();
-  loadCRMClientFormConfig();
-  openModal('add-client-modal');
-});
+const btnOpenClientModal = document.getElementById('btn-open-client-modal');
+if (btnOpenClientModal) {
+  btnOpenClientModal.addEventListener('click', () => {
+    document.getElementById('client-modal-title').textContent = 'Registrar Nuevo Cliente';
+    document.getElementById('client-form-id').value = '';
+    document.getElementById('client-submit-btn').textContent = 'Registrar Cliente';
+    document.getElementById('add-client-form').reset();
+    loadCRMClientFormConfig();
+    openModal('add-client-modal');
+  });
+}
 
 // Bind Catalog View Registrar Cliente Button
 if (document.getElementById('btn-catalog-open-client-modal')) {
