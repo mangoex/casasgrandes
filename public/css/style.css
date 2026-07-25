@@ -2803,7 +2803,9 @@ tr:hover td {
 .mobile-item-package,
 .mobile-item-subtotal,
 .mobile-add-item-label,
-.mobile-remove-icon {
+.mobile-remove-icon,
+.mobile-quantity-label,
+.mobile-quantity-hint {
   display: none;
 }
 
@@ -3157,16 +3159,27 @@ tr:hover td {
   }
 
   body.role-asesor.mobile-quote-active .item-qty-group {
+    position: relative;
+    z-index: 2;
+    width: 148px;
     grid-column: 1 / 3;
     grid-row: 2;
-    margin: 10px 0 0 52px;
+    margin: 8px 0 0 52px;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quantity-label {
+    display: block;
+    margin-bottom: 4px;
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 650;
   }
 
   body.role-asesor.mobile-quote-active .mobile-quantity-stepper {
-    width: 116px;
-    height: 38px;
+    width: 148px;
+    height: 42px;
     display: grid;
-    grid-template-columns: 36px 44px 36px;
+    grid-template-columns: 42px 64px 42px;
     overflow: hidden;
     border: 1px solid #dce8e3;
     border-radius: 12px;
@@ -3178,28 +3191,49 @@ tr:hover td {
     border: 0;
     background: transparent;
     color: #059669;
-    font-size: 22px;
+    font-size: 23px;
     cursor: pointer;
+    touch-action: manipulation;
   }
 
   body.role-asesor.mobile-quote-active .mobile-quantity-stepper .item-qty-input {
-    width: 44px;
-    height: 36px;
+    width: 64px;
+    height: 40px;
     padding: 0;
     border: 0;
-    background: transparent;
+    border-right: 1px solid #e3ece8;
+    border-left: 1px solid #e3ece8;
+    border-radius: 0;
+    background: #ffffff;
     color: #12352b;
-    font-size: 14px;
-    font-weight: 750;
+    font-size: 16px;
+    font-weight: 800;
     text-align: center;
     appearance: textfield;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quantity-stepper .item-qty-input:focus {
+    position: relative;
+    z-index: 1;
+    outline: 2px solid #10b981;
+    outline-offset: -2px;
   }
 
   body.role-asesor.mobile-quote-active .mobile-quantity-stepper .item-qty-input::-webkit-inner-spin-button {
     appearance: none;
   }
 
+  body.role-asesor.mobile-quote-active .mobile-quantity-hint {
+    display: block;
+    margin-top: 4px;
+    color: #7b8c86;
+    font-size: 8px;
+  }
+
   body.role-asesor.mobile-quote-active .item-price-group {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
     min-width: 0;
     grid-column: 2;
     grid-row: 2;

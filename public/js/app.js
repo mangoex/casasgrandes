@@ -1952,10 +1952,42 @@ function registerLiveCalculatorEvents() {
   if (builderContainer) {
     builderContainer.removeEventListener('input', debouncedLiveCalculation);
     builderContainer.removeEventListener('change', debouncedLiveCalculation);
+    builderContainer.removeEventListener('focusin', handleQuoteQuantityFocus);
+    builderContainer.removeEventListener('focusout', handleQuoteQuantityBlur);
     
     builderContainer.addEventListener('input', debouncedLiveCalculation);
     builderContainer.addEventListener('change', debouncedLiveCalculation);
+    builderContainer.addEventListener('focusin', handleQuoteQuantityFocus);
+    builderContainer.addEventListener('focusout', handleQuoteQuantityBlur);
   }
+}
+
+function setQuoteQuantity(input, quantity) {
+  if (!input) return;
+  const normalizedQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+  input.value = String(normalizedQuantity);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function changeQuoteQuantity(button, delta) {
+  const wrapper = button.closest('.item-row-wrapper');
+  const input = wrapper?.querySelector('.item-qty-input');
+  if (!input) return;
+  const currentQuantity = Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : 1;
+  setQuoteQuantity(input, currentQuantity + delta);
+}
+
+function handleQuoteQuantityFocus(event) {
+  const input = event.target.closest('.item-qty-input');
+  if (!input || !window.matchMedia('(max-width: 768px)').matches) return;
+  window.setTimeout(() => input.select(), 0);
+}
+
+function handleQuoteQuantityBlur(event) {
+  const input = event.target.closest('.item-qty-input');
+  if (!input) return;
+  setQuoteQuantity(input, input.valueAsNumber);
 }
 
 async function loadCotizadorConfig() {
@@ -2032,11 +2064,13 @@ function addQuoteItemRow() {
       </div>
       <div class="form-group item-qty-group">
         <label>Cantidad</label>
+        <span class="mobile-quantity-label">Cantidad</span>
         <div class="mobile-quantity-stepper">
-          <button type="button" aria-label="Disminuir cantidad" onclick="adjustQuoteItemQuantity(${rowNum}, -1)">−</button>
-          <input type="number" class="form-input item-qty-input" min="1" value="1" required>
-          <button type="button" aria-label="Aumentar cantidad" onclick="adjustQuoteItemQuantity(${rowNum}, 1)">+</button>
+          <button type="button" aria-label="Disminuir cantidad" data-quantity-delta="-1">−</button>
+          <input type="number" class="form-input item-qty-input" min="1" step="1" inputmode="numeric" enterkeyhint="done" value="1" aria-label="Cantidad de producto" required>
+          <button type="button" aria-label="Aumentar cantidad" data-quantity-delta="1">+</button>
         </div>
+        <small class="mobile-quantity-hint">Toca el número para escribir</small>
       </div>
       <div class="form-group item-price-group">
         <label>Precio Base</label>
@@ -2077,6 +2111,11 @@ function addQuoteItemRow() {
   `;
 
   container.appendChild(wrapper);
+  wrapper.querySelectorAll('[data-quantity-delta]').forEach(button => {
+    button.addEventListener('click', () => {
+      changeQuoteQuantity(button, Number(button.dataset.quantityDelta || 0));
+    });
+  });
   debouncedLiveCalculation();
 }
 
@@ -2089,13 +2128,6 @@ function removeQuoteItemRow(rowNum) {
     debouncedLiveCalculation();
   }
 }
-
-window.adjustQuoteItemQuantity = function(rowNum, delta) {
-  const input = document.querySelector(`#quote-item-row-${rowNum} .item-qty-input`);
-  if (!input) return;
-  input.value = String(Math.max(1, (Number(input.value) || 1) + delta));
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-};
 
 // Collect form inputs helper
 function getQuotePayload() {
