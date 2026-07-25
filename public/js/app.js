@@ -175,8 +175,22 @@ async function showAppView() {
   document.body.classList.toggle('role-asesor', user.nivel_rol === 'Asesor');
   const greetingEl = document.getElementById('mobile-greeting-name');
   if (greetingEl) {
-    greetingEl.textContent = user.nombre ? `Hola, ${user.nombre.split(' ')[0]}` : 'Hola';
+    greetingEl.textContent = user.nombre ? `¡Buenos días, ${user.nombre.split(' ')[0]}!` : '¡Buenos días!';
   }
+  const initialsEl = document.getElementById('mobile-user-initials');
+  if (initialsEl) {
+    initialsEl.textContent = (user.nombre || 'Asesor')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map(part => part[0])
+      .join('')
+      .toUpperCase();
+  }
+  document.body.classList.toggle(
+    'mobile-dashboard-active',
+    user.nivel_rol === 'Asesor' && document.getElementById('dashboard-view')?.classList.contains('active')
+  );
   
   // Handle Admin Sidebar Visibility
   if (user.nivel_rol === 'Administrador') {
@@ -254,6 +268,11 @@ async function showAppView() {
   mobileNavItems.forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
+      if (item.dataset.mobileAction === 'menu') {
+        document.querySelector('aside')?.classList.add('active');
+        document.getElementById('sidebar-backdrop')?.classList.add('active');
+        return;
+      }
       const target = item.getAttribute('data-target');
       
       // Update sidebar nav state
@@ -367,6 +386,10 @@ function switchView(viewId, title) {
   
   const targetEl = document.getElementById(viewId);
   if (targetEl) targetEl.classList.add('active');
+  document.body.classList.toggle(
+    'mobile-dashboard-active',
+    user?.nivel_rol === 'Asesor' && viewId === 'dashboard-view'
+  );
   
   // Sync mobile bottom nav items active state
   document.querySelectorAll('.mobile-nav-item').forEach(item => {
@@ -403,6 +426,10 @@ function switchView(viewId, title) {
   } else if (viewId === 'programacion-view') {
     loadProgramacionView();
   }
+}
+
+function openMobileAgenda() {
+  switchView('planeacion-view', 'Mi agenda');
 }
 
 // Helper headers loader
@@ -526,10 +553,12 @@ async function loadDashboardData() {
     if (document.getElementById('mobile-sales-real')) {
       const salesVal = Number(stats.total_sales_mxn) || 0.0;
       const targetVal = 10000;
-      document.getElementById('mobile-sales-real').textContent = `$${salesVal.toLocaleString('es-MX')}`;
+      document.getElementById('mobile-sales-real').textContent = `$${salesVal.toLocaleString('es-MX', { maximumFractionDigits: 0 })} vendido`;
+      const targetEl = document.getElementById('mobile-sales-target');
+      if (targetEl) targetEl.textContent = `$${targetVal.toLocaleString('es-MX')}`;
       const pct = Math.min(Math.round((salesVal / targetVal) * 100), 100);
-      const fillEl = document.getElementById('mobile-sales-progress-fill');
-      if (fillEl) fillEl.style.width = `${pct}%`;
+      const percentageEl = document.getElementById('mobile-sales-percentage');
+      if (percentageEl) percentageEl.textContent = `${pct}%`;
     }
     if (document.getElementById('mobile-orders-count')) {
       let ordersCount = 0;
@@ -639,6 +668,43 @@ async function loadDashboardData() {
       let countPendientes = weeklyPlans.filter(p => p.realizada === 0).length;
       let countRealizadas = weeklyPlans.filter(p => p.realizada === 1).length;
       let countVencidas = weeklyPlans.filter(p => p.realizada === 3).length;
+
+      const mobileDateEl = document.getElementById('mobile-dashboard-date');
+      if (mobileDateEl) {
+        mobileDateEl.textContent = new Intl.DateTimeFormat('es-MX', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long'
+        }).format(new Date());
+        mobileDateEl.textContent = mobileDateEl.textContent.charAt(0).toUpperCase() + mobileDateEl.textContent.slice(1);
+      }
+
+      const pendingPlans = weeklyPlans
+        .filter(plan => Number(plan.realizada) === 0)
+        .sort((a, b) => String(a.fecha_programada).localeCompare(String(b.fecha_programada)));
+      const nextPlan = pendingPlans[0];
+      const nextVisitClient = document.getElementById('mobile-next-visit-client');
+      const nextVisitDetail = document.getElementById('mobile-next-visit-detail');
+      const nextVisitDate = document.getElementById('mobile-next-visit-date');
+      const nextVisitAction = document.getElementById('mobile-next-visit-action');
+
+      if (nextPlan) {
+        if (nextVisitClient) nextVisitClient.textContent = nextPlan.cliente_nombre || 'Visita programada';
+        if (nextVisitDetail) nextVisitDetail.textContent = nextPlan.objetivo_visita || 'Seguimiento comercial';
+        if (nextVisitDate) {
+          const nextDate = new Date(`${nextPlan.fecha_programada}T00:00:00`);
+          const todayIso = new Date().toISOString().slice(0, 10);
+          nextVisitDate.textContent = nextPlan.fecha_programada === todayIso
+            ? 'Hoy'
+            : new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' }).format(nextDate);
+        }
+        if (nextVisitAction) nextVisitAction.querySelector('span').textContent = 'Iniciar visita';
+      } else {
+        if (nextVisitClient) nextVisitClient.textContent = 'Sin visitas pendientes';
+        if (nextVisitDetail) nextVisitDetail.textContent = 'Tu agenda está libre por ahora';
+        if (nextVisitDate) nextVisitDate.textContent = 'Libre';
+        if (nextVisitAction) nextVisitAction.querySelector('span').textContent = 'Abrir agenda';
+      }
       
       let timelineHtml = `
         <div class="db-agenda-summary">

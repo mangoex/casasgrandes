@@ -125,57 +125,86 @@
       <div id="dashboard-view" class="view-section active">
         <!-- ASESOR MOBILE DASHBOARD (Visible on mobile viewports for Asesores) -->
         <div id="asesor-mobile-dashboard" class="asesor-mobile-dashboard">
-          <div class="mobile-greeting-card">
-            <div class="greeting-text">
-              <h2 id="mobile-greeting-name">Hola, Usuario</h2>
-              <span class="role-badge">Asesor de Ventas</span>
+          <div class="mobile-dashboard-header">
+            <div class="mobile-user-summary">
+              <div id="mobile-user-initials" class="mobile-user-avatar" aria-hidden="true">A</div>
+              <div class="greeting-text">
+                <h2 id="mobile-greeting-name">¡Buenos días!</h2>
+                <span class="role-badge">Asesor de ventas</span>
+              </div>
+            </div>
+            <button class="mobile-icon-button" type="button" aria-label="Ver notificaciones" onclick="switchView('asignacion-view', 'Asignación de Agricultores')">
+              <span class="material-symbols-rounded" aria-hidden="true">notifications</span>
+              <span class="notification-dot" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <div class="mobile-day-heading">
+            <h2>Tu día</h2>
+            <p id="mobile-dashboard-date">Hoy</p>
+          </div>
+
+          <section class="mobile-next-visit" aria-labelledby="mobile-next-visit-title">
+            <div class="mobile-section-label" id="mobile-next-visit-title">Próxima visita</div>
+            <div class="mobile-visit-card">
+              <div class="mobile-visit-main">
+                <div class="mobile-visit-icon" aria-hidden="true">
+                  <span class="material-symbols-rounded">agriculture</span>
+                </div>
+                <div class="mobile-visit-copy">
+                  <h3 id="mobile-next-visit-client">Sin visitas pendientes</h3>
+                  <p id="mobile-next-visit-detail">Tu agenda está libre por ahora</p>
+                </div>
+                <div class="mobile-visit-date">
+                  <span class="material-symbols-rounded" aria-hidden="true">calendar_today</span>
+                  <strong id="mobile-next-visit-date">Hoy</strong>
+                </div>
+              </div>
+              <button id="mobile-next-visit-action" class="mobile-primary-action" type="button" onclick="openMobileAgenda()">
+                <span>Iniciar visita</span>
+                <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+              </button>
+            </div>
+          </section>
+
+          <div class="mobile-progress-card" aria-label="Resumen de ventas de hoy">
+            <div class="mobile-metric">
+              <div class="mobile-metric-icon" aria-hidden="true">
+                <span class="material-symbols-rounded">payments</span>
+              </div>
+              <div>
+                <span>Ventas de hoy</span>
+                <strong id="mobile-sales-percentage">0%</strong>
+                <small>Meta: <span id="mobile-sales-target">$10,000</span></small>
+              </div>
+            </div>
+            <div class="mobile-metric-divider" aria-hidden="true"></div>
+            <div class="mobile-metric">
+              <div class="mobile-metric-icon" aria-hidden="true">
+                <span class="material-symbols-rounded">assignment_turned_in</span>
+              </div>
+              <div>
+                <span>Pedidos completados</span>
+                <strong id="mobile-orders-count">0</strong>
+                <small id="mobile-sales-real">$0 vendido</small>
+              </div>
             </div>
           </div>
 
-          <!-- Ventas del Día Progress Card -->
-          <div class="mobile-progress-card">
-            <div class="progress-card-title">Ventas del Día</div>
-            <div class="progress-metric-row">
-              <span class="metric-icon">📈</span>
-              <span class="metric-text">Objetivo de Venta: <strong id="mobile-sales-real">$0</strong> / <span id="mobile-sales-target">$10,000</span></span>
-            </div>
-            <div class="mobile-progress-bar-bg">
-              <div id="mobile-sales-progress-fill" class="mobile-progress-bar-fill" style="width: 0%;"></div>
-            </div>
-            <div class="progress-metric-sub">
-              <span class="sub-icon">✓</span>
-              <span>Pedidos Realizados: <strong id="mobile-orders-count">0</strong></span>
-            </div>
-          </div>
-
-          <!-- Quick Action Navigation Cards -->
+          <h3 class="mobile-actions-title">Acciones rápidas</h3>
           <div class="mobile-action-cards">
-            <div class="mobile-action-card" onclick="switchView('clientes-view')">
-              <div class="action-card-icon user-icon">👤</div>
-              <div class="action-card-info">
-                <h3>Mis Clientes</h3>
-                <p>Gestión y seguimiento</p>
-              </div>
-              <span class="action-card-arrow">›</span>
-            </div>
-
-            <div class="mobile-action-card" onclick="switchView('cotizador-view')">
-              <div class="action-card-icon cart-icon">🛒</div>
-              <div class="action-card-info">
-                <h3>Nuevo Pedido</h3>
-                <p>Crear y procesar pedidos</p>
-              </div>
-              <span class="action-card-arrow">›</span>
-            </div>
-
-            <div class="mobile-action-card" onclick="switchView('catalog-view')">
-              <div class="action-card-icon box-icon">📦</div>
-              <div class="action-card-info">
-                <h3>Catálogo de Productos</h3>
-                <p>Explorar productos y precios</p>
-              </div>
-              <span class="action-card-arrow">›</span>
-            </div>
+            <button class="mobile-action-card" type="button" onclick="switchView('clientes-view')">
+              <span class="material-symbols-rounded" aria-hidden="true">group</span>
+              <strong>Clientes</strong>
+            </button>
+            <button class="mobile-action-card featured" type="button" onclick="switchView('cotizador-view')">
+              <span class="material-symbols-rounded" aria-hidden="true">add_shopping_cart</span>
+              <strong>Nuevo pedido</strong>
+            </button>
+            <button class="mobile-action-card" type="button" onclick="openMobileAgenda()">
+              <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+              <strong>Agenda</strong>
+            </button>
           </div>
         </div>
 
@@ -207,7 +236,7 @@
         </div>
 
         <!-- Goals Table Container -->
-        <div class="dashboard-chart-container" style="margin-bottom: 30px;">
+        <div class="dashboard-chart-container mobile-report-section" style="margin-bottom: 30px;">
           <div class="flex-header" style="margin-bottom: 16px;">
             <h3>Cumplimiento de Metas Comerciales</h3>
             <div>
@@ -239,7 +268,7 @@
         </div>
 
         <!-- Row 1: Advisor Performance Cards / Personal Agenda -->
-        <div class="card" style="margin-top: 30px; margin-bottom: 30px;">
+        <div class="card mobile-report-section" style="margin-top: 30px; margin-bottom: 30px;">
           <h3 id="dashboard-visits-title" style="margin-bottom: 20px;">Desempeño de Asesores Activos</h3>
           <div id="dashboard-visits-container" style="margin-bottom: 0;">
             <div style="text-align: center; color: var(--text-light); padding: 20px;">Cargando...</div>
@@ -247,7 +276,7 @@
         </div>
 
         <!-- Row 2: Recent Quotes and Sales -->
-        <div class="card" style="margin-top: 30px;">
+        <div class="card mobile-report-section" style="margin-top: 30px;">
           <h3 style="margin-bottom: 20px;">Últimas Cotizaciones y Ventas</h3>
           <div class="table-container" style="border: none; box-shadow: none; margin-bottom: 0;">
             <table>
@@ -1608,20 +1637,20 @@
     <!-- Bottom Navigation Bar for Mobile Asesor -->
     <div id="mobile-bottom-nav" class="mobile-bottom-nav">
       <div class="mobile-nav-item active" data-target="dashboard-view">
-        <span class="mobile-nav-icon">📊</span>
-        <span class="mobile-nav-label">Dashboard</span>
+        <span class="mobile-nav-icon material-symbols-rounded" aria-hidden="true">home</span>
+        <span class="mobile-nav-label">Inicio</span>
       </div>
       <div class="mobile-nav-item" data-target="clientes-view">
-        <span class="mobile-nav-icon">👥</span>
+        <span class="mobile-nav-icon material-symbols-rounded" aria-hidden="true">group</span>
         <span class="mobile-nav-label">Clientes</span>
       </div>
       <div class="mobile-nav-item" data-target="cotizador-view">
-        <span class="mobile-nav-icon">📝</span>
+        <span class="mobile-nav-icon material-symbols-rounded" aria-hidden="true">receipt_long</span>
         <span class="mobile-nav-label">Pedidos</span>
       </div>
-      <div class="mobile-nav-item" data-target="catalog-view">
-        <span class="mobile-nav-icon">🌾</span>
-        <span class="mobile-nav-label">Catálogo</span>
+      <div class="mobile-nav-item" data-mobile-action="menu">
+        <span class="mobile-nav-icon material-symbols-rounded" aria-hidden="true">more_horiz</span>
+        <span class="mobile-nav-label">Más</span>
       </div>
     </div>
 
