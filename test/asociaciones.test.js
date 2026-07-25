@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { calculateConsolidatedClientCount, groupClientsHierarchy } = require('../utils/associations');
+const { calculateConsolidatedClientCount, getAssociatedCount, groupClientsHierarchy } = require('../utils/associations');
 
 test('contabiliza 3 agricultores independientes como 3 entidades distintas', () => {
   const clients = [
@@ -65,3 +65,14 @@ test('al disolver una asociación todos los miembros vuelven a ser independiente
   assert.equal(hierarchy[0].asociados.length, 0);
 });
 
+test('muestra el conteo del servidor cuando los asociados están en otra página', () => {
+  assert.equal(getAssociatedCount({ asociados: [], asociados_count: 2 }), 2);
+});
+
+test('conserva el conteo de asociados cargados en la misma página', () => {
+  assert.equal(getAssociatedCount({ asociados: [{ id: 2 }], asociados_count: 1 }), 1);
+});
+
+test('usa el mayor conteo mientras termina la carga paginada', () => {
+  assert.equal(getAssociatedCount({ asociados: [{ id: 2 }], asociados_count: 3 }), 3);
+});

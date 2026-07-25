@@ -5504,12 +5504,31 @@ window.loadClientesCatalog = async function({ page = catalogPagination.page } = 
 
 let catalogClientsMap = new Map();
 let expandedAssociatedGroupIds = new Set();
+let associatedClientsByPrincipal = new Map();
 
-window.toggleAssociatedGroup = function(parentId) {
+async function loadAssociatedClients(parentId) {
+  const res = await fetch(`${API_URL}/api/clientes/${parentId}/asociados`, { headers: getHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'No fue posible cargar los agricultores asociados.');
+  const associatedClients = Array.isArray(data) ? data : [];
+  associatedClientsByPrincipal.set(parentId, associatedClients);
+  associatedClients.forEach(client => catalogClientsMap.set(client.id, client));
+  return associatedClients;
+}
+
+window.toggleAssociatedGroup = async function(parentId) {
   if (expandedAssociatedGroupIds.has(parentId)) {
     expandedAssociatedGroupIds.delete(parentId);
   } else {
-    expandedAssociatedGroupIds.add(parentId);
+    try {
+      if (!associatedClientsByPrincipal.has(parentId)) {
+        await loadAssociatedClients(parentId);
+      }
+      expandedAssociatedGroupIds.add(parentId);
+    } catch (err) {
+      alert(`Error al cargar asociados: ${err.message}`);
+      return;
+    }
   }
   renderCatalogClientes();
 };
@@ -5583,9 +5602,12 @@ window.confirmarAsociacion = async function() {
 
     closeModal('modal-asociar-agricultores');
     selectedCatalogClientIds.clear();
+    associatedClientsByPrincipal.clear();
     expandedAssociatedGroupIds.add(principalId);
     alert('¡Agricultores asociados exitosamente!');
-    loadClientesCatalog();
+    await loadClientesCatalog();
+    await loadAssociatedClients(principalId);
+    renderCatalogClientes();
   } catch (err) {
     console.error('Error al asociar agricultores:', err);
     alert(`Error: ${err.message}`);
@@ -5603,7 +5625,8 @@ window.desasociarCliente = async function(clienteId) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to disassociate farmer');
 
-    loadClientesCatalog();
+    associatedClientsByPrincipal.clear();
+    await loadClientesCatalog();
   } catch (err) {
     console.error('Error al desasociar agricultor:', err);
     alert(`Error: ${err.message}`);
@@ -5639,6 +5662,13 @@ window.renderCatalogClientes = function() {
   });
 
   filtered.forEach(c => {
+    const cachedAssociated = associatedClientsByPrincipal.get(c.id);
+    if (Array.isArray(cachedAssociated)) {
+      clientMap.get(c.id).asociados = cachedAssociated.map(item => ({ ...item, asociados: [] }));
+    }
+  });
+
+  filtered.forEach(c => {
     const item = clientMap.get(c.id);
     if (c.cliente_principal_id && clientMap.has(c.cliente_principal_id)) {
       secondaries.push(item);
@@ -5649,21 +5679,28 @@ window.renderCatalogClientes = function() {
 
   secondaries.forEach(sec => {
     const parent = clientMap.get(sec.cliente_principal_id);
-    if (parent) parent.asociados.push(sec);
+    if (parent && !parent.asociados.some(item => Number(item.id) === Number(sec.id))) {
+      parent.asociados.push(sec);
+    }
   });
 
   let catalogHtml = '';
   
   principals.forEach(c => {
     const isSelected = selectedCatalogClientIds.has(c.id);
-    const hasAsociados = Array.isArray(c.asociados) && c.asociados.length > 0;
+    const loadedAssociatedCount = Array.isArray(c.asociados) ? c.asociados.length : 0;
+    const associatedCount = Math.max(loadedAssociatedCount, Number(c.asociados_count) || 0);
+    const hasAsociados = associatedCount > 0;
     const isExpanded = expandedAssociatedGroupIds.has(c.id);
 
-    const accordionToggle = (hasAsociados || c.asociados_count > 0)
+    const accordionToggle = hasAsociados
       ? `<button class="btn btn-secondary icon-action-btn" title="${isExpanded ? 'Contraer asociados' : 'Desglosar asociados'}" style="padding: 2px 6px; font-size: 11px; margin-right: 6px;" onclick="toggleAssociatedGroup(${c.id})">${isExpanded ? '▼' : '▶'}</button>`
       : '';
-    const asociadosBadge = (hasAsociados || c.asociados_count > 0)
-      ? `<span class="badge badge-info" style="font-size: 11px; margin-left: 6px; cursor: pointer;" onclick="toggleAssociatedGroup(${c.id})">🔗 ${c.asociados ? c.asociados.length : c.asociados_count} asociados</span>`
+    const asociadosBadge = hasAsociados
+      ? `<span class="badge badge-info" style="font-size: 11px; margin-left: 6px; cursor: pointer;" onclick="toggleAssociatedGroup(${c.id})">🔗 ${associatedCount} ${associatedCount === 1 ? 'asociado' : 'asociados'}</span>`
+      : '';
+    const belongsToGroupBadge = c.cliente_principal_id && !clientMap.has(c.cliente_principal_id)
+      ? `<span class="badge badge-info" style="font-size: 11px; margin-left: 6px;">🔗 Asociado de ${escapeHtml(c.principal_nombre || `#${c.cliente_principal_id}`)}</span>`
       : '';
 
     let badgeClass = c.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
@@ -5680,6 +5717,7 @@ window.renderCatalogClientes = function() {
             ${accordionToggle}
             <strong>${escapeHtml(c.nombre)}</strong>
             ${asociadosBadge}
+            ${belongsToGroupBadge}
             ${selectionControl}
           </div>
         </td>
@@ -5748,9 +5786,11 @@ window.disolverGrupoAsociados = async function(principalId) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to disband group');
 
+    associatedClientsByPrincipal.clear();
+    expandedAssociatedGroupIds.delete(principalId);
     closeModal('add-client-modal');
     alert('¡La asociación de grupo ha sido disuelta! Todos los agricultores ahora son individuales.');
-    loadClientesCatalog();
+    await loadClientesCatalog();
   } catch (err) {
     console.error('Error al disolver grupo:', err);
     alert(`Error: ${err.message}`);

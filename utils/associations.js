@@ -24,6 +24,19 @@ function calculateConsolidatedClientCount(clients = []) {
 }
 
 /**
+ * Devuelve el total real de asociados. El conteo del servidor sigue siendo
+ * válido aunque la página actual todavía no haya cargado los registros hijos.
+ *
+ * @param {{ asociados?: Array, asociados_count?: number|string }} client
+ * @returns {number}
+ */
+function getAssociatedCount(client = {}) {
+  const loadedCount = Array.isArray(client.asociados) ? client.asociados.length : 0;
+  const serverCount = Number(client.asociados_count) || 0;
+  return Math.max(loadedCount, serverCount);
+}
+
+/**
  * Agrupa una lista plana de clientes en una estructura jerárquica (Principales con sus Secundarios).
  * 
  * @param {Array<Object>} clients 
@@ -65,5 +78,6 @@ function groupClientsHierarchy(clients = []) {
 
 module.exports = {
   calculateConsolidatedClientCount,
+  getAssociatedCount,
   groupClientsHierarchy
 };

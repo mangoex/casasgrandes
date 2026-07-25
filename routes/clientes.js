@@ -38,10 +38,12 @@ router.get('/', authenticateToken, async (req, res) => {
       SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
              c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
              a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
+             principal.nombre as principal_nombre,
              (SELECT COUNT(*)::int FROM clientes sub WHERE sub.cliente_principal_id = c.id AND sub.activo = 1) as asociados_count
       FROM clientes c
       LEFT JOIN asesores a ON c.asesor_id = a.id
       LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
+      LEFT JOIN clientes principal ON c.cliente_principal_id = principal.id
       ${whereSql}
     `;
     
@@ -86,10 +88,12 @@ router.get('/seleccionados', authenticateToken, async (req, res) => {
     let query = `
       SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
              c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
-             a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn
+             a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
+             principal.nombre as principal_nombre
       FROM clientes c
       LEFT JOIN asesores a ON c.asesor_id = a.id
       LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
+      LEFT JOIN clientes principal ON c.cliente_principal_id = principal.id
       WHERE c.activo = 1 AND c.id = ANY($1::int[])
     `;
     const params = [uniqueIds];
@@ -115,10 +119,12 @@ router.get('/:id', authenticateToken, async (req, res) => {
       SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
              c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
              a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
+             principal.nombre as principal_nombre,
              (SELECT COUNT(*)::int FROM clientes sub WHERE sub.cliente_principal_id = c.id AND sub.activo = 1) as asociados_count
       FROM clientes c
       LEFT JOIN asesores a ON c.asesor_id = a.id
       LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
+      LEFT JOIN clientes principal ON c.cliente_principal_id = principal.id
       WHERE c.id = ? AND c.activo = 1
     `, [id]);
 
@@ -127,6 +133,50 @@ router.get('/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch client' });
+  }
+});
+
+// GET /api/clientes/:id/asociados
+router.get('/:id/asociados', authenticateToken, async (req, res) => {
+  const principalId = Number(req.params.id);
+  if (!Number.isInteger(principalId) || principalId <= 0) {
+    return res.status(400).json({ error: 'Valid principal client id is required' });
+  }
+
+  try {
+    const principal = await db.get(
+      'SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1',
+      [principalId]
+    );
+    if (!principal) return res.status(404).json({ error: 'Principal client not found' });
+    if (req.user.nivel_rol === 'Asesor' && Number(principal.asesor_id) !== Number(req.user.id)) {
+      return res.status(403).json({ error: 'No puedes consultar asociaciones de otra cartera.' });
+    }
+
+    let query = `
+      SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
+             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
+             a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
+             principal.nombre as principal_nombre,
+             0::int as asociados_count
+      FROM clientes c
+      LEFT JOIN asesores a ON c.asesor_id = a.id
+      LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
+      LEFT JOIN clientes principal ON c.cliente_principal_id = principal.id
+      WHERE c.activo = 1 AND c.cliente_principal_id = $1
+    `;
+    const params = [principalId];
+    if (req.user.nivel_rol === 'Asesor') {
+      query += ' AND c.asesor_id = $2';
+      params.push(req.user.id);
+    }
+    query += ' ORDER BY c.nombre ASC';
+
+    const result = await db.pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch associated farmers' });
   }
 });
 
