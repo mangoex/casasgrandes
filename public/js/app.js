@@ -300,6 +300,11 @@ async function showAppView() {
     });
   });
 
+  document.getElementById('mobile-quote-more')?.addEventListener('click', () => {
+    document.querySelector('aside')?.classList.add('active');
+    document.getElementById('sidebar-backdrop')?.classList.add('active');
+  });
+
   // Mobile drawer controls
   const mobileMenuBtn = document.getElementById('mobile-menu-btn');
   const sidebar = document.querySelector('aside');
@@ -389,6 +394,10 @@ function switchView(viewId, title) {
   document.body.classList.toggle(
     'mobile-dashboard-active',
     user?.nivel_rol === 'Asesor' && viewId === 'dashboard-view'
+  );
+  document.body.classList.toggle(
+    'mobile-quote-active',
+    user?.nivel_rol === 'Asesor' && viewId === 'cotizador-view'
   );
   
   // Sync mobile bottom nav items active state
@@ -2013,19 +2022,31 @@ function addQuoteItemRow() {
 
   wrapper.innerHTML = `
     <div class="item-row">
-      <div class="form-group">
+      <div class="mobile-product-icon" aria-hidden="true">
+        <span class="material-symbols-rounded">agriculture</span>
+      </div>
+      <div class="form-group item-product-group">
         <label>Producto</label>
         <select class="form-input item-product-select" required>${options}</select>
+        <span class="mobile-item-package">Presentación agrícola</span>
       </div>
-      <div class="form-group">
+      <div class="form-group item-qty-group">
         <label>Cantidad</label>
-        <input type="number" class="form-input item-qty-input" min="1" value="1" required>
+        <div class="mobile-quantity-stepper">
+          <button type="button" aria-label="Disminuir cantidad" onclick="adjustQuoteItemQuantity(${rowNum}, -1)">−</button>
+          <input type="number" class="form-input item-qty-input" min="1" value="1" required>
+          <button type="button" aria-label="Aumentar cantidad" onclick="adjustQuoteItemQuantity(${rowNum}, 1)">+</button>
+        </div>
       </div>
-      <div class="form-group">
+      <div class="form-group item-price-group">
         <label>Precio Base</label>
         <input type="text" class="form-input item-calc-unit-price" style="background-color: var(--bg);" value="-" readonly>
+        <span class="mobile-item-subtotal">Subtotal —</span>
       </div>
-      <button type="button" class="btn-remove" onclick="removeQuoteItemRow(${rowNum})">🗑️</button>
+      <button type="button" class="btn-remove" aria-label="Eliminar producto" onclick="removeQuoteItemRow(${rowNum})">
+        <span class="desktop-remove-icon" aria-hidden="true">🗑️</span>
+        <span class="mobile-remove-icon material-symbols-rounded" aria-hidden="true">delete</span>
+      </button>
     </div>
     <!-- La Cuenta Clave se aplica antes del descuento adicional del asesor. -->
     <div class="item-discount-row" id="discount-row-${rowNum}" style="display:none;">
@@ -2068,6 +2089,13 @@ function removeQuoteItemRow(rowNum) {
     debouncedLiveCalculation();
   }
 }
+
+window.adjustQuoteItemQuantity = function(rowNum, delta) {
+  const input = document.querySelector(`#quote-item-row-${rowNum} .item-qty-input`);
+  if (!input) return;
+  input.value = String(Math.max(1, (Number(input.value) || 1) + delta));
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+};
 
 // Collect form inputs helper
 function getQuotePayload() {
@@ -2218,6 +2246,11 @@ function debouncedLiveCalculation() {
 
             // Base is shown before Cuenta Clave, then the advisor slider continues from the reduced price.
             unitPriceInput.value = `$${Number(calcItem.precio_antes_cuenta_clave || calcItem.precio_neto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
+            const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
+            if (mobileSubtotal) {
+              mobileSubtotal.textContent = `Subtotal $${(Number(calcItem.precio_neto) * quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+            }
             if (keyAccountStep) keyAccountStep.style.display = hasKeyAccountDiscount ? 'block' : 'none';
             if (keyAccountName) keyAccountName.textContent = calc.cuenta_clave_nombre || 'Cuenta Clave';
             if (keyAccountAmount) keyAccountAmount.textContent = `-$${keyAccountDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
@@ -2274,9 +2307,14 @@ window.onDiscountSliderChange = function(slider) {
   
   const amountEl = wrapper.querySelector('.item-discount-amount');
   const finalEl = wrapper.querySelector('.item-final-price');
+  const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
+  const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
   
   if (amountEl) amountEl.textContent = `$${val.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   if (finalEl) finalEl.textContent = `$${finalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  if (mobileSubtotal) {
+    mobileSubtotal.textContent = `Subtotal $${(finalPrice * quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+  }
   
   // Update slider gradient fill
   const pct = max > 0 ? (val / max) * 100 : 0;
@@ -2311,7 +2349,19 @@ function recalcTotalsWithDiscounts() {
       `$${(adjustedTotal * 0.03).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
     document.getElementById('preview-cupon-val').textContent =
       `$${(adjustedTotal * 0.01).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+    updateMobileQuoteSummary(adjustedTotal);
   }
+}
+
+function updateMobileQuoteSummary(total) {
+  const safeTotal = Number(total) || 0;
+  const currency = value => `$${value.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+  const totalEl = document.getElementById('mobile-quote-total');
+  const pointsEl = document.getElementById('mobile-quote-points');
+  const couponEl = document.getElementById('mobile-quote-coupon');
+  if (totalEl) totalEl.textContent = `${currency(safeTotal)} MXN`;
+  if (pointsEl) pointsEl.textContent = currency(safeTotal * 0.03);
+  if (couponEl) couponEl.textContent = currency(safeTotal * 0.01);
 }
 
 
@@ -2341,6 +2391,7 @@ function resetVirtualSheet() {
   document.getElementById('preview-total-val').textContent = '$0.00 MXN';
   document.getElementById('preview-puntos-val').textContent = '$0.00 MXN';
   document.getElementById('preview-cupon-val').textContent = '$0.00 MXN';
+  updateMobileQuoteSummary(0);
   document.getElementById('preview-notes-content').textContent = 'El precio final calculado incluye los descuentos por volumen y campaña en base a las reglas de la distribuidora. Sujeto a cambios sin previo aviso.';
   
   document.getElementById('client-quick-details').style.display = 'none';
@@ -2445,6 +2496,7 @@ function updateVirtualSheet(calc, payload) {
     `$${(grandTotalWithDiscounts * 0.03).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   document.getElementById('preview-cupon-val').textContent =
     `$${(grandTotalWithDiscounts * 0.01).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  updateMobileQuoteSummary(grandTotalWithDiscounts);
   
   document.getElementById('preview-notes-content').textContent = payload.notas || 'El precio final calculado incluye los descuentos por volumen y campaña en base a las reglas de la distribuidora. Sujeto a cambios sin previo aviso.';
 }
@@ -2482,7 +2534,7 @@ document.getElementById('quotation-form').addEventListener('submit', async (e) =
     const cameFromSaleVisit = Boolean(activePlanningQuoteContext?.planId);
     const successMessage = cameFromSaleVisit
       ? `Cotización ${data.folio} enviada a autorización. La visita quedó registrada como prospecto.`
-      : `Pedido registrado exitosamente con Folio: ${data.folio}`;
+      : `Cotización ${data.folio} enviada a autorización.`;
     alert(`${successMessage}${attachmentMessage}`);
     
     // Reset Form & Switch view
@@ -2499,6 +2551,15 @@ document.getElementById('quotation-form').addEventListener('submit', async (e) =
   } catch (err) {
     alert(err.message);
   }
+});
+
+document.getElementById('btn-save-mobile-draft')?.addEventListener('click', () => {
+  const payload = getQuotePayload();
+  localStorage.setItem('agrisalesMobileQuoteDraft', JSON.stringify({
+    ...payload,
+    savedAt: new Date().toISOString()
+  }));
+  alert('Borrador guardado en este dispositivo.');
 });
 
 // Quote Share & Print triggers

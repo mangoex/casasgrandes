@@ -2793,6 +2793,28 @@ tr:hover td {
   display: none !important;
 }
 
+.mobile-quote-header,
+.mobile-quote-summary,
+.mobile-submit-label,
+.mobile-save-draft,
+.mobile-quote-review-hint,
+.mobile-items-title,
+.mobile-product-icon,
+.mobile-item-package,
+.mobile-item-subtotal,
+.mobile-add-item-label,
+.mobile-remove-icon {
+  display: none;
+}
+
+.mobile-quantity-stepper {
+  display: contents;
+}
+
+.mobile-quantity-stepper button {
+  display: none;
+}
+
 @media (min-width: 769px) {
   .asesor-mobile-dashboard {
     display: none !important;
@@ -2871,6 +2893,453 @@ tr:hover td {
 
   body.role-asesor.mobile-dashboard-active main > header {
     display: none !important;
+  }
+
+  body.role-asesor.mobile-quote-active {
+    background: #f5f8f6;
+  }
+
+  body.role-asesor.mobile-quote-active main {
+    padding: 0 0 86px !important;
+    background: #f5f8f6;
+  }
+
+  body.role-asesor.mobile-quote-active main > header {
+    display: none !important;
+  }
+
+  body.role-asesor.mobile-quote-active #cotizador-view {
+    padding: 0;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quote-header {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 12px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    border-bottom: 0;
+  }
+
+  .mobile-quote-header-button {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 11px;
+    background: transparent;
+    color: #ffffff;
+    cursor: pointer;
+  }
+
+  .mobile-quote-header h2 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 750;
+    line-height: 1.1;
+  }
+
+  .mobile-quote-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .mobile-quote-status i {
+    width: 6px;
+    height: 6px;
+    display: inline-block;
+    border-radius: 50%;
+    background: #fbbf24;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-builder-grid {
+    display: block;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-preview-column {
+    display: none !important;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-form-column {
+    margin: 0;
+    padding: 18px 16px 28px;
+    border: 0;
+    border-radius: 0;
+    background: #f5f8f6;
+    box-shadow: none;
+  }
+
+  body.role-asesor.mobile-quote-active .desktop-quote-title,
+  body.role-asesor.mobile-quote-active .quote-payment-field,
+  body.role-asesor.mobile-quote-active #client-quick-details,
+  body.role-asesor.mobile-quote-active .quote-notes-field,
+  body.role-asesor.mobile-quote-active .desktop-items-title,
+  body.role-asesor.mobile-quote-active .desktop-submit-label,
+  body.role-asesor.mobile-quote-active #btn-attach-credit-pdf,
+  body.role-asesor.mobile-quote-active #quote-credit-pdf-status {
+    display: none !important;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-items-title,
+  body.role-asesor.mobile-quote-active .mobile-submit-label,
+  body.role-asesor.mobile-quote-active .mobile-add-item-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  body.role-asesor.mobile-quote-active .input-grid {
+    display: block;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-client-field {
+    margin: 0 0 20px;
+    padding: 16px;
+    border: 1px solid #e1ebe7;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 8px 22px rgba(6, 61, 47, 0.05);
+  }
+
+  body.role-asesor.mobile-quote-active .quote-client-field label {
+    margin-bottom: 8px;
+    color: #40574f;
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  body.role-asesor.mobile-quote-active #quote-client {
+    height: 50px;
+    border-color: #dce8e3;
+    border-radius: 13px;
+    background: #f9fbfa;
+    color: #0f2f26;
+    font-size: 15px;
+    font-weight: 650;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-items-section {
+    margin-top: 0 !important;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-items-section > .flex-header {
+    align-items: center;
+    margin-bottom: 10px !important;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-items-section h4 {
+    margin: 0;
+    color: #0f2f26;
+    font-size: 17px;
+    font-weight: 750;
+  }
+
+  body.role-asesor.mobile-quote-active #btn-add-item {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 7px 10px !important;
+    border-color: transparent;
+    background: transparent;
+    color: #059669;
+    font-size: 12px !important;
+    font-weight: 700;
+  }
+
+  body.role-asesor.mobile-quote-active #btn-add-item .material-symbols-rounded {
+    font-size: 19px;
+  }
+
+  body.role-asesor.mobile-quote-active .desktop-add-item-label,
+  body.role-asesor.mobile-quote-active .desktop-remove-icon {
+    display: none;
+  }
+
+  body.role-asesor.mobile-quote-active .builder-box {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  body.role-asesor.mobile-quote-active .item-row-wrapper {
+    position: relative;
+    margin-bottom: 10px;
+    padding: 14px;
+    border: 1px solid #e1ebe7;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 8px 22px rgba(6, 61, 47, 0.055);
+  }
+
+  body.role-asesor.mobile-quote-active .item-row {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    margin: 0;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-product-icon {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    grid-column: 1;
+    grid-row: 1;
+    border-radius: 13px;
+    background: #e9f8f2;
+    color: #059669;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-product-icon .material-symbols-rounded {
+    font-size: 23px;
+  }
+
+  body.role-asesor.mobile-quote-active .item-product-group {
+    min-width: 0;
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+  }
+
+  body.role-asesor.mobile-quote-active .item-product-group > label,
+  body.role-asesor.mobile-quote-active .item-qty-group > label,
+  body.role-asesor.mobile-quote-active .item-price-group > label {
+    display: none;
+  }
+
+  body.role-asesor.mobile-quote-active .item-product-select {
+    height: 30px;
+    padding: 0 24px 0 0;
+    overflow: hidden;
+    border: 0;
+    background-color: transparent;
+    color: #122d25;
+    font-size: 14px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-item-package {
+    display: block;
+    margin-top: 1px;
+    color: #7b8c86;
+    font-size: 10px;
+  }
+
+  body.role-asesor.mobile-quote-active .btn-remove {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border-radius: 10px;
+    background: #fff2f2;
+  }
+
+  body.role-asesor.mobile-quote-active .btn-remove .material-symbols-rounded {
+    display: block;
+    font-size: 19px;
+  }
+
+  body.role-asesor.mobile-quote-active .item-qty-group {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    margin: 10px 0 0 52px;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quantity-stepper {
+    width: 116px;
+    height: 38px;
+    display: grid;
+    grid-template-columns: 36px 44px 36px;
+    overflow: hidden;
+    border: 1px solid #dce8e3;
+    border-radius: 12px;
+    background: #f9fbfa;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quantity-stepper button {
+    display: block;
+    border: 0;
+    background: transparent;
+    color: #059669;
+    font-size: 22px;
+    cursor: pointer;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quantity-stepper .item-qty-input {
+    width: 44px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #12352b;
+    font-size: 14px;
+    font-weight: 750;
+    text-align: center;
+    appearance: textfield;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quantity-stepper .item-qty-input::-webkit-inner-spin-button {
+    appearance: none;
+  }
+
+  body.role-asesor.mobile-quote-active .item-price-group {
+    min-width: 0;
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    margin: 9px 0 0;
+    text-align: right;
+  }
+
+  body.role-asesor.mobile-quote-active .item-calc-unit-price {
+    width: 125px;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent !important;
+    color: #0f2f26;
+    font-size: 12px;
+    font-weight: 750;
+    text-align: right;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-item-subtotal {
+    display: block;
+    margin-top: 3px;
+    color: #71827c;
+    font-size: 9px;
+  }
+
+  body.role-asesor.mobile-quote-active .item-discount-row {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #edf2ef;
+    font-size: 11px;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quote-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-top: 16px;
+  }
+
+  .mobile-quote-total-row {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 17px 2px 8px;
+    color: #4c625a;
+    font-size: 14px;
+    font-weight: 650;
+  }
+
+  .mobile-quote-total-row strong {
+    color: #083e31;
+    font-size: 23px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+  }
+
+  .mobile-quote-benefit {
+    min-height: 84px;
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #f4dfae;
+    border-radius: 16px;
+    background: #fff9e9;
+    color: #a65f00;
+  }
+
+  .mobile-quote-benefit.coupon {
+    border-color: #cfe8dd;
+    background: #edf9f4;
+    color: #047857;
+  }
+
+  .mobile-quote-benefit > .material-symbols-rounded {
+    font-size: 27px;
+  }
+
+  .mobile-quote-benefit span,
+  .mobile-quote-benefit strong,
+  .mobile-quote-benefit small {
+    display: block;
+  }
+
+  .mobile-quote-benefit div > span {
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .mobile-quote-benefit strong {
+    margin: 1px 0;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .mobile-quote-benefit small {
+    color: #73817c;
+    font-size: 9px;
+    line-height: 1.15;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-submit-actions {
+    margin-top: 14px !important;
+    padding-top: 0 !important;
+    border-top: 0 !important;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-submit-button {
+    height: 52px !important;
+    border-radius: 15px;
+    background: #0f9f70;
+    box-shadow: 0 10px 20px rgba(15, 159, 112, 0.2);
+    font-size: 15px;
+    font-weight: 750;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-quote-review-hint {
+    display: block;
+    margin: 8px 0 0;
+    color: #74847e;
+    font-size: 10px;
+    text-align: center;
+  }
+
+  body.role-asesor.mobile-quote-active .mobile-save-draft {
+    width: 100%;
+    min-height: 44px;
+    display: block;
+    margin-top: 5px;
+    border: 0;
+    background: transparent;
+    color: #087c58;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
   }
 
   body.role-asesor.mobile-dashboard-active .mobile-report-section {

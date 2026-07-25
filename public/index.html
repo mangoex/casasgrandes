@@ -377,13 +377,25 @@
 
       <!-- C. QUOTATION BUILDER VIEW -->
       <div id="cotizador-view" class="view-section">
+        <div class="mobile-quote-header">
+          <button type="button" class="mobile-quote-header-button" aria-label="Volver a inicio" onclick="switchView('dashboard-view', 'Tablero General')">
+            <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+          </button>
+          <div>
+            <h2>Nuevo pedido</h2>
+            <span class="mobile-quote-status"><i></i>Borrador</span>
+          </div>
+          <button id="mobile-quote-more" type="button" class="mobile-quote-header-button" aria-label="Más opciones">
+            <span class="material-symbols-rounded" aria-hidden="true">more_vert</span>
+          </button>
+        </div>
         <div class="quote-builder-grid">
           <!-- Left side: Interactive form -->
           <div class="card quote-form-column">
-            <h2 style="margin-bottom: 20px;">Generar Nueva Cotización</h2>
+            <h2 class="desktop-quote-title" style="margin-bottom: 20px;">Generar Nueva Cotización</h2>
             <form id="quotation-form">
               <div class="input-grid">
-                <div class="form-group">
+                <div class="form-group quote-client-field">
                   <label for="quote-client">Cliente / Agricultor</label>
                   <select id="quote-client" class="form-input" required></select>
                 </div>
@@ -394,7 +406,7 @@
                     <option value="P-V 2026">Primavera-Verano (P-V 2026)</option>
                   </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group quote-payment-field">
                   <label for="quote-condicion">Condición de Pago</label>
                   <select id="quote-condicion" class="form-input" required>
                     <option value="CONTADO">Contado</option>
@@ -423,10 +435,13 @@
               </div>
 
               <!-- Items list builder -->
-              <div style="margin-top: 25px;">
+              <div class="quote-items-section" style="margin-top: 25px;">
                 <div class="flex-header" style="margin-bottom: 12px;">
-                  <h4>Partidas de Producto</h4>
-                  <button type="button" id="btn-add-item" class="btn btn-secondary" style="width: auto; padding: 6px 16px; font-size: 13px;">➕ Agregar Producto</button>
+                  <h4><span class="desktop-items-title">Partidas de Producto</span><span class="mobile-items-title">Productos</span></h4>
+                  <button type="button" id="btn-add-item" class="btn btn-secondary" style="width: auto; padding: 6px 16px; font-size: 13px;">
+                    <span class="desktop-add-item-label">➕ Agregar Producto</span>
+                    <span class="mobile-add-item-label"><span class="material-symbols-rounded" aria-hidden="true">add</span> Agregar producto</span>
+                  </button>
                 </div>
                 
                 <div id="items-builder-container" class="builder-box">
@@ -434,16 +449,44 @@
                 </div>
               </div>
 
-              <div class="form-group" style="margin-top: 20px;">
+              <div class="form-group quote-notes-field" style="margin-top: 20px;">
                 <label for="quote-notas">Notas / Observaciones</label>
                 <textarea id="quote-notas" class="form-input" rows="2" placeholder="Notas internas o aclaraciones del pedido..."></textarea>
               </div>
 
-              <div style="margin-top: 25px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; gap: 12px;">
-                <button type="submit" class="btn btn-primary" style="height: 50px; flex: 1;">💾 Guardar y Registrar Cotización</button>
+              <div class="mobile-quote-summary">
+                <div class="mobile-quote-total-row">
+                  <span>Total</span>
+                  <strong id="mobile-quote-total">$0.00 MXN</strong>
+                </div>
+                <div class="mobile-quote-benefit">
+                  <span class="material-symbols-rounded" aria-hidden="true">stars</span>
+                  <div>
+                    <span>Puntos</span>
+                    <strong id="mobile-quote-points">$0.00</strong>
+                    <small>3% de esta compra</small>
+                  </div>
+                </div>
+                <div class="mobile-quote-benefit coupon">
+                  <span class="material-symbols-rounded" aria-hidden="true">confirmation_number</span>
+                  <div>
+                    <span>Cupón</span>
+                    <strong id="mobile-quote-coupon">$0.00</strong>
+                    <small>1% para próxima compra</small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="quote-submit-actions" style="margin-top: 25px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; gap: 12px;">
+                <button type="submit" class="btn btn-primary quote-submit-button" style="height: 50px; flex: 1;">
+                  <span class="desktop-submit-label">💾 Guardar y Registrar Cotización</span>
+                  <span class="mobile-submit-label"><span class="material-symbols-rounded" aria-hidden="true">send</span> Enviar a autorización</span>
+                </button>
                 <input id="quote-credit-pdf-input" type="file" accept="application/pdf,.pdf" hidden>
                 <button id="btn-attach-credit-pdf" type="button" class="btn btn-secondary" style="display:none; height:50px; width:auto; white-space:nowrap;">📎 Anexar PDF</button>
               </div>
+              <p class="mobile-quote-review-hint">La cotización pasará a revisión</p>
+              <button id="btn-save-mobile-draft" type="button" class="mobile-save-draft">Guardar borrador</button>
               <div id="quote-credit-pdf-status" style="display:none; margin-top:8px; color:var(--text-light); font-size:12px;"></div>
             </form>
           </div>
