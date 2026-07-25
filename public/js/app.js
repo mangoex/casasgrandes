@@ -5180,6 +5180,8 @@ function updateCatalogSelectionControls(visibleClients = getFilteredCatalogClien
   const selectAll = document.getElementById('catalog-select-all-clients');
   const bulkDeleteBtn = document.getElementById('btn-delete-selected-clients');
   const selectedCount = document.getElementById('selected-clients-count');
+  const associationCount = document.getElementById('selected-association-count');
+  const associateButton = document.getElementById('btn-asociar-agricultores');
   const visibleIds = visibleClients.map(c => c.id);
   const checkedVisibleCount = visibleIds.filter(id => selectedCatalogClientIds.has(id)).length;
 
@@ -5197,6 +5199,12 @@ function updateCatalogSelectionControls(visibleClients = getFilteredCatalogClien
 
   if (selectedCount) {
     selectedCount.textContent = selectedCatalogClientIds.size;
+  }
+  if (associationCount) {
+    associationCount.textContent = selectedCatalogClientIds.size;
+  }
+  if (associateButton) {
+    associateButton.disabled = selectedCatalogClientIds.size < 2;
   }
 }
 
@@ -5354,26 +5362,19 @@ window.openAsociarModal = async function() {
     return;
   }
 
-  // Retrieve all selected clients across different pages
-  const selectedClients = [];
-  for (const id of selectedIds) {
-    let clientObj = catalogClientsMap.get(id);
-    if (!clientObj) {
-      try {
-        const res = await fetch(`${API_URL}/api/clientes/${id}`, { headers: getHeaders() });
-        if (res.ok) {
-          clientObj = await res.json();
-          if (clientObj) catalogClientsMap.set(id, clientObj);
-        }
-      } catch (err) {
-        console.error(`Error loading client ID ${id} for association:`, err);
-      }
-    }
-    if (clientObj) selectedClients.push(clientObj);
+  let selectedClients = [];
+  try {
+    const res = await fetch(`${API_URL}/api/clientes/seleccionados?ids=${encodeURIComponent(selectedIds.join(','))}`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible cargar los agricultores seleccionados.');
+    selectedClients = Array.isArray(data) ? data : [];
+  } catch (err) {
+    alert(`Error al preparar la asociación: ${err.message}`);
+    return;
   }
 
-  if (selectedClients.length < 2) {
-    alert('Por favor selecciona 2 o más agricultores mediante las casillas de verificación para formar una asociación.');
+  if (selectedClients.length !== selectedIds.length) {
+    alert('Uno o más agricultores ya no están disponibles. Actualiza el catálogo y vuelve a seleccionarlos.');
     return;
   }
 

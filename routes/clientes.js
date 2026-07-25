@@ -69,6 +69,44 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/clientes/seleccionados?ids=1,2,3
+// Returns the current records for a catalog selection, independently of pagination.
+router.get('/seleccionados', authenticateToken, async (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map(value => Number(value))
+    .filter(id => Number.isInteger(id) && id > 0);
+  const uniqueIds = [...new Set(ids)];
+
+  if (uniqueIds.length === 0 || uniqueIds.length > 200) {
+    return res.status(400).json({ error: 'Entre 1 y 200 ids de agricultores son requeridos.' });
+  }
+
+  try {
+    let query = `
+      SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
+             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
+             a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn
+      FROM clientes c
+      LEFT JOIN asesores a ON c.asesor_id = a.id
+      LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
+      WHERE c.activo = 1 AND c.id = ANY($1::int[])
+    `;
+    const params = [uniqueIds];
+    if (req.user.nivel_rol === 'Asesor') {
+      query += ' AND c.asesor_id = $2';
+      params.push(req.user.id);
+    }
+    query += ' ORDER BY c.nombre ASC';
+
+    const result = await db.pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible recuperar los agricultores seleccionados.' });
+  }
+});
+
 // GET /api/clientes/:id
 router.get('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
@@ -318,29 +356,47 @@ router.post('/asociar', authenticateToken, async (req, res) => {
   }
 
   const pId = Number(principal_id);
-  const targetIds = asociados_ids.map(Number).filter(id => Number.isInteger(id) && id > 0 && id !== pId);
+  const targetIds = [...new Set(asociados_ids.map(Number).filter(id => Number.isInteger(id) && id > 0 && id !== pId))];
 
   if (targetIds.length === 0) {
     return res.status(400).json({ error: 'At least one secondary client id is required' });
   }
 
+  let client;
   try {
-    const principal = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [pId]);
-    if (!principal) return res.status(404).json({ error: 'Principal client not found' });
+    client = await db.pool.connect();
+    await client.query('BEGIN');
 
-    // Clear any principal relationship from principal itself to prevent nesting/cycles
-    await db.run('UPDATE clientes SET cliente_principal_id = NULL WHERE id = ?', [pId]);
+    const selectedIds = [pId, ...targetIds];
+    const selected = await client.query(
+      'SELECT id, asesor_id FROM clientes WHERE activo = 1 AND id = ANY($1::int[]) FOR UPDATE',
+      [selectedIds]
+    );
+    if (selected.rows.length !== selectedIds.length) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Uno o más agricultores seleccionados ya no están disponibles. Actualiza el catálogo e inténtalo de nuevo.' });
+    }
+    if (req.user.nivel_rol === 'Asesor' && selected.rows.some(row => Number(row.asesor_id) !== Number(req.user.id))) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Solo puedes asociar agricultores asignados a tu propia cuenta.' });
+    }
 
-    const placeholders = targetIds.map((_, idx) => `$${idx + 2}`).join(', ');
-    await db.pool.query(
-      `UPDATE clientes SET cliente_principal_id = $1 WHERE id IN (${placeholders}) AND activo = 1`,
-      [pId, ...targetIds]
+    // The selected representative must remain a root, and every selected farmer
+    // is updated in the same transaction, even when it came from another page.
+    await client.query('UPDATE clientes SET cliente_principal_id = NULL WHERE id = $1', [pId]);
+    await client.query(
+      'UPDATE clientes SET cliente_principal_id = $1 WHERE id = ANY($2::int[])',
+      [pId, targetIds]
     );
 
-    res.json({ message: 'Farmers associated successfully', principal_id: pId, count: targetIds.length });
+    await client.query('COMMIT');
+    res.json({ message: 'Farmers associated successfully', principal_id: pId, associated_ids: targetIds, count: targetIds.length });
   } catch (err) {
+    await client?.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Failed to associate farmers' });
+  } finally {
+    client?.release();
   }
 });
 
@@ -379,4 +435,3 @@ router.post('/disolver-grupo', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
-
