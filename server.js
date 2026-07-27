@@ -15,6 +15,7 @@ const {
 } = require('./middleware/authorization');
 const { validateInitialPassword } = require('./utils/security');
 const { buildSecurityHeaders, parseTrustProxyHops } = require('./utils/httpSecurity');
+const { normalizeQuoteItems } = require('./utils/quoteValidation');
 
 // Routers
 const authRouter = require('./routes/auth');
@@ -114,8 +115,8 @@ async function syncMonthlyBasePrice(client, productId, price) {
   }
 }
 
-async function getMonthlyProductPricing(prod, month) {
-  const monthly = await db.get(
+async function getMonthlyProductPricing(prod, month, store = db) {
+  const monthly = await store.get(
     'SELECT precio, promo_dinero, promo_porcentaje FROM crm_precios_mensuales WHERE producto_id = ? AND mes = ?',
     [prod.id, month]
   );
@@ -648,8 +649,14 @@ app.delete('/api/metas-globales/:id', authenticateToken, async (req, res) => {
 app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
   const { cliente_id, items, temporada_id, cuenta_clave_id } = req.body;
   
-  if (!cliente_id || !items || !Array.isArray(items) || items.length === 0) {
+  if (!cliente_id) {
     return res.status(400).json({ error: 'cliente_id and non-empty items array are required' });
+  }
+  let quoteItems;
+  try {
+    quoteItems = normalizeQuoteItems(items);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
   
   try {
@@ -667,13 +674,14 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     const activeSeason = temporada_id ? 
       await db.get('SELECT * FROM temporadas WHERE id = ?', [temporada_id]) : 
       await db.get("SELECT * FROM temporadas WHERE actividad = 'Temporada (Precio Lleno)'");
+    if (!activeSeason) return res.status(400).json({ error: 'Temporada no disponible.' });
       
     // Calculate total quantity of discountable seeds first to get correct volume scale
     const currentMonth = new Date().getMonth() + 1;
     let totalDiscountableSeeds = 0;
     const dbItems = [];
     
-    for (const item of items) {
+    for (const item of quoteItems) {
       const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
       if (!prod) return res.status(400).json({ error: `El producto seleccionado ya no está disponible para cotizar.` });
       
@@ -747,8 +755,14 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
 app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
   const { cliente_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas, prospecto_id, planificacion_id, origen_etapa } = req.body;
   
-  if (!cliente_id || !ciclo_agricola || !condiciones_pago || !items || !Array.isArray(items) || items.length === 0) {
+  if (!cliente_id || !ciclo_agricola || !condiciones_pago) {
     return res.status(400).json({ error: 'Missing required header or items list' });
+  }
+  let quoteItems;
+  try {
+    quoteItems = normalizeQuoteItems(items);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
   
   try {
@@ -757,10 +771,6 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     const prefix = `CG-${date.getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
     const mesShort = date.toLocaleString('es-MX', { month: 'short' }).toUpperCase().slice(0, 3);
     const now = date.toISOString().slice(0, 10);
-    
-    // First run the pricing calculation
-    const calcReq = { body: { cliente_id, items, temporada_id } };
-    let calcResData;
     
     // Manual local function call logic to compute pricing safely
     const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [cliente_id]);
@@ -808,13 +818,14 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     const activeSeason = temporada_id ? 
       await db.get('SELECT * FROM temporadas WHERE id = ?', [temporada_id]) : 
       await db.get("SELECT * FROM temporadas WHERE actividad = 'Temporada (Precio Lleno)'");
-      
+    if (!activeSeason) return res.status(400).json({ error: 'Temporada no disponible.' });
+
     const currentMonth = new Date().getMonth() + 1;
     let totalDiscountableSeeds = 0;
     const calculatedItems = [];
     let grandTotal = 0.0;
     
-    for (const item of items) {
+    for (const item of quoteItems) {
       const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
       if (!prod) return res.status(400).json({ error: `El producto seleccionado ya no está disponible para cotizar.` });
       const monthlyPricing = await getMonthlyProductPricing(prod, currentMonth);
@@ -840,7 +851,7 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
       const maxDiscountMxn = row.monthlyPricing.maxDiscountMxn;
       const discountApplied = Math.min(Math.max(Number(item.descuento_aplicado) || 0, 0), maxDiscountMxn);
       
-      const netPrice = baseNetPrice - discountApplied;
+      const netPrice = Math.max(baseNetPrice - discountApplied, 0);
       const subtotal = netPrice * item.cantidad;
       
       row.netPrice = netPrice;
@@ -854,53 +865,94 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     // Status logic: quotations start as 'Pendiente' until authorized by Admin/Coordinator
     const defaultStatus = 'Pendiente';
     
-    const result = await db.run(`
-      INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera, prospecto_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [now, cliente_id, quoteAdvisorId, ciclo_agricola, condiciones_pago, prefix, mesShort, defaultStatus, grandTotal, anticipoApartado, notas, financiera || null, prospectId]);
-    
-    const cotId = result.id;
-    
-    for (const row of calculatedItems) {
-      await db.run(`
-        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
-        VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-      `, [cotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
-    }
+    const persisted = await db.transaction(async tx => {
+      let lockedPlan = directSalePlan;
+      let lockedProspect = null;
+      if (directSalePlan) {
+        lockedPlan = await tx.get(
+          'SELECT * FROM planificacion_semanal WHERE id = ? FOR UPDATE',
+          [directSalePlan.id]
+        );
+        if (!lockedPlan || lockedPlan.cliente_id !== Number(cliente_id) || Number(lockedPlan.realizada) === 1) {
+          const error = new Error('La visita ya no está disponible para cotizar.');
+          error.statusCode = 409;
+          throw error;
+        }
+        const existingProspect = await tx.get(
+          'SELECT * FROM crm_prospectos WHERE planificacion_id = ? FOR UPDATE',
+          [lockedPlan.id]
+        );
+        if (existingProspect) {
+          const error = new Error('Esta visita ya fue enviada al Canal de Ventas.');
+          error.statusCode = 409;
+          throw error;
+        }
+      } else if (prospectId) {
+        lockedProspect = await tx.get(
+          'SELECT * FROM crm_prospectos WHERE id = ? FOR UPDATE',
+          [prospectId]
+        );
+        if (!lockedProspect || lockedProspect.estado !== 'Prospecto'
+          || lockedProspect.cliente_id !== Number(cliente_id)
+          || lockedProspect.asesor_id !== quoteAdvisorId) {
+          const error = new Error('El prospecto ya no está disponible para cotizar.');
+          error.statusCode = 409;
+          throw error;
+        }
+      }
 
-    if (directSalePlan) {
-      const prospectResult = await db.run(`
-        INSERT INTO crm_prospectos (planificacion_id, cliente_id, asesor_id, estado, cotizacion_id)
-        VALUES (?, ?, ?, 'En cotización', ?)
-      `, [directSalePlan.id, directSalePlan.cliente_id, directSalePlan.asesor_id, cotId]);
-      prospectId = prospectResult.id;
-      await db.run('UPDATE cotizaciones SET prospecto_id = ? WHERE id = ?', [prospectId, cotId]);
-      await db.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [directSalePlan.id]);
-      await db.run(`
-        INSERT INTO crm_reportes_etapa (
-          planificacion_id, visita_id, cliente_id, asesor_id, etapa_clave, fecha_reporte, respuestas, creado_en, actualizado_en
-        ) VALUES (?, ?, ?, ?, 'V', ?, ?::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (planificacion_id, etapa_clave)
-        DO UPDATE SET respuestas = EXCLUDED.respuestas, actualizado_en = CURRENT_TIMESTAMP
-      `, [
-        directSalePlan.id,
-        directSalePlan.visita_id || null,
-        directSalePlan.cliente_id,
-        directSalePlan.asesor_id,
-        directSalePlan.fecha_programada,
-        JSON.stringify({ cotizacion_id: cotId, enviada_a_cotizador: true })
-      ]);
-    }
+      const result = await tx.run(`
+        INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera, prospecto_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING id
+      `, [now, cliente_id, quoteAdvisorId, ciclo_agricola, condiciones_pago, prefix, mesShort, defaultStatus, grandTotal, anticipoApartado, notas, financiera || null, prospectId]);
+      const cotId = result.id;
 
-    if (prospectId && !directSalePlan) {
-      await db.run("UPDATE crm_prospectos SET estado = 'En cotización', cotizacion_id = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?", [cotId, prospectId]);
-    }
+      for (const row of calculatedItems) {
+        await tx.run(`
+          INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
+          VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+        `, [cotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
+      }
+
+      let persistedProspectId = prospectId;
+      if (lockedPlan) {
+        const prospectResult = await tx.run(`
+          INSERT INTO crm_prospectos (planificacion_id, cliente_id, asesor_id, estado, cotizacion_id)
+          VALUES (?, ?, ?, 'En cotización', ?)
+          RETURNING id
+        `, [lockedPlan.id, lockedPlan.cliente_id, lockedPlan.asesor_id, cotId]);
+        persistedProspectId = prospectResult.id;
+        await tx.run('UPDATE cotizaciones SET prospecto_id = ? WHERE id = ?', [persistedProspectId, cotId]);
+        await tx.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [lockedPlan.id]);
+        await tx.run(`
+          INSERT INTO crm_reportes_etapa (
+            planificacion_id, visita_id, cliente_id, asesor_id, etapa_clave, fecha_reporte, respuestas, creado_en, actualizado_en
+          ) VALUES (?, ?, ?, ?, 'V', ?, ?::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (planificacion_id, etapa_clave)
+          DO UPDATE SET respuestas = EXCLUDED.respuestas, actualizado_en = CURRENT_TIMESTAMP
+        `, [
+          lockedPlan.id,
+          lockedPlan.visita_id || null,
+          lockedPlan.cliente_id,
+          lockedPlan.asesor_id,
+          lockedPlan.fecha_programada,
+          JSON.stringify({ cotizacion_id: cotId, enviada_a_cotizador: true })
+        ]);
+      } else if (lockedProspect) {
+        await tx.run(
+          "UPDATE crm_prospectos SET estado = 'En cotización', cotizacion_id = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
+          [cotId, lockedProspect.id]
+        );
+      }
+      return { cotId, prospectId: persistedProspectId };
+    });
     
-    res.status(201).json({ id: cotId, folio: prefix, total_mxn: grandTotal, status: defaultStatus, message: 'Quotation submitted successfully' });
+    res.status(201).json({ id: persisted.cotId, folio: prefix, total_mxn: grandTotal, status: defaultStatus, message: 'Quotation submitted successfully' });
     
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to create quotation' });
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Failed to create quotation' });
   }
 });
 
@@ -1194,138 +1246,175 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
 app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { ciclo_agricola, condiciones_pago, financiera, notas, temporada_id, items } = req.body;
-  
-  if (!items || !Array.isArray(items)) {
-    return res.status(400).json({ error: 'items array is required' });
+
+  let quoteItems;
+  try {
+    quoteItems = normalizeQuoteItems(items);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
   
   try {
-    const q = await db.get('SELECT * FROM cotizaciones WHERE id = ?', [id]);
-    if (!q) return res.status(404).json({ error: 'Quotation not found' });
-    
-    if (req.user.nivel_rol === 'Asesor' && q.asesor_id !== req.user.id) {
-      return res.status(403).json({ error: 'Unauthorized to edit this quote' });
-    }
-    if (req.user.nivel_rol === 'Asesor' && !['Borrador', 'Pendiente', 'Pendiente Autorización'].includes(q.estatus)) {
-      return res.status(403).json({ error: 'Solo puedes editar tus cotizaciones pendientes de autorización.' });
-    }
-    
-    // Only delivered quotations affect inventory, based on their latest movement.
-    const lastStockMovement = await db.get(
-      'SELECT tipo_movimiento FROM almacen_movimientos WHERE cotizacion_id = ? ORDER BY id DESC LIMIT 1',
-      [id]
-    );
-    const stockDeducted = Boolean(lastStockMovement?.tipo_movimiento?.startsWith('Salida'));
-    const now = new Date().toISOString();
-    
-    if (stockDeducted) {
-      const oldItems = await db.all('SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
-      for (const item of oldItems) {
-        const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
-        const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
-        const new_stock = current_stock + item.cantidad_ordenada;
-        
-        await db.run(`
-          INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
-          VALUES (?, 'Reversión por Edición', ?, ?, 0, ?, ?, ?, ?, ?)
-        `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Reversión de stock por edición de cotización`]);
+    const outcome = await db.transaction(async tx => {
+      const q = await tx.get('SELECT * FROM cotizaciones WHERE id = ? FOR UPDATE', [id]);
+      if (!q) return { status: 404, body: { error: 'Quotation not found' } };
+      if (req.user.nivel_rol === 'Asesor' && q.asesor_id !== req.user.id) {
+        return { status: 403, body: { error: 'Unauthorized to edit this quote' } };
       }
-    }
-    
-    // Step 2: Calculate pricing for new items
-    const client = await db.get('SELECT * FROM clientes WHERE id = ?', [q.cliente_id]);
-    const ccId = client.cuenta_clave_id || 1;
-    const keyAccount = await db.get('SELECT * FROM cuentas_clave WHERE id = ?', [ccId]);
-    const keyAccountDesc = keyAccount ? keyAccount.descuento_mxn : 0.0;
-    
-    const activeSeason = temporada_id ? 
-      await db.get('SELECT * FROM temporadas WHERE id = ?', [temporada_id]) : 
-      await db.get("SELECT * FROM temporadas WHERE actividad = 'Temporada (Precio Lleno)'");
-      
-    const currentMonth = new Date().getMonth() + 1;
-    let totalDiscountableSeeds = 0;
-    const calculatedRows = [];
-    
-    for (const item of items) {
-      const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
-      if (!prod) return res.status(400).json({ error: `El producto seleccionado ya no está disponible para cotizar.` });
-      
-      const monthlyPricing = await getMonthlyProductPricing(prod, currentMonth);
-      if (monthlyPricing.product.descontar === 1) {
-        totalDiscountableSeeds += item.cantidad;
+      if (req.user.nivel_rol === 'Asesor' && !['Borrador', 'Pendiente', 'Pendiente Autorización'].includes(q.estatus)) {
+        return { status: 403, body: { error: 'Solo puedes editar tus cotizaciones pendientes de autorización.' } };
       }
-      calculatedRows.push({ item, prod: monthlyPricing.product, monthlyPricing });
-    }
-    
-    // Using canonical getVolumeMultiplier imported from utils/pricing.js
-    
-    const volMultiplier = getVolumeMultiplier(totalDiscountableSeeds);
-    let grandTotal = 0.0;
-    
-    for (const row of calculatedRows) {
-      const prod = row.prod;
-      const item = row.item;
-      
-      const { netPrice: baseNetPrice } = calculateItemPricing(
-        prod,
-        item.cantidad,
-        volMultiplier,
-        keyAccountDesc,
-        activeSeason
+
+      const oldItems = await tx.all(
+        'SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ? ORDER BY id ASC',
+        [id]
       );
-      
-      // Look up and apply advisor discount safely
-      const maxDiscountMxn = row.monthlyPricing.maxDiscountMxn;
-      const discountApplied = Math.min(Math.max(Number(item.descuento_aplicado) || 0, 0), maxDiscountMxn);
-      
-      const netPrice = baseNetPrice - discountApplied;
-      const subtotal = netPrice * item.cantidad;
-      
-      row.netPrice = netPrice;
-      row.subtotal = subtotal;
-      row.listPrice = row.monthlyPricing.listPrice;
-      grandTotal += subtotal;
-    }
-    
-    // Step 3: Delete old details
-    await db.run('DELETE FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
-    
-    // Step 4: Insert new details
-    for (const row of calculatedRows) {
-      await db.run(`
-        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
-        VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-      `, [id, row.item.producto_id, temporada_id || (activeSeason ? activeSeason.id : 1), row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
-    }
-    
-    // Update header
-    const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000.0 : 0.0;
-    
-    await db.run(`
-      UPDATE cotizaciones
-      SET ciclo_agricola = ?, condiciones_pago = ?, financiera = ?, notas = ?, total_mxn = ?, anticipo_apartado = ?
-      WHERE id = ?
-    `, [ciclo_agricola, condiciones_pago, financiera || null, notas || null, grandTotal, anticipoApartado, id]);
-    
-    // Step 5: Re-deduct stock only when the quotation was already delivered.
-    if (q.estatus === 'Entregado') {
+      const productIdsToLock = [...new Set([
+        ...oldItems.map(item => Number(item.producto_id)),
+        ...quoteItems.map(item => item.producto_id)
+      ])].sort((a, b) => a - b);
+      const lockedProducts = new Map();
+      for (const productId of productIdsToLock) {
+        const product = await tx.get('SELECT * FROM productos WHERE id = ? FOR UPDATE', [productId]);
+        if (!product) return { status: 400, body: { error: 'El producto seleccionado ya no existe.' } };
+        lockedProducts.set(productId, product);
+      }
+      for (const item of quoteItems) {
+        if (Number(lockedProducts.get(item.producto_id)?.activo) !== 1) {
+          return { status: 400, body: { error: 'El producto seleccionado ya no está disponible para cotizar.' } };
+        }
+      }
+
+      const client = await tx.get('SELECT * FROM clientes WHERE id = ?', [q.cliente_id]);
+      if (!client) return { status: 400, body: { error: 'Client not found' } };
+      const keyAccount = await tx.get(
+        'SELECT * FROM cuentas_clave WHERE id = ?',
+        [client.cuenta_clave_id || 1]
+      );
+      const activeSeason = temporada_id
+        ? await tx.get('SELECT * FROM temporadas WHERE id = ?', [temporada_id])
+        : await tx.get("SELECT * FROM temporadas WHERE actividad = 'Temporada (Precio Lleno)'");
+      if (!activeSeason) return { status: 400, body: { error: 'Temporada no disponible.' } };
+
+      const currentMonth = new Date().getMonth() + 1;
+      let totalDiscountableSeeds = 0;
+      const calculatedRows = [];
+      for (const item of quoteItems) {
+        const monthlyPricing = await getMonthlyProductPricing(
+          lockedProducts.get(item.producto_id),
+          currentMonth,
+          tx
+        );
+        if (monthlyPricing.product.descontar === 1) totalDiscountableSeeds += item.cantidad;
+        calculatedRows.push({ item, prod: monthlyPricing.product, monthlyPricing });
+      }
+
+      const volMultiplier = getVolumeMultiplier(totalDiscountableSeeds);
+      let grandTotal = 0;
       for (const row of calculatedRows) {
-        const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [row.item.producto_id]);
-        const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
-        const new_stock = current_stock - row.item.cantidad;
-        
-        await db.run(`
-          INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
-          VALUES (?, 'Salida por Pedido (Editado)', ?, 0, ?, ?, ?, ?, ?, ?)
-        `, [now, row.item.producto_id, row.item.cantidad, new_stock, id, req.user.id, q.folio_cotizacion, `Salida registrada por cambio de detalles de cotización`]);
+        const { netPrice: baseNetPrice } = calculateItemPricing(
+          row.prod,
+          row.item.cantidad,
+          volMultiplier,
+          keyAccount ? keyAccount.descuento_mxn : 0,
+          activeSeason
+        );
+        const discountApplied = Math.min(row.item.descuento_aplicado, row.monthlyPricing.maxDiscountMxn);
+        row.netPrice = Math.max(baseNetPrice - discountApplied, 0);
+        row.subtotal = row.netPrice * row.item.cantidad;
+        row.listPrice = row.monthlyPricing.listPrice;
+        grandTotal += row.subtotal;
       }
-      
+
+      const lastStockMovement = await tx.get(
+        'SELECT tipo_movimiento FROM almacen_movimientos WHERE cotizacion_id = ? ORDER BY id DESC LIMIT 1',
+        [id]
+      );
+      const stockDeducted = Boolean(lastStockMovement?.tipo_movimiento?.startsWith('Salida'));
+      const balances = new Map();
+      for (const productId of productIdsToLock) {
+        const movement = await tx.get(
+          'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+          [productId]
+        );
+        balances.set(productId, Number(movement?.existencias_resultantes || 0));
+      }
+      if (stockDeducted) {
+        for (const item of oldItems) {
+          balances.set(
+            Number(item.producto_id),
+            balances.get(Number(item.producto_id)) + Number(item.cantidad_ordenada)
+          );
+        }
+      }
       if (q.estatus === 'Entregado') {
-        await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
+        for (const row of calculatedRows) {
+          const nextBalance = balances.get(row.item.producto_id) - row.item.cantidad;
+          if (nextBalance < 0) {
+            return { status: 400, body: { error: 'Insufficient inventory for edited quotation' } };
+          }
+          balances.set(row.item.producto_id, nextBalance);
+        }
       }
-    }
-    
-    res.json({ message: 'Quotation updated successfully', total_mxn: grandTotal });
+
+      const now = new Date().toISOString();
+      const persistedBalances = new Map();
+      for (const productId of productIdsToLock) {
+        const movement = await tx.get(
+          'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+          [productId]
+        );
+        persistedBalances.set(productId, Number(movement?.existencias_resultantes || 0));
+      }
+      if (stockDeducted) {
+        for (const item of oldItems) {
+          const productId = Number(item.producto_id);
+          const newStock = persistedBalances.get(productId) + Number(item.cantidad_ordenada);
+          await tx.run(`
+            INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
+            VALUES (?, 'Reversión por Edición', ?, ?, 0, ?, ?, ?, ?, ?)
+          `, [now, productId, item.cantidad_ordenada, newStock, id, req.user.id, q.folio_cotizacion, 'Reversión de stock por edición de cotización']);
+          persistedBalances.set(productId, newStock);
+        }
+      }
+
+      await tx.run('DELETE FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
+      for (const row of calculatedRows) {
+        await tx.run(`
+          INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
+          VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+        `, [id, row.item.producto_id, activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
+      }
+
+      const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000 : 0;
+      await tx.run(`
+        UPDATE cotizaciones
+        SET ciclo_agricola = ?, condiciones_pago = ?, financiera = ?, notas = ?, total_mxn = ?, anticipo_apartado = ?
+        WHERE id = ?
+      `, [ciclo_agricola, condiciones_pago, financiera || null, notas || null, grandTotal, anticipoApartado, id]);
+
+      if (q.estatus === 'Entregado') {
+        for (const row of calculatedRows) {
+          const productId = row.item.producto_id;
+          const newStock = persistedBalances.get(productId) - row.item.cantidad;
+          await tx.run(`
+            INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
+            VALUES (?, 'Salida por Pedido (Editado)', ?, 0, ?, ?, ?, ?, ?, ?)
+          `, [now, productId, row.item.cantidad, newStock, id, req.user.id, q.folio_cotizacion, 'Salida registrada por cambio de detalles de cotización']);
+          persistedBalances.set(productId, newStock);
+        }
+        await tx.run(
+          'UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?',
+          [id]
+        );
+      }
+
+      return {
+        status: 200,
+        body: { message: 'Quotation updated successfully', total_mxn: grandTotal }
+      };
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update quotation' });
@@ -2164,11 +2253,11 @@ function getLocalISODate() {
   return localDate.toISOString().slice(0, 10);
 }
 
-async function getPlanProspectEligibility(plan) {
-  const stageRows = await db.all('SELECT clave, fecha_inicio, fecha_fin FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
+async function getPlanProspectEligibility(plan, store = db) {
+  const stageRows = await store.all('SELECT clave, fecha_inicio, fecha_fin FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
   const activeStageCodes = getActiveStageCodesForDate(stageRows, plan.fecha_programada);
   const reports = activeStageCodes.length
-    ? await db.all(
+    ? await store.all(
       `SELECT etapa_clave FROM crm_reportes_etapa
        WHERE planificacion_id = ? AND etapa_clave IN (${activeStageCodes.map(() => '?').join(', ')})`,
       [plan.id, ...activeStageCodes]
@@ -2452,26 +2541,47 @@ app.get('/api/planificacion/:id/prospecto-elegibilidad', authenticateToken, asyn
 
 app.post('/api/planificacion/:id/convertir-prospecto', authenticateToken, async (req, res) => {
   try {
-    const plan = await db.get('SELECT * FROM planificacion_semanal WHERE id = ?', [Number(req.params.id)]);
-    if (!plan) return res.status(404).json({ error: 'Planning not found' });
-    if (req.user.nivel_rol === 'Asesor' && plan.asesor_id !== req.user.id) {
-      return res.status(403).json({ error: 'Unauthorized to convert this planning activity' });
-    }
+    const outcome = await db.transaction(async tx => {
+      const plan = await tx.get(
+        'SELECT * FROM planificacion_semanal WHERE id = ? FOR UPDATE',
+        [Number(req.params.id)]
+      );
+      if (!plan) return { status: 404, body: { error: 'Planning not found' } };
+      if (req.user.nivel_rol === 'Asesor' && plan.asesor_id !== req.user.id) {
+        return { status: 403, body: { error: 'Unauthorized to convert this planning activity' } };
+      }
 
-    const existing = await db.get('SELECT id, estado FROM crm_prospectos WHERE planificacion_id = ?', [plan.id]);
-    if (existing) return res.json({ id: existing.id, estado: existing.estado, message: 'Prospect already exists' });
+      const existing = await tx.get(
+        'SELECT id, estado FROM crm_prospectos WHERE planificacion_id = ? FOR UPDATE',
+        [plan.id]
+      );
+      if (existing) {
+        return {
+          status: 200,
+          body: { id: existing.id, estado: existing.estado, message: 'Prospect already exists' }
+        };
+      }
 
-    const eligibility = await getPlanProspectEligibility(plan);
-    if (!eligibility.eligible) {
-      return res.status(400).json({ error: 'Responde al menos una encuesta de las etapas activas antes de pasar la visita a prospecto.' });
-    }
+      const eligibility = await getPlanProspectEligibility(plan, tx);
+      if (!eligibility.eligible) {
+        return {
+          status: 400,
+          body: { error: 'Responde al menos una encuesta de las etapas activas antes de pasar la visita a prospecto.' }
+        };
+      }
 
-    const result = await db.run(`
-      INSERT INTO crm_prospectos (planificacion_id, cliente_id, asesor_id, estado)
-      VALUES (?, ?, ?, 'Prospecto')
-    `, [plan.id, plan.cliente_id, plan.asesor_id]);
-    await db.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [plan.id]);
-    res.status(201).json({ id: result.id, message: 'Plan converted to prospect successfully' });
+      const result = await tx.run(`
+        INSERT INTO crm_prospectos (planificacion_id, cliente_id, asesor_id, estado)
+        VALUES (?, ?, ?, 'Prospecto')
+        RETURNING id
+      `, [plan.id, plan.cliente_id, plan.asesor_id]);
+      await tx.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [plan.id]);
+      return {
+        status: 201,
+        body: { id: result.id, message: 'Plan converted to prospect successfully' }
+      };
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to convert plan to prospect' });

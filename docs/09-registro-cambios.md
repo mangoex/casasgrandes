@@ -8,6 +8,7 @@
 | CHG-004 | 2026-07-27 | IA externa es opt-in, usa contexto minimizado, secretos por entorno y logs redactados | PROJECT-PR-011..013, ADR-004, PRD-FR-012..016 | TDD-TC-035..040; EVD-003 | implemented-local |
 | CHG-005 | 2026-07-27 | Eliminar vulnerabilidades conocidas críticas y altas del árbol npm sin salto mayor | PROJECT-PR-014, ADR-005, PRD-FR-017 | TDD-TC-041; EVD-004 | implemented-local |
 | CHG-006 | 2026-07-27 | Limitar fuerza bruta, payloads y confianza HTTP con aislamiento de navegador | PROJECT-PR-015, ADR-006, PRD-FR-018..020 | TDD-TC-042..045; EVD-005 | implemented-local |
+| CHG-007 | 2026-07-27 | Confirmar creación, edición y conversión comercial como unidades atómicas | PROJECT-PR-016, ADR-007, PRD-FR-021..023 | TDD-TC-046..049; EVD-006 | implemented-local |
 
 ## Reglas
 

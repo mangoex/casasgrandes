@@ -26,6 +26,9 @@
 | OBJ-008 | PRD-FR-018 | SDD-CMP-017, ADR-006 | BDD-SC-025, BDD-SC-026 | TDD-TC-042, TDD-TC-043 | `utils/rateLimiter.js`, `routes/auth.js` | EVD-005: 429 antes de consulta número 11 | verified-local |
 | OBJ-008 | PRD-FR-019 | SDD-CMP-018 | BDD-SC-027, BDD-SC-028 | TDD-TC-044 | `server.js` | EVD-005: parser grande detrás de autenticación | verified-local |
 | OBJ-008 | PRD-FR-020, PRD-NFR-007 | SDD-CMP-019 | BDD-SC-029 | TDD-TC-045 | `utils/httpSecurity.js`, `server.js`, `.env.example` | EVD-005: cabeceras y proxy acotado | Gate 4 passed |
+| OBJ-009 | PRD-FR-021 | SDD-CMP-020, ADR-007 | BDD-SC-030 | TDD-TC-046 | creación de cotización | EVD-006: un solo `tx` y locks de vínculo | verified-local |
+| OBJ-009 | PRD-FR-023 | SDD-CMP-022 | BDD-SC-031 | TDD-TC-047 | conversión de planificación | EVD-006: lock y reutilización | verified-local |
+| OBJ-009 | PRD-FR-022, PRD-NFR-008 | SDD-CMP-021 | BDD-SC-032, BDD-SC-033 | TDD-TC-048, TDD-TC-049 | edición e inventario | EVD-006: saldos simulados, locks ordenados y 47/47 | Gate 4 passed |
 
 ## Huecos
 
@@ -88,3 +91,15 @@
 - Auditoría: `npm audit --omit=dev`, exit 0, cero vulnerabilidades.
 - Verificación adicional: sintaxis Node, Humanio estricto, política readiness y `git diff --check`.
 - Alcance no ejecutado: proxy y rate limiter distribuidos, navegador visual y despliegue.
+
+## EVD-006 — Evidencia local CHG-007
+
+- Fecha: 2026-07-27
+- Comando rojo: `node --test test/commercialAtomicity.test.js`
+- Resultado rojo: exit 1, 0/4 aprobadas antes de implementación.
+- Comando focalizado: `node --test test/commercialAtomicity.test.js`
+- Resultado focalizado: exit 0, 4/4 aprobadas.
+- Regresión: `npm test`, exit 0, 47/47 aprobadas.
+- Auditoría: `npm audit --omit=dev`, exit 0, cero vulnerabilidades.
+- Verificación adicional: sintaxis Node, Humanio estricto, política readiness y `git diff --check`.
+- Alcance no ejecutado: carrera real y rollback contra PostgreSQL aislado, navegador y despliegue.

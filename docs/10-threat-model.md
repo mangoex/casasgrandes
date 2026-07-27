@@ -26,6 +26,7 @@ Modelo vigente para CHG-001 y CHG-002. Activos principales: sesiones, PII de agr
 | THR-009 | Privacidad | PII enviada a proveedor IA o expuesta en logs | CHG-004: opt-in, pseudonimización, claves por entorno y redacción | política legal/retención pendiente |
 | THR-010 | DoS / cadena de suministro | Dependencia vulnerable permite caída o manipulación de tráfico | CHG-005: lockfile corregido y `npm audit` | nuevas divulgaciones requieren monitoreo continuo |
 | THR-011 | DoS / suplantación | Fuerza bruta, JSON grande o IP falsificada agota autenticación | CHG-006: límites por IP/cuenta, parsers escalonados y proxy explícito | store en memoria no coordina múltiples réplicas |
+| THR-012 | Manipulación | Fallo o carrera deja cotización, prospecto o inventario parcial | CHG-007: transacciones y locks comerciales | requiere prueba concurrente con PostgreSQL real |
 
 ## Casos de abuso obligatorios
 

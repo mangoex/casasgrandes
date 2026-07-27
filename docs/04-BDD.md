@@ -261,3 +261,37 @@ Given una respuesta HTML
 When el navegador aplica CSP
 Then solo carga archivos script del mismo origen y bloquea bloques inline
 ```
+
+## Feature: CHG-007 — Atomicidad comercial
+
+### BDD-SC-030 — Detalle de cotización falla
+
+```gherkin
+Given una nueva cotización con varias escrituras
+When falla la inserción de un detalle
+Then no existen cabecera, transición de prospecto ni reporte parcial
+```
+
+### BDD-SC-031 — Conversión repetida
+
+```gherkin
+Given dos solicitudes para convertir la misma planificación
+When ambas compiten
+Then solo se crea un prospecto y la segunda reutiliza el confirmado
+```
+
+### BDD-SC-032 — Edición entregada sin saldo
+
+```gherkin
+Given una cotización entregada y productos bloqueados
+When los nuevos detalles requieren más saldo del disponible tras la reversión
+Then toda la edición revierte sin reemplazar detalles ni movimientos
+```
+
+### BDD-SC-033 — Edición interrumpida
+
+```gherkin
+Given una edición que ya insertó una reversión
+When falla el reemplazo de detalles
+Then PostgreSQL revierte la reversión y conserva la cotización original
+```

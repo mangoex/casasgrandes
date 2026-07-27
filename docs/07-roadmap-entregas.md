@@ -67,3 +67,12 @@
 | 2 | Probar limiter, parsers y cabeceras | TDD-TC-042..045 | completed |
 | 3 | Implementar controles HTTP | SDD-CMP-017..019 | completed |
 | 4 | Ejecutar regresión y gates | EVD-005 | completed |
+
+## Incremento 7 — CHG-007
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar unidad comercial | ADR-007, PRD-FR-021..023 | completed |
+| 2 | Probar creación, conversión y edición | TDD-TC-046..049 | completed |
+| 3 | Implementar transacciones y locks | SDD-CMP-020..022 | completed |
+| 4 | Ejecutar regresión y gates | EVD-006 | completed |

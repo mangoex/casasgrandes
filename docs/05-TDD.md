@@ -201,3 +201,27 @@
 - Cubre: BDD-SC-029, PRD-FR-020, PRD-NFR-007
 - Aserciones: CSP, HSTS, aislamiento y proxy acotado
 - Estado: passed
+
+## TDD-TC-046 — Creación atómica
+
+- Cubre: BDD-SC-030, PRD-FR-021
+- Aserciones: cabecera, detalles y transiciones usan el mismo `tx`
+- Estado: passed
+
+## TDD-TC-047 — Conversión concurrente
+
+- Cubre: BDD-SC-031, PRD-FR-023
+- Aserciones: planificación bloqueada y prospecto existente reutilizado
+- Estado: passed
+
+## TDD-TC-048 — Edición e inventario
+
+- Cubre: BDD-SC-032, BDD-SC-033, PRD-FR-022
+- Aserciones: locks ordenados, saldo revalidado y rollback común
+- Estado: passed
+
+## TDD-TC-049 — Regresión CHG-007
+
+- Cubre: PRD-NFR-008
+- Aserciones: suite completa y verificaciones de seguridad permanecen verdes
+- Estado: passed

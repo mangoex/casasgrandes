@@ -177,3 +177,23 @@ La aplicación solo confía en el número entero de saltos configurado mediante 
 ### PRD-NFR-007 — Aislamiento HTTP
 
 Respuestas aplican CSP sin bloques de script inline, aislamiento de origen, no-cache para API y HSTS en producción.
+
+## Incremento CHG-007 — Atomicidad comercial completa
+
+### OBJ-009 — Evitar cotizaciones y prospectos parciales
+
+### PRD-FR-021 — Creación unitaria
+
+Cabecera, detalles, vínculo con prospecto o planeación, reporte de etapa y transición comercial se confirman en una transacción.
+
+### PRD-FR-022 — Edición unitaria
+
+Reversión de inventario, reemplazo de detalles, cabecera y nueva salida de una cotización entregada se confirman juntos.
+
+### PRD-FR-023 — Conversión serializada
+
+Planificación→prospecto bloquea la planificación, revalida elegibilidad y reutiliza el prospecto existente ante repetición.
+
+### PRD-NFR-008 — Fallo cerrado
+
+Cantidades inválidas o saldo insuficiente abortan antes de confirmar; una carrera responde conflicto sin dejar efectos parciales.

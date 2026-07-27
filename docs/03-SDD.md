@@ -151,3 +151,20 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - Cubre: PRD-FR-020, PRD-NFR-007
 - `TRUST_PROXY_HOPS` acepta solo enteros acotados.
 - `script-src 'self'` bloquea bloques inline; `script-src-attr 'unsafe-inline'` conserva temporalmente handlers heredados bajo riesgo visible.
+
+## Diseño CHG-007
+
+### SDD-CMP-020 — Persistencia de cotización
+
+- Cubre: PRD-FR-021, PRD-NFR-008
+- Un servicio transaccional inserta cabecera y detalles, bloquea planeación/prospecto y aplica sus transiciones.
+
+### SDD-CMP-021 — Edición con inventario
+
+- Cubre: PRD-FR-022, PRD-NFR-008
+- Bloquea cotización y productos en orden estable; calcula saldos desde el último movimiento ya bloqueado.
+
+### SDD-CMP-022 — Conversión idempotente
+
+- Cubre: PRD-FR-023
+- La ruta bloquea planificación antes de consultar elegibilidad y prospecto existente.

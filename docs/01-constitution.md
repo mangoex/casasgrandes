@@ -66,6 +66,10 @@ Ningún incremento podrá cerrarse con vulnerabilidades críticas o altas conoci
 
 Autenticación y parsing HTTP limitarán consumo por actor, tamaño y tiempo; la confianza en proxies será explícita y acotada.
 
+### PROJECT-PR-016
+
+Creación y edición de cotizaciones, conversión de planeación y movimientos derivados se revalidarán dentro de una única transacción.
+
 ## Fuentes canónicas
 
 | Fuente | Autoridad | Responsable |
@@ -78,11 +82,12 @@ Autenticación y parsing HTTP limitarán consumo por actor, tamaño y tiempo; la
 | `docs/adr/ADR-004.md` | Frontera de privacidad para IA | Responsable de producto y técnico |
 | `docs/adr/ADR-005.md` | Política de dependencias vulnerables | Responsable técnico |
 | `docs/adr/ADR-006.md` | Controles contra abuso HTTP | Responsable técnico |
+| `docs/adr/ADR-007.md` | Unidad transaccional comercial | Responsable técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: CHG-001..006; CHG-006 gobierna fuerza bruta, tamaño de payload e aislamiento HTTP.
+- Incluye: CHG-001..007; CHG-007 cierra la atomicidad comercial residual.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios
