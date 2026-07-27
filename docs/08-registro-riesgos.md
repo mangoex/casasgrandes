@@ -18,6 +18,7 @@
 | RSK-005 | Inconsistencia de inventario y pujas | media | crítico | CHG-003 cubre movimientos, producción, entrega y decisiones; faltan edición de cotización y conversiones comerciales | responsable técnico | partially-mitigated |
 | RSK-006 | Tratamiento de PII y proveedores IA no gobernado | alta | alto | CHG-004: opt-in, minimización, claves por entorno y logs redactados; falta aprobación legal/productiva del proveedor | propietario | partially-mitigated |
 | RSK-008 | DoS y manipulación por dependencias vulnerables | alta | crítico | CHG-005 actualiza transitivas compatibles y exige auditoría reproducible | responsable técnico | mitigated-local |
+| RSK-009 | Fuerza bruta y consumo HTTP no acotado | alta | alto | CHG-006 limita login, payloads, proxy y scripts inline; store distribuido pendiente para múltiples réplicas | responsable técnico | partially-mitigated |
 
 ## Riesgo residual
 

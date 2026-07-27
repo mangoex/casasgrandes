@@ -157,3 +157,23 @@ Las dependencias transitivas vulnerables se actualizarán a versiones corregidas
 ### PRD-NFR-006 — Auditoría reproducible
 
 `npm audit --omit=dev` debe terminar con código 0 y cero vulnerabilidades; la suite completa debe permanecer verde.
+
+## Incremento CHG-006 — Resistencia a abuso HTTP
+
+### OBJ-008 — Reducir fuerza bruta y consumo no acotado
+
+### PRD-FR-018 — Límite de login
+
+Login limita intentos por origen y por identificador seudonimizado, responde `429` con `Retry-After` y no conserva correos o usuarios en memoria.
+
+### PRD-FR-019 — Payload acotado
+
+El JSON general admite como máximo 1 MiB. El anexo PDF conserva hasta 12 MiB solo después de autenticar la sesión.
+
+### PRD-FR-020 — Proxy explícito
+
+La aplicación solo confía en el número entero de saltos configurado mediante `TRUST_PROXY_HOPS`; ausencia o valor inválido equivale a cero.
+
+### PRD-NFR-007 — Aislamiento HTTP
+
+Respuestas aplican CSP sin bloques de script inline, aislamiento de origen, no-cache para API y HSTS en producción.

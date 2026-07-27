@@ -177,3 +177,27 @@
 - Cubre: BDD-SC-024, PRD-NFR-006
 - Aserciones: `npm audit --omit=dev` reporta cero y `npm test` permanece verde
 - Estado: passed
+
+## TDD-TC-042 — Ventana y cardinalidad
+
+- Cubre: BDD-SC-025, BDD-SC-026
+- Aserciones: límite, `Retry-After`, expiración y máximo de entradas
+- Estado: passed
+
+## TDD-TC-043 — Clave seudonimizada
+
+- Cubre: PRD-FR-018
+- Aserciones: el store recibe hash y no identificador en claro
+- Estado: passed
+
+## TDD-TC-044 — Parsing por riesgo
+
+- Cubre: BDD-SC-027, BDD-SC-028
+- Aserciones: 1 MiB general y autenticación previa al parser de adjuntos
+- Estado: passed
+
+## TDD-TC-045 — Cabeceras y proxy
+
+- Cubre: BDD-SC-029, PRD-FR-020, PRD-NFR-007
+- Aserciones: CSP, HSTS, aislamiento y proxy acotado
+- Estado: passed

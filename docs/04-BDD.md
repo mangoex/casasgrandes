@@ -219,3 +219,45 @@ Given un lockfile con vulnerabilidades críticas o altas conocidas
 When se aplican actualizaciones transitivas compatibles
 Then la auditoría reporta cero vulnerabilidades y la regresión funcional permanece verde
 ```
+
+## Feature: CHG-006 — Resistencia a abuso HTTP
+
+### BDD-SC-025 — Fuerza bruta por cuenta
+
+```gherkin
+Given intentos fallidos repetidos para el mismo identificador
+When se supera el máximo de la ventana
+Then login responde 429 sin consultar credenciales nuevamente
+```
+
+### BDD-SC-026 — Ventana expirada
+
+```gherkin
+Given un actor temporalmente limitado
+When vence la ventana configurada
+Then puede volver a intentar y el contador inicia de nuevo
+```
+
+### BDD-SC-027 — JSON general excesivo
+
+```gherkin
+Given una petición JSON general mayor a 1 MiB
+When el servidor intenta procesarla
+Then responde 413 con JSON y no ejecuta el controlador
+```
+
+### BDD-SC-028 — Anexo sin sesión
+
+```gherkin
+Given un anexo potencial de hasta 12 MiB sin sesión válida
+When llega al endpoint de adjuntos
+Then autenticación lo rechaza antes de parsear el cuerpo
+```
+
+### BDD-SC-029 — Scripts inline
+
+```gherkin
+Given una respuesta HTML
+When el navegador aplica CSP
+Then solo carga archivos script del mismo origen y bloquea bloques inline
+```

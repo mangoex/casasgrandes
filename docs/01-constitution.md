@@ -62,6 +62,10 @@ Las claves de proveedores solo residirán en el gestor de secretos o variables d
 
 Ningún incremento podrá cerrarse con vulnerabilidades críticas o altas conocidas en dependencias de producción.
 
+### PROJECT-PR-015
+
+Autenticación y parsing HTTP limitarán consumo por actor, tamaño y tiempo; la confianza en proxies será explícita y acotada.
+
 ## Fuentes canónicas
 
 | Fuente | Autoridad | Responsable |
@@ -73,11 +77,12 @@ Ningún incremento podrá cerrarse con vulnerabilidades críticas o altas conoci
 | `docs/adr/ADR-003.md` | Transacciones y bloqueos pesimistas | Responsable técnico |
 | `docs/adr/ADR-004.md` | Frontera de privacidad para IA | Responsable de producto y técnico |
 | `docs/adr/ADR-005.md` | Política de dependencias vulnerables | Responsable técnico |
+| `docs/adr/ADR-006.md` | Controles contra abuso HTTP | Responsable técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: CHG-001..005; CHG-005 gobierna vulnerabilidades conocidas en dependencias.
+- Incluye: CHG-001..006; CHG-006 gobierna fuerza bruta, tamaño de payload e aislamiento HTTP.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios

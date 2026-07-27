@@ -23,6 +23,9 @@
 | OBJ-006 | PRD-FR-016 | SDD-CMP-013 | BDD-SC-021 | TDD-TC-038 | `runCoordinatorAgent` | EVD-003: generación determinista local | verified-local |
 | OBJ-006 | PRD-NFR-005 | SDD-CMP-012, SDD-CMP-013, SDD-CMP-014, SDD-CMP-015 | BDD-SC-018..023 | TDD-TC-035, TDD-TC-036, TDD-TC-037, TDD-TC-038, TDD-TC-039, TDD-TC-040 | CHG-004 | EVD-003: suite completa 37/37 | Gate 4 passed |
 | OBJ-007 | PRD-FR-017, PRD-NFR-006 | SDD-CMP-016, ADR-005 | BDD-SC-024 | TDD-TC-041 | `package-lock.json` | EVD-004: cero vulnerabilidades y 37/37 pruebas | Gate 4 passed |
+| OBJ-008 | PRD-FR-018 | SDD-CMP-017, ADR-006 | BDD-SC-025, BDD-SC-026 | TDD-TC-042, TDD-TC-043 | `utils/rateLimiter.js`, `routes/auth.js` | EVD-005: 429 antes de consulta número 11 | verified-local |
+| OBJ-008 | PRD-FR-019 | SDD-CMP-018 | BDD-SC-027, BDD-SC-028 | TDD-TC-044 | `server.js` | EVD-005: parser grande detrás de autenticación | verified-local |
+| OBJ-008 | PRD-FR-020, PRD-NFR-007 | SDD-CMP-019 | BDD-SC-029 | TDD-TC-045 | `utils/httpSecurity.js`, `server.js`, `.env.example` | EVD-005: cabeceras y proxy acotado | Gate 4 passed |
 
 ## Huecos
 
@@ -73,3 +76,15 @@
 - Resultado verde: exit 0, cero vulnerabilidades.
 - Regresión: `npm test`, exit 0, 37/37 aprobadas.
 - Verificación adicional: sintaxis Node, Humanio estricto, política readiness y `git diff --check`.
+
+## EVD-005 — Evidencia local CHG-006
+
+- Fecha: 2026-07-27
+- Comando rojo: `node --test test/httpHardening.test.js`
+- Resultado rojo: exit 1, 0/5 aprobadas antes de implementación.
+- Comando focalizado: `node --test test/httpHardening.test.js`
+- Resultado focalizado: exit 0, 6/6 aprobadas, incluida ruta HTTP productiva.
+- Regresión: `npm test`, exit 0, 43/43 aprobadas.
+- Auditoría: `npm audit --omit=dev`, exit 0, cero vulnerabilidades.
+- Verificación adicional: sintaxis Node, Humanio estricto, política readiness y `git diff --check`.
+- Alcance no ejecutado: proxy y rate limiter distribuidos, navegador visual y despliegue.

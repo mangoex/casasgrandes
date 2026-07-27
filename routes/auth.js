@@ -7,15 +7,45 @@ const {
   buildSessionCookieOptions,
   SESSION_COOKIE_NAME
 } = require('../utils/security');
+const {
+  createFixedWindowStore,
+  createRateLimitMiddleware,
+  hashRateLimitKey
+} = require('../utils/rateLimiter');
 
 const router = express.Router();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const loginIpStore = createFixedWindowStore({
+  windowMs: LOGIN_WINDOW_MS,
+  maxAttempts: 50,
+  maxEntries: 10_000
+});
+const loginAccountStore = createFixedWindowStore({
+  windowMs: LOGIN_WINDOW_MS,
+  maxAttempts: 10,
+  maxEntries: 10_000
+});
+const rateLimitMessage = 'Demasiados intentos de acceso. Intenta nuevamente más tarde.';
+const loginIpLimiter = createRateLimitMiddleware({
+  store: loginIpStore,
+  keyGenerator: req => hashRateLimitKey(`ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`),
+  message: rateLimitMessage
+});
+const loginAccountLimiter = createRateLimitMiddleware({
+  store: loginAccountStore,
+  keyGenerator: req => hashRateLimitKey(`account:${req.body?.usernameOrEmail || req.body?.email || 'missing'}`),
+  message: rateLimitMessage
+});
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', loginIpLimiter, loginAccountLimiter, async (req, res) => {
   const { email, usernameOrEmail, password } = req.body;
   const identifier = usernameOrEmail || email;
-  if (!identifier || !password) {
+  if (typeof identifier !== 'string' || typeof password !== 'string' || !identifier || !password) {
     return res.status(400).json({ error: 'Email/Username and password are required' });
+  }
+  if (identifier.length > 254 || password.length > 256) {
+    return res.status(400).json({ error: 'Invalid email/username or password' });
   }
   
   try {

@@ -131,3 +131,23 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - Cubre: PRD-FR-017, PRD-NFR-006
 - `package-lock.json` fija versiones corregidas de `body-parser`, `tar` y `undici`.
 - No cambia las dependencias directas ni el rango de runtime declarado por la aplicación.
+
+## Diseño CHG-006
+
+### SDD-CMP-017 — Rate limiter acotado
+
+- Cubre: PRD-FR-018
+- Ventana fija de 15 minutos con stores separados por IP y hash SHA-256 del identificador.
+- El store elimina ventanas vencidas y limita su cardinalidad para evitar crecimiento ilimitado.
+
+### SDD-CMP-018 — Parsers por riesgo
+
+- Cubre: PRD-FR-019
+- Autenticación se ejecuta antes del parser de 12 MiB para anexos.
+- El resto de rutas usa parser JSON de 1 MiB y errores `413` JSON.
+
+### SDD-CMP-019 — Cabeceras y proxy
+
+- Cubre: PRD-FR-020, PRD-NFR-007
+- `TRUST_PROXY_HOPS` acepta solo enteros acotados.
+- `script-src 'self'` bloquea bloques inline; `script-src-attr 'unsafe-inline'` conserva temporalmente handlers heredados bajo riesgo visible.

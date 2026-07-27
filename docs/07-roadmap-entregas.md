@@ -58,3 +58,12 @@
 | 1 | Registrar hallazgo y decisión | RSK-008, ADR-005 | completed |
 | 2 | Actualizar dependencias transitivas compatibles | SDD-CMP-016 | completed |
 | 3 | Ejecutar auditoría y regresión | TDD-TC-041 | completed |
+
+## Incremento 6 — CHG-006
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Definir límites y confianza | ADR-006, PRD-FR-018..020 | completed |
+| 2 | Probar limiter, parsers y cabeceras | TDD-TC-042..045 | completed |
+| 3 | Implementar controles HTTP | SDD-CMP-017..019 | completed |
+| 4 | Ejecutar regresión y gates | EVD-005 | completed |

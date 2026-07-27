@@ -14,6 +14,7 @@ const {
   requireRoles
 } = require('./middleware/authorization');
 const { validateInitialPassword } = require('./utils/security');
+const { buildSecurityHeaders, parseTrustProxyHops } = require('./utils/httpSecurity');
 
 // Routers
 const authRouter = require('./routes/auth');
@@ -27,6 +28,9 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET must be configured before starting the server.');
 }
+
+const trustProxyHops = parseTrustProxyHops(process.env.TRUST_PROXY_HOPS);
+if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
 
 const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
@@ -52,18 +56,18 @@ app.use(cors((req, callback) => {
   }
   return callback(new Error('Origin not allowed by CORS'));
 }));
-app.use(express.json({ limit: '12mb' }));
 app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  res.setHeader(
-    'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
-  );
+  for (const [name, value] of Object.entries(buildSecurityHeaders())) {
+    res.setHeader(name, value);
+  }
   next();
 });
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+app.use('/api/cotizaciones/:id/adjuntos', authenticateToken, express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Mount API Routers
@@ -3364,6 +3368,18 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
   } finally {
     pricingClient?.release();
   }
+});
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Request body exceeds the allowed size' });
+  }
+  if (err.message === 'Origin not allowed by CORS') {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  console.error('Unhandled request error:', err.message);
+  return res.status(500).json({ error: 'Internal server error' });
 });
 
 // Start only after the schema is ready, avoiding requests against a partially migrated database.
