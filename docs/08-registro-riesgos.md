@@ -16,7 +16,7 @@
 | RSK-004 | Acceso horizontal a carteras ajenas | alta | alto | CHG-002: identidad vigente, middleware central y pruebas por rol/propiedad | responsable técnico | mitigated-local |
 | RSK-007 | Coordinador conserva acceso comercial global sin modelo de equipos | media | alto | EXC-001 visible; diseñar relación coordinador-equipo con producto | propietario | accepted-temporary-local |
 | RSK-005 | Inconsistencia de inventario y pujas | media | crítico | CHG-003 cubre movimientos, producción, entrega y decisiones; faltan edición de cotización y conversiones comerciales | responsable técnico | partially-mitigated |
-| RSK-006 | Tratamiento de PII y proveedores IA no gobernado | alta | alto | minimización, política y control de proveedores | propietario | open |
+| RSK-006 | Tratamiento de PII y proveedores IA no gobernado | alta | alto | CHG-004: opt-in, minimización, claves por entorno y logs redactados; falta aprobación legal/productiva del proveedor | propietario | partially-mitigated |
 
 ## Riesgo residual
 

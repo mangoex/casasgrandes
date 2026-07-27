@@ -164,6 +164,18 @@ async function initSchema() {
         ('outreach', 'Outreach Agent', 0, '{"prompt_adicional": "", "frecuencia_horas": 12}')
       ON CONFLICT (agente_id) DO NOTHING
     `);
+    // Legacy versions stored provider credentials in this JSON field. Runtime
+    // credentials now come exclusively from the environment, so remove any
+    // persisted copies during schema initialization.
+    await pool.query(`
+      UPDATE crm_agentes_config
+      SET configuracion = (
+        COALESCE(NULLIF(configuracion, ''), '{}')::jsonb
+        - 'gemini_api_key'
+        - 'openrouter_api_key'
+      )::text
+      WHERE agente_id = 'global'
+    `);
 
     // Create crm_etapas_programacion table
     await pool.query(`

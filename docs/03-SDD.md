@@ -102,3 +102,24 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - Cubre: PRD-FR-011
 - Cotización, puja y cliente se bloquean antes de validar transición.
 - El segundo competidor observa el estado confirmado por el primero y no repite efectos.
+
+## Diseño CHG-004
+
+### SDD-CMP-012 — Guard de egreso
+
+- Cubre: PRD-FR-012, PRD-FR-014
+- `generateText` valida opt-in y obtiene claves solo desde entorno.
+
+### SDD-CMP-013 — Contextos seguros
+
+- Cubre: PRD-FR-013, PRD-FR-016
+- Constructores puros generan contexto CEO/Outreach pseudonimizado y mensajes Coordinator locales.
+
+### SDD-CMP-014 — Redacción de logs
+
+- Cubre: PRD-FR-015, PRD-NFR-005
+- Utilidad recursiva elimina campos sensibles y patrones de email, teléfono, token o clave.
+
+### SDD-CMP-015 — Persistencia IA atómica
+
+- La cotización Outreach, detalles, total y notificación se confirman en una transacción.

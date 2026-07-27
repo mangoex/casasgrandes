@@ -2767,32 +2767,17 @@ app.get('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (re
     const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
     
     const provider = globalConfig.provider || 'gemini';
-    const hasGeminiKey = !!(globalConfig.gemini_api_key || process.env.GEMINI_API_KEY);
-    const hasOpenRouterKey = !!(globalConfig.openrouter_api_key || process.env.OPENROUTER_API_KEY);
+    const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+    const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
     const openrouterModel = globalConfig.openrouter_model || 'google/gemini-2.5-flash';
-    
-    // Mask API keys
-    let maskedGeminiKey = '';
-    if (globalConfig.gemini_api_key) {
-      maskedGeminiKey = globalConfig.gemini_api_key.substring(0, 8) + '...';
-    } else if (process.env.GEMINI_API_KEY) {
-      maskedGeminiKey = process.env.GEMINI_API_KEY.substring(0, 8) + '...';
-    }
-
-    let maskedOpenRouterKey = '';
-    if (globalConfig.openrouter_api_key) {
-      maskedOpenRouterKey = globalConfig.openrouter_api_key.substring(0, 8) + '...';
-    } else if (process.env.OPENROUTER_API_KEY) {
-      maskedOpenRouterKey = process.env.OPENROUTER_API_KEY.substring(0, 8) + '...';
-    }
 
     res.json({
       configs: rows.filter(r => r.agente_id !== 'global'),
       provider,
       hasGeminiKey,
-      maskedGeminiKey,
+      maskedGeminiKey: '',
       hasOpenRouterKey,
-      maskedOpenRouterKey,
+      maskedOpenRouterKey: '',
       openrouterModel
     });
   } catch (err) {
@@ -2804,28 +2789,17 @@ app.get('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (re
 app.post('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (req, res) => {
   const { configs, provider, gemini_api_key, openrouter_api_key, openrouter_model } = req.body;
   try {
+    if (String(gemini_api_key || '').trim() || String(openrouter_api_key || '').trim()) {
+      return res.status(400).json({ error: 'API keys must be configured through environment variables' });
+    }
+
     // 1. Fetch current global config
     const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
     let globalConfig = JSON.parse(globalRow?.configuracion || '{}');
+    delete globalConfig.gemini_api_key;
+    delete globalConfig.openrouter_api_key;
     
     if (provider) globalConfig.provider = provider;
-    
-    // Update keys if provided and not masked placeholder
-    if (gemini_api_key !== undefined) {
-      const val = gemini_api_key.trim();
-      if (val && !val.includes('...')) {
-        globalConfig.gemini_api_key = val;
-        process.env.GEMINI_API_KEY = val;
-      }
-    }
-    
-    if (openrouter_api_key !== undefined) {
-      const val = openrouter_api_key.trim();
-      if (val && !val.includes('...')) {
-        globalConfig.openrouter_api_key = val;
-        process.env.OPENROUTER_API_KEY = val;
-      }
-    }
     
     if (openrouter_model !== undefined) {
       globalConfig.openrouter_model = openrouter_model.trim();
@@ -2864,24 +2838,7 @@ app.post('/api/agentes/config', authenticateToken, authorizeAgentAdmin, async (r
 app.post('/api/agentes/ejecutar', authenticateToken, authorizeAgentAdmin, async (req, res) => {
   const { agente_id, ciclo_id } = req.body;
   try {
-    const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
-    const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
-    const provider = globalConfig.provider || 'gemini';
-    let apiKey = '';
-
-    if (provider === 'openrouter') {
-      apiKey = globalConfig.openrouter_api_key || process.env.OPENROUTER_API_KEY;
-      if (!apiKey) {
-        return res.status(400).json({ error: 'OPENROUTER_API_KEY no configurada. Configure su API Key antes de ejecutar los agentes.' });
-      }
-    } else {
-      apiKey = globalConfig.gemini_api_key || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        return res.status(400).json({ error: 'GEMINI_API_KEY no configurada. Configure su API Key antes de ejecutar los agentes.' });
-      }
-    }
-
-    const result = await agentsService.executeAgent(agente_id, apiKey, ciclo_id);
+    const result = await agentsService.executeAgent(agente_id, undefined, ciclo_id);
     res.json({ success: true, result });
   } catch (err) {
     console.error(`Error executing agent manually: ${err.message}`);

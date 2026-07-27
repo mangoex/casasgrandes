@@ -159,3 +159,53 @@ Given una cotización ya entregada
 When otra petición intenta aplicar la misma transición
 Then no genera una segunda salida de inventario
 ```
+
+## Feature: CHG-004 — Privacidad IA
+
+### BDD-SC-018 — IA sin opt-in
+
+```gherkin
+Given una instalación sin consentimiento externo
+When CEO u Outreach intenta invocar el modelo
+Then falla antes de realizar la solicitud
+```
+
+### BDD-SC-019 — Contexto CEO
+
+```gherkin
+Given asesores y agricultores productivos
+When se construye el contexto CEO
+Then incluye métricas por ID y excluye nombres, correos y detalle de agricultores
+```
+
+### BDD-SC-020 — Contexto Outreach
+
+```gherkin
+Given un agricultor con historial
+When se construye la recomendación externa
+Then usa alias interno y no incluye nombre ni contacto
+```
+
+### BDD-SC-021 — Coordinador local
+
+```gherkin
+Given una agenda pendiente
+When se genera un recordatorio
+Then no se llama a proveedor IA
+```
+
+### BDD-SC-022 — Clave en interfaz
+
+```gherkin
+Given una solicitud para guardar una clave IA
+When llega a la API de configuración
+Then se rechaza y PostgreSQL no recibe la clave
+```
+
+### BDD-SC-023 — Log sensible
+
+```gherkin
+Given un error o resultado con email, teléfono o token
+When se registra
+Then el detalle persistido contiene marcadores redactados
+```

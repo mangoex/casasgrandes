@@ -135,3 +135,39 @@
 - Cubre: PRD-NFR-004
 - Aserciones: TDD-TC-018..033 y suite anterior permanecen verdes
 - Estado: passed
+
+## TDD-TC-035 — Opt-in y secretos
+
+- Cubre: BDD-SC-018, BDD-SC-022
+- Aserciones: opt-in falla cerrado; API no persiste claves y el arranque elimina copias heredadas
+- Estado: passed
+
+## TDD-TC-036 — Contexto CEO minimizado
+
+- Cubre: BDD-SC-019
+- Aserciones: el perfil contiene solo ID y métricas agregadas
+- Estado: passed
+
+## TDD-TC-037 — Contexto Outreach minimizado
+
+- Cubre: BDD-SC-020
+- Aserciones: alias estable sin nombre, correo ni teléfono
+- Estado: passed
+
+## TDD-TC-038 — Coordinación local
+
+- Cubre: BDD-SC-021
+- Aserciones: mensaje determinista generado sin proveedor externo
+- Estado: passed
+
+## TDD-TC-039 — Redacción de logs
+
+- Cubre: BDD-SC-023
+- Aserciones: campos y patrones sensibles se sustituyen por `[REDACTED]`
+- Estado: passed
+
+## TDD-TC-040 — Regresión CHG-004
+
+- Cubre: PRD-NFR-005
+- Aserciones: código productivo usa entorno y transacción Outreach
+- Estado: passed

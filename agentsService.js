@@ -1,36 +1,35 @@
 const db = require('./db');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { getVolumeMultiplier, calculateItemPricing } = require('./utils/pricing');
+const {
+  assertExternalAIEnabled,
+  buildCEOAdvisorProfile,
+  buildOutreachContext,
+  buildCoordinatorMessage,
+  redactSensitiveText,
+  sanitizeLogDetail
+} = require('./utils/aiPrivacy');
 
 let schedulerInterval = null;
 
 // Helper to generate text using Gemini or OpenRouter
-async function generateText(prompt, keyOrConfig = {}) {
+async function generateText(prompt) {
+  assertExternalAIEnabled({
+    AI_EXTERNAL_PROCESSING_ENABLED: process.env.AI_EXTERNAL_PROCESSING_ENABLED
+  });
+
   // Load global config
   const globalRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'global'");
   const globalConfig = JSON.parse(globalRow?.configuracion || '{}');
   
   let provider = globalConfig.provider || 'gemini';
-  let geminiKey = globalConfig.gemini_api_key || process.env.GEMINI_API_KEY;
-  let openrouterKey = globalConfig.openrouter_api_key || process.env.OPENROUTER_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
   let openrouterModel = globalConfig.openrouter_model || 'google/gemini-2.5-flash';
-
-  if (typeof keyOrConfig === 'string') {
-    if (provider === 'openrouter') {
-      openrouterKey = keyOrConfig;
-    } else {
-      geminiKey = keyOrConfig;
-    }
-  } else if (typeof keyOrConfig === 'object' && keyOrConfig !== null) {
-    if (keyOrConfig.provider) provider = keyOrConfig.provider;
-    if (keyOrConfig.gemini_api_key) geminiKey = keyOrConfig.gemini_api_key;
-    if (keyOrConfig.openrouter_api_key) openrouterKey = keyOrConfig.openrouter_api_key;
-    if (keyOrConfig.openrouter_model) openrouterModel = keyOrConfig.openrouter_model;
-  }
 
   if (provider === 'openrouter') {
     if (!openrouterKey) {
-      throw new Error('OPENROUTER_API_KEY no configurada. Configure su API Key en el panel o en el archivo .env');
+      throw new Error('OPENROUTER_API_KEY no configurada en el entorno');
     }
     
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -50,19 +49,18 @@ async function generateText(prompt, keyOrConfig = {}) {
     });
     
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} - ${errText}`);
+      throw new Error(`OpenRouter API error: ${response.status}`);
     }
     
     const data = await response.json();
     if (!data.choices || data.choices.length === 0) {
-      throw new Error(`OpenRouter no devolvió respuestas. Response: ${JSON.stringify(data)}`);
+      throw new Error('OpenRouter no devolvió respuestas');
     }
     return data.choices[0].message.content.trim();
   } else {
     // Direct Gemini
     if (!geminiKey) {
-      throw new Error('GEMINI_API_KEY no configurada. Configure su API Key en el panel o en el archivo .env');
+      throw new Error('GEMINI_API_KEY no configurada en el entorno');
     }
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(geminiKey);
@@ -75,9 +73,11 @@ async function generateText(prompt, keyOrConfig = {}) {
 // Log writer helper
 async function writeLog(agentId, tipoEvento, mensaje, detalle = null) {
   try {
+    const safeMessage = redactSensitiveText(mensaje);
+    const safeDetail = sanitizeLogDetail(detalle);
     await db.run(
       'INSERT INTO crm_agentes_logs (agente_id, tipo_evento, mensaje, detalle) VALUES (?, ?, ?, ?)',
-      [agentId, tipoEvento, mensaje, typeof detalle === 'object' ? JSON.stringify(detalle, null, 2) : detalle]
+      [agentId, tipoEvento, safeMessage, typeof safeDetail === 'object' ? JSON.stringify(safeDetail) : safeDetail]
     );
   } catch (err) {
     console.error(`Failed to write agent log for ${agentId}:`, err.message);
@@ -129,7 +129,7 @@ async function calculateQuotePrice(productId, quantity, seasonId, clientKeyAccou
 // -------------------------------------------------------------
 // 1. CEO AGENT
 // -------------------------------------------------------------
-async function runCEOAgent(customApiKey, cicloId) {
+async function runCEOAgent(_customApiKey, cicloId) {
   await writeLog('ceo', 'info', `Iniciando ejecución del CEO Agent para el ciclo ID: ${cicloId || 'defecto'}...`);
   
   try {
@@ -163,8 +163,8 @@ async function runCEOAgent(customApiKey, cicloId) {
     }
 
     // Fetch current system data
-    const advisors = await db.all("SELECT id, nombre, email, activo FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
-    const clients = await db.all("SELECT id, nombre, asesor_id, estado_status, superficie_text FROM clientes WHERE activo = 1");
+    const advisors = await db.all("SELECT id FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
+    const clients = await db.all("SELECT asesor_id, superficie_text FROM clientes WHERE activo = 1");
     
     // Categorize global goals
     let totalGlobalSemilla = 0;
@@ -235,21 +235,14 @@ async function runCEOAgent(customApiKey, cicloId) {
         }
       });
 
-      advisorsData.push({
+      advisorsData.push(buildCEOAdvisorProfile({
         asesor_id: adv.id,
-        nombre: adv.nombre,
         ventas_historicas_totales_mxn: salesOverall?.total_mxn || 0,
         ventas_ciclo_actual_mxn: salesCycle?.total_mxn || 0,
         total_clientes: advClients.length,
-        superficie_total_hectareas: totalSurface,
-        clientes: advClients.map(c => ({ nombre: c.nombre, status: c.estado_status, superficie: c.superficie_text }))
-      });
+        superficie_total_hectareas: totalSurface
+      }));
     }
-
-    // Fetch config for CEO to see custom instructions
-    const configRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'ceo'");
-    const configData = JSON.parse(configRow?.configuracion || '{}');
-    const customPrompt = configData.prompt_adicional || "";
 
     // Build the payload for Gemini
     const dataContext = {
@@ -261,8 +254,7 @@ async function runCEOAgent(customApiKey, cicloId) {
         cantidad_objetivo: g.cantidad_objetivo,
         monto_objetivo_mxn: g.monto_objetivo_mxn
       })),
-      desempeno_y_potencial_asesores: advisorsData,
-      instrucciones_adicionales: customPrompt
+      desempeno_y_potencial_asesores: advisorsData
     };
 
     const prompt = `
@@ -312,7 +304,7 @@ Parte 2: Una sección final con los datos estructurados en formato JSON puro den
 Asegúrate de que el bloque JSON sea válido y contenga exactamente un objeto para cada uno de los asesores listados en los datos. No agregues texto extra dentro del bloque de código json.
 `;
 
-    const textResponse = await generateText(prompt, customApiKey);
+    const textResponse = await generateText(prompt);
 
     // Extract JSON block using regex
     const jsonMatch = textResponse.match(/```json\s*([\s\S]*?)\s*```/);
@@ -327,17 +319,20 @@ Asegúrate de que el bloque JSON sea válido y contenga exactamente un objeto pa
     const markdownReport = textResponse.replace(/```json[\s\S]*?```/, '').trim();
 
     // Save proposal to db, including ciclo_id
-    await db.run(
+    const proposal = await db.run(
       'INSERT INTO crm_ceo_propuestas (ciclo_id, propuesta_json, propuesta_markdown, estatus) VALUES (?, ?, ?, ?)',
       [cicloId, JSON.stringify(goalsArray), markdownReport, 'Pendiente']
     );
 
     await updateLastExecution('ceo');
-    await writeLog('ceo', 'success', 'Propuesta de metas generada con éxito basándose en metas globales.', { report: markdownReport, goals: goalsArray });
+    await writeLog('ceo', 'success', 'Propuesta de metas generada con éxito basándose en metas globales.', {
+      proposal_id: proposal.id,
+      goals_count: goalsArray.length
+    });
     return { success: true, report: markdownReport, goals: goalsArray };
 
   } catch (err) {
-    await writeLog('ceo', 'error', `Error en CEO Agent: ${err.message}`, err.stack);
+    await writeLog('ceo', 'error', `Error en CEO Agent: ${err.message}`);
     throw err;
   }
 }
@@ -345,28 +340,23 @@ Asegúrate de que el bloque JSON sea válido y contenga exactamente un objeto pa
 // -------------------------------------------------------------
 // 2. COORDINATOR AGENT
 // -------------------------------------------------------------
-async function runCoordinatorAgent(customApiKey) {
+async function runCoordinatorAgent() {
   await writeLog('coordinador', 'info', 'Iniciando ejecución del Coordinador Agent...');
 
   try {
 
     // Fetch active advisors
-    const advisors = await db.all("SELECT id, nombre, telefono, email FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
+    const advisors = await db.all("SELECT id, nombre, telefono FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
     
     // Fetch pending planning items for current/upcoming dates
     const pendingPlanning = await db.all(`
       SELECT 
         p.id, p.asesor_id, p.cliente_id, p.fecha_programada, p.objetivo_visita,
-        c.nombre as cliente_nombre, c.telefono as cliente_telefono
+        c.nombre as cliente_nombre
       FROM planificacion_semanal p
       JOIN clientes c ON p.cliente_id = c.id
       WHERE p.realizada = 0
     `);
-
-    // Fetch config for Coordinator custom prompt
-    const configRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'coordinador'");
-    const configData = JSON.parse(configRow?.configuracion || '{}');
-    const customPrompt = configData.prompt_adicional || "";
 
     const followUps = [];
 
@@ -374,34 +364,13 @@ async function runCoordinatorAgent(customApiKey) {
     for (const advisor of advisors) {
       const advisorPending = pendingPlanning.filter(p => p.asesor_id === advisor.id);
       
-      // We only target advisors with pending planning or if they have 0 plans scheduled
-      const contextData = {
-        asesor: { nombre: advisor.nombre, telefono: advisor.telefono },
-        visitas_pendientes: advisorPending.map(p => ({
-          cliente: p.cliente_nombre,
-          fecha: p.fecha_programada,
-          objetivo: p.objetivo_visita
-        })),
-        instrucciones_adicionales: customPrompt
-      };
-
-      const prompt = `
-Eres el Coordinador Agent de AgriSales Pro. Tu rol es supervisar la agenda semanal de los asesores agrícolas y ayudarlos a mantener el sistema actualizado redactando un mensaje de seguimiento de WhatsApp personalizado, amigable pero profesional.
-
-Aquí están los datos del asesor actual y su agenda pendiente:
-${JSON.stringify(contextData, null, 2)}
-
-Por favor, redacta un mensaje corto en español (máximo 150 palabras) dirigido al asesor. El mensaje debe:
-1. Saludarlo por su nombre de forma cercana.
-2. Recordarle las visitas pendientes específicas que tiene registradas en su agenda (con nombres de clientes y fechas).
-3. Pedirle amablemente que realice el check-in o actualice el estatus de estas visitas en la plataforma.
-4. Mantener un tono motivador y colaborativo.
-5. NO incluir placeholders como [Nombre] o [Fecha], usa los datos reales provistos.
-
-Devuelve ÚNICAMENTE el texto del mensaje para enviar por WhatsApp, sin introducciones ni comentarios adicionales.
-`;
-
-      const messageText = await generateText(prompt, customApiKey);
+      const messageText = buildCoordinatorMessage({
+        advisorName: advisor.nombre,
+        visits: advisorPending.map(item => ({
+          clientName: item.cliente_nombre,
+          date: item.fecha_programada
+        }))
+      });
 
       // Create a wa.me URL
       const cleanPhone = (advisor.telefono || '').replace(/\D/g, '');
@@ -426,12 +395,15 @@ Devuelve ÚNICAMENTE el texto del mensaje para enviar por WhatsApp, sin introduc
 
     // Save logs with all generated messages
     await updateLastExecution('coordinador');
-    await writeLog('coordinador', 'success', 'Mensajes de seguimiento de agenda generados con éxito.', followUps);
+    await writeLog('coordinador', 'success', 'Mensajes de seguimiento de agenda generados con éxito.', {
+      generated_count: followUps.length,
+      advisor_ids: followUps.map(item => item.asesor_id)
+    });
     
     return { success: true, followUps };
 
   } catch (err) {
-    await writeLog('coordinador', 'error', `Error en Coordinador Agent: ${err.message}`, err.stack);
+    await writeLog('coordinador', 'error', `Error en Coordinador Agent: ${err.message}`);
     throw err;
   }
 }
@@ -439,7 +411,7 @@ Devuelve ÚNICAMENTE el texto del mensaje para enviar por WhatsApp, sin introduc
 // -------------------------------------------------------------
 // 3. OUTREACH AGENT
 // -------------------------------------------------------------
-async function runOutreachAgent(customApiKey) {
+async function runOutreachAgent() {
   await writeLog('outreach', 'info', 'Iniciando ejecución del Outreach Agent...');
 
   try {
@@ -466,11 +438,6 @@ async function runOutreachAgent(customApiKey) {
     const selectedClients = clients.sort(() => 0.5 - Math.random()).slice(0, 3);
     const createdQuotes = [];
 
-    // Fetch custom prompts if any
-    const configRow = await db.get("SELECT configuracion FROM crm_agentes_config WHERE agente_id = 'outreach'");
-    const configData = JSON.parse(configRow?.configuracion || '{}');
-    const customPrompt = configData.prompt_adicional || "";
-
     for (const client of selectedClients) {
       // Fetch historic sales for this client to pass as context
       const purchaseHistory = await db.all(`
@@ -482,14 +449,7 @@ async function runOutreachAgent(customApiKey) {
         GROUP BY p.producto
       `, [client.id]);
 
-      const contextData = {
-        cliente: client.nombre,
-        estatus: client.estado_status,
-        historial_compras: purchaseHistory,
-        productos_disponibles: products.map(p => ({ id: p.id, nombre: p.producto, categoria: p.tipo_categoria })),
-        temporadas: seasons.map(s => ({ id: s.id, nombre: s.actividad })),
-        instrucciones_adicionales: customPrompt
-      };
+      const contextData = buildOutreachContext({ client, purchaseHistory, products, seasons });
 
       const prompt = `
 Eres el Outreach Agent de AgriSales Pro. Tu rol es analizar las necesidades de un agricultor (basado en sus compras históricas y los productos en campaña de la temporada) y generar una recomendación estructurada para una cotización borrador sugerida.
@@ -517,43 +477,53 @@ Devuelve tu recomendación en formato JSON puro. El JSON debe ser un objeto con 
 Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos en el catálogo. Devuelve ÚNICAMENTE el bloque JSON.
 `;
 
-      const jsonText = await generateText(prompt, customApiKey);
+      const jsonText = await generateText(prompt);
       
       // Clean up markdown code blocks if the model returned them
       const cleanJsonText = jsonText.replace(/```json|```/g, '').trim();
       const quoteSpec = JSON.parse(cleanJsonText);
+      if (!Array.isArray(quoteSpec.items) || quoteSpec.items.length < 1 || quoteSpec.items.length > 3) {
+        throw new Error('La recomendación de Outreach contiene una lista de productos inválida');
+      }
 
-      // 1. Create Cotización row in Borrador status
       const folio = `OUT-${Date.now().toString().slice(-6)}-${client.id}`;
       const today = new Date().toISOString().split('T')[0];
-      
-      const insertQuoteResult = await db.run(`
-        INSERT INTO cotizaciones (
-          fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago,
-          folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Borrador', 0.0, 0.0, ?, ?)
-      `, [
-        today,
-        client.id,
-        client.asesor_id,
-        quoteSpec.ciclo_agricola || 'P-V 2026',
-        quoteSpec.condiciones_pago || 'Contado',
-        folio,
-        new Date().toLocaleString('es-ES', { month: 'long' }),
-        quoteSpec.notas || 'Generado automáticamente por el Agente de Outreach.',
-        quoteSpec.financiera || 'Ninguna'
-      ]);
-
-      const quoteId = insertQuoteResult.id;
-      let grandTotal = 0;
-
-      // 2. Insert items and compute totals
+      const pricedItems = [];
       for (const item of quoteSpec.items) {
-        const pricing = await calculateQuotePrice(item.producto_id, item.cantidad, quoteSpec.temporada_id, client.cuenta_clave_id);
-        const prodData = products.find(p => p.id === item.producto_id);
+        const productId = Number(item.producto_id);
+        const quantity = Number(item.cantidad);
+        if (!Number.isInteger(productId) || !Number.isFinite(quantity) || quantity <= 0) {
+          throw new Error('La recomendación de Outreach contiene valores de producto inválidos');
+        }
+        const prodData = products.find(p => p.id === productId);
+        if (!prodData) throw new Error('La recomendación de Outreach contiene un producto inexistente');
+        const pricing = await calculateQuotePrice(productId, quantity, quoteSpec.temporada_id, client.cuenta_clave_id);
+        pricedItems.push({ item: { producto_id: productId, cantidad: quantity }, prodData, pricing });
+      }
 
-        if (prodData) {
-          await db.run(`
+      const persistedQuote = await db.transaction(async tx => {
+        const insertQuoteResult = await tx.run(`
+          INSERT INTO cotizaciones (
+            fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago,
+            folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Borrador', 0.0, 0.0, ?, ?)
+          RETURNING id
+        `, [
+          today,
+          client.id,
+          client.asesor_id,
+          quoteSpec.ciclo_agricola || 'P-V 2026',
+          quoteSpec.condiciones_pago || 'Contado',
+          folio,
+          new Date().toLocaleString('es-ES', { month: 'long' }),
+          'Generado automáticamente por el Agente de Outreach.',
+          quoteSpec.financiera || 'Ninguna'
+        ]);
+
+        const quoteId = insertQuoteResult.id;
+        let grandTotal = 0;
+        for (const { item, prodData, pricing } of pricedItems) {
+          await tx.run(`
             INSERT INTO cotizacion_detalles (
               cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada,
               precio_lista_unitario, precio_neto_unitario, subtotal_mxn
@@ -567,37 +537,37 @@ Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos e
             pricing.netPrice,
             pricing.subtotal
           ]);
-
           grandTotal += pricing.subtotal;
         }
-      }
 
-      // 3. Update total cost in database
-      await db.run('UPDATE cotizaciones SET total_mxn = ? WHERE id = ?', [grandTotal, quoteId]);
-
-      // 4. Create internal notification for Advisor
-      const notificationMsg = `El Agente de Outreach ha sugerido una cotización en Borrador (${folio}) para tu agricultor ${client.nombre} con un total de $${grandTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} MXN.`;
-      await db.run(
-        'INSERT INTO crm_notificaciones (asesor_id, mensaje, leido) VALUES (?, ?, 0)',
-        [client.asesor_id, notificationMsg]
-      );
+        await tx.run('UPDATE cotizaciones SET total_mxn = ? WHERE id = ?', [grandTotal, quoteId]);
+        const notificationMsg = `El Agente de Outreach ha sugerido una cotización en Borrador (${folio}) para tu agricultor ${client.nombre} con un total de $${grandTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} MXN.`;
+        await tx.run(
+          'INSERT INTO crm_notificaciones (asesor_id, mensaje, leido) VALUES (?, ?, 0)',
+          [client.asesor_id, notificationMsg]
+        );
+        return { quoteId, grandTotal };
+      });
 
       createdQuotes.push({
-        quote_id: quoteId,
+        quote_id: persistedQuote.quoteId,
         folio,
         cliente: client.nombre,
         asesor: client.asesor_nombre,
-        total_mxn: grandTotal
+        total_mxn: persistedQuote.grandTotal
       });
     }
 
     await updateLastExecution('outreach');
-    await writeLog('outreach', 'success', `Se generaron ${createdQuotes.length} cotizaciones automáticas en borrador.`, createdQuotes);
+    await writeLog('outreach', 'success', `Se generaron ${createdQuotes.length} cotizaciones automáticas en borrador.`, {
+      created_count: createdQuotes.length,
+      quote_ids: createdQuotes.map(item => item.quote_id)
+    });
     
     return { success: true, createdQuotes };
 
   } catch (err) {
-    await writeLog('outreach', 'error', `Error en Outreach Agent: ${err.message}`, err.stack);
+    await writeLog('outreach', 'error', `Error en Outreach Agent: ${err.message}`);
     throw err;
   }
 }
@@ -605,16 +575,16 @@ Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos e
 // -------------------------------------------------------------
 // GENERAL RUNNER AND SCHEDULER
 // -------------------------------------------------------------
-async function executeAgent(agentId, customApiKey, cicloId) {
+async function executeAgent(agentId, _customApiKey, cicloId) {
   // Read config to verify if active (for scheduled runs, manual execution bypasses the active check)
   const config = await db.get("SELECT activo FROM crm_agentes_config WHERE agente_id = ?", [agentId]);
   
   if (agentId === 'ceo') {
-    return await runCEOAgent(customApiKey, cicloId);
+    return await runCEOAgent(undefined, cicloId);
   } else if (agentId === 'coordinador') {
-    return await runCoordinatorAgent(customApiKey);
+    return await runCoordinatorAgent();
   } else if (agentId === 'outreach') {
-    return await runOutreachAgent(customApiKey);
+    return await runOutreachAgent();
   } else {
     throw new Error(`Agente no identificado: ${agentId}`);
   }

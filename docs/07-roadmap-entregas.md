@@ -41,3 +41,12 @@
 | 2 | Pruebas rojas transaccionales | TDD-TC-030..034 | completed |
 | 3 | Adaptador, locks y refactor crítico | SDD-CMP-009..011 | completed |
 | 4 | Simulación de fallos y gate | OBJ-005 | completed |
+
+## Incremento 4 — CHG-004
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Política de egreso y secretos | ADR-004, PRD-FR-012..016 | completed |
+| 2 | Pruebas de privacidad | TDD-TC-035..040 | completed |
+| 3 | Contextos, logs y coordinación local | SDD-CMP-012..014 | completed |
+| 4 | Persistencia Outreach atómica y gate | SDD-CMP-015 | completed |

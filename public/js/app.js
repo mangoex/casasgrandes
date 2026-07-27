@@ -6909,12 +6909,20 @@ async function loadIAViewData() {
     // Set API Keys and Model
     const geminiInput = document.getElementById('ia-gemini-key');
     if (geminiInput) {
-      geminiInput.value = data.maskedGeminiKey || '';
+      geminiInput.value = '';
+      geminiInput.disabled = true;
+      geminiInput.placeholder = data.hasGeminiKey
+        ? 'Configurada de forma segura en el entorno'
+        : 'Configurar GEMINI_API_KEY en el entorno';
     }
 
     const openrouterInput = document.getElementById('ia-openrouter-key');
     if (openrouterInput) {
-      openrouterInput.value = data.maskedOpenRouterKey || '';
+      openrouterInput.value = '';
+      openrouterInput.disabled = true;
+      openrouterInput.placeholder = data.hasOpenRouterKey
+        ? 'Configurada de forma segura en el entorno'
+        : 'Configurar OPENROUTER_API_KEY en el entorno';
     }
 
     const modelInput = document.getElementById('ia-openrouter-model');
@@ -7344,8 +7352,6 @@ function bindIAViewEventListeners() {
       
       const payload = {
         provider: document.getElementById('ia-provider').value,
-        gemini_api_key: document.getElementById('ia-gemini-key').value,
-        openrouter_api_key: document.getElementById('ia-openrouter-key').value,
         openrouter_model: document.getElementById('ia-openrouter-model').value,
         configs: [
           {

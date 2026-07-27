@@ -17,6 +17,11 @@
 | OBJ-005 | PRD-FR-010 | SDD-CMP-010 | BDD-SC-014, BDD-SC-015 | TDD-TC-032 | inventario y producción | EVD-002: producto bloqueado antes del saldo | verified-local |
 | OBJ-005 | PRD-FR-011 | SDD-CMP-011, ADR-003 | BDD-SC-016, BDD-SC-017 | TDD-TC-033 | cotizaciones y pujas | EVD-002: cotización, cliente y puja bloqueados | verified-local |
 | OBJ-005 | PRD-NFR-004 | SDD-CMP-009..011 | BDD-SC-013..017 | TDD-TC-030, TDD-TC-031, TDD-TC-032, TDD-TC-033, TDD-TC-034 | Incremento CHG-003 | EVD-002: suite completa 31/31 | Gate 4 passed |
+| OBJ-006 | PRD-FR-012, PRD-FR-014 | SDD-CMP-012, ADR-004 | BDD-SC-018, BDD-SC-022 | TDD-TC-035 | `agentsService.js`, `server.js`, `db.js` | EVD-003: opt-in, entorno y limpieza heredada | verified-local |
+| OBJ-006 | PRD-FR-013 | SDD-CMP-013 | BDD-SC-019, BDD-SC-020 | TDD-TC-036, TDD-TC-037 | `utils/aiPrivacy.js` | EVD-003: contextos sin identidad/contacto | verified-local |
+| OBJ-006 | PRD-FR-015 | SDD-CMP-014 | BDD-SC-023 | TDD-TC-039 | `writeLog`, `sanitizeLogDetail` | EVD-003: redacción recursiva aprobada | verified-local |
+| OBJ-006 | PRD-FR-016 | SDD-CMP-013 | BDD-SC-021 | TDD-TC-038 | `runCoordinatorAgent` | EVD-003: generación determinista local | verified-local |
+| OBJ-006 | PRD-NFR-005 | SDD-CMP-012, SDD-CMP-013, SDD-CMP-014, SDD-CMP-015 | BDD-SC-018..023 | TDD-TC-035, TDD-TC-036, TDD-TC-037, TDD-TC-038, TDD-TC-039, TDD-TC-040 | CHG-004 | EVD-003: suite completa 37/37 | Gate 4 passed |
 
 ## Huecos
 
@@ -44,3 +49,15 @@
 - Fallo simulado: segunda escritura falla; secuencia observada `BEGIN`, escrituras, `ROLLBACK`, `RELEASE`.
 - Verificación adicional: sintaxis Node, Humanio estricto y `git diff --check`.
 - Alcance no ejecutado: concurrencia contra PostgreSQL real; edición completa de cotización y conversiones planificación–prospecto permanecen en backlog transaccional.
+
+## EVD-003 — Evidencia local CHG-004
+
+- Fecha: 2026-07-27
+- Comando rojo: `node --test test/aiPrivacy.test.js`
+- Resultado rojo: exit 1, 0/6 aprobadas antes de implementación.
+- Comando verde focalizado: `node --test test/aiPrivacy.test.js`
+- Resultado verde focalizado: exit 0, 6/6 aprobadas.
+- Comando de regresión: `npm test` fuera del sandbox para permitir puertos HTTP locales.
+- Resultado de regresión: exit 0, 37/37 aprobadas.
+- Verificación adicional: sintaxis Node, Humanio estricto, política readiness y `git diff --check`.
+- Alcance no ejecutado: invocación contra proveedor IA, PostgreSQL productivo, navegador visual y despliegue.

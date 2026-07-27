@@ -117,3 +117,31 @@ Una decisión o transición concurrente debe revalidar el estado bloqueado e imp
 ### PRD-NFR-004 — Recuperación
 
 Un fallo simulado después de una escritura debe ejecutar `ROLLBACK`, liberar la conexión y conservar el error original.
+
+## Incremento CHG-004 — Privacidad y egreso IA
+
+### OBJ-006 — Usar IA sin divulgar PII ni secretos
+
+### PRD-FR-012 — Opt-in externo
+
+CEO y Outreach solo invocan modelos externos cuando `AI_EXTERNAL_PROCESSING_ENABLED=true`.
+
+### PRD-FR-013 — Contexto minimizado
+
+Los payloads externos contienen identificadores internos, métricas y catálogos estrictamente necesarios; excluyen nombres, correos, teléfonos y texto libre de clientes.
+
+### PRD-FR-014 — Secretos fuera de DB
+
+Las claves IA se leen desde entorno y la API rechaza intentos de persistir nuevas claves.
+
+### PRD-FR-015 — Logs mínimos
+
+Los logs conservan resultado operativo, conteos e IDs técnicos; no respuestas completas, teléfonos, URLs de contacto ni stacks sin redacción.
+
+### PRD-FR-016 — Coordinación local
+
+Los mensajes de agenda se construyen localmente, sin enviar asesor, agricultor o agenda a terceros.
+
+### PRD-NFR-005 — Privacidad verificable
+
+Las pruebas inspeccionan el contexto productivo y fallan si reaparece PII o lectura de claves desde PostgreSQL.

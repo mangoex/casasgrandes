@@ -46,6 +46,18 @@ Toda operación que cambie más de una fila financiera, de inventario o de asign
 
 Una transición repetida o concurrente no podrá duplicar efectos de inventario, asignación ni notificaciones.
 
+### PROJECT-PR-011
+
+La IA externa permanecerá desactivada salvo consentimiento operativo explícito mediante configuración de entorno.
+
+### PROJECT-PR-012
+
+Nombres, correos, teléfonos, direcciones, URLs de contacto, credenciales y texto libre de clientes no se enviarán a proveedores IA.
+
+### PROJECT-PR-013
+
+Las claves de proveedores solo residirán en el gestor de secretos o variables de entorno; PostgreSQL y logs no serán almacenes autorizados.
+
 ## Fuentes canónicas
 
 | Fuente | Autoridad | Responsable |
@@ -55,11 +67,12 @@ Una transición repetida o concurrente no podrá duplicar efectos de inventario,
 | `docs/adr/ADR-001.md` | Decisión de sesión web | Responsable técnico |
 | `docs/adr/ADR-002.md` | Autorización central y revocación | Responsable técnico |
 | `docs/adr/ADR-003.md` | Transacciones y bloqueos pesimistas | Responsable técnico |
+| `docs/adr/ADR-004.md` | Frontera de privacidad para IA | Responsable de producto y técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: CHG-001, CHG-002 y atomicidad local de inventario/pujas bajo `CHG-003`.
+- Incluye: CHG-001..004; CHG-004 gobierna egreso IA y secretos localmente.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios
