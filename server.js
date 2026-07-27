@@ -1019,14 +1019,15 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
   if (!estatus) return res.status(400).json({ error: 'Status is required' });
   
   try {
-    const q = await db.get('SELECT * FROM cotizaciones WHERE id = ?', [id]);
-    if (!q) return res.status(404).json({ error: 'Quotation not found' });
+    const outcome = await db.transaction(async tx => {
+    const q = await tx.get('SELECT * FROM cotizaciones WHERE id = ? FOR UPDATE', [id]);
+    if (!q) return { status: 404, body: { error: 'Quotation not found' } };
     
     if (req.user.nivel_rol === 'Asesor' && q.asesor_id !== req.user.id) {
-      return res.status(403).json({ error: 'Unauthorized' });
+      return { status: 403, body: { error: 'Unauthorized' } };
     }
     if (req.user.nivel_rol !== 'Administrador') {
-      return res.status(403).json({ error: 'Solo un administrador puede autorizar o mover una cotización en el canal de ventas.' });
+      return { status: 403, body: { error: 'Solo un administrador puede autorizar o mover una cotización en el canal de ventas.' } };
     }
 
     const allowedTransitions = {
@@ -1038,58 +1039,83 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
       'Entregado': ['Vendido']
     };
     if (!allowedTransitions[q.estatus]?.includes(estatus)) {
-      return res.status(400).json({ error: 'El movimiento solicitado no es válido para el estatus actual de la cotización.' });
+      return { status: 400, body: { error: 'El movimiento solicitado no es válido para el estatus actual de la cotización.' } };
     }
     
     // The last movement for the quotation is the source of truth for its current stock effect.
-    const lastStockMovement = await db.get(
+    const lastStockMovement = await tx.get(
       'SELECT tipo_movimiento FROM almacen_movimientos WHERE cotizacion_id = ? ORDER BY id DESC LIMIT 1',
       [id]
     );
     const stockDeducted = Boolean(lastStockMovement?.tipo_movimiento?.startsWith('Salida'));
     
     const now = new Date().toISOString();
-    const dateOnly = now.slice(0, 10);
-    const items = await db.all('SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
+    const items = await tx.all('SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
+    const productIds = [...new Set(items.map(item => Number(item.producto_id)))].sort((a, b) => a - b);
+    if (productIds.length > 0) {
+      await tx.all('SELECT id FROM productos WHERE id = ANY(?::int[]) ORDER BY id FOR UPDATE', [productIds]);
+    }
     
     if (q.estatus !== 'Entregado' && estatus === 'Entregado') {
       // Inventory leaves the warehouse only when the quotation is delivered.
       if (!stockDeducted) {
+        const requiredByProduct = new Map();
         for (const item of items) {
-          const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
+          const productId = Number(item.producto_id);
+          requiredByProduct.set(
+            productId,
+            Number(requiredByProduct.get(productId) || 0) + Number(item.cantidad_ordenada || 0)
+          );
+        }
+        for (const [productId, required] of requiredByProduct) {
+          const lastMove = await tx.get(
+            'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+            [productId]
+          );
+          const currentStock = Number(lastMove?.existencias_resultantes || 0);
+          if (currentStock < required) {
+            return {
+              status: 409,
+              body: { error: `Inventario insuficiente para entregar el producto ${productId}.` }
+            };
+          }
+        }
+        for (const item of items) {
+          const last_move = await tx.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
           const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
           const new_stock = current_stock - item.cantidad_ordenada;
           
-          await db.run(`
+          await tx.run(`
             INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
             VALUES (?, 'Salida por Pedido', ?, 0, ?, ?, ?, ?, ?, ?)
           `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, 'Salida registrada por entrega de cotización']);
         }
       }
-      await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
+      await tx.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
     } else if (q.estatus === 'Entregado' && estatus !== 'Entregado') {
       // Returning a delivered quotation to a prior stage returns its items to stock.
       if (stockDeducted) {
         for (const item of items) {
-          const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
+          const last_move = await tx.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
           const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
           const new_stock = current_stock + item.cantidad_ordenada;
           
-          await db.run(`
+          await tx.run(`
             INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
             VALUES (?, 'Reversión por Cancelación', ?, ?, 0, ?, ?, ?, ?, ?)
           `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Reversión por cambio de entregada a ${estatus}`]);
         }
       }
-      await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = 0 WHERE cotizacion_id = ?', [id]);
+      await tx.run('UPDATE cotizacion_detalles SET cantidad_entregada = 0 WHERE cotizacion_id = ?', [id]);
     }
     
-    await db.run('UPDATE cotizaciones SET estatus = ? WHERE id = ?', [estatus, id]);
+    await tx.run('UPDATE cotizaciones SET estatus = ? WHERE id = ?', [estatus, id]);
     if (estatus === 'Autorizada' && q.prospecto_id) {
-      await db.run("UPDATE crm_prospectos SET estado = 'Convertido', actualizado_en = CURRENT_TIMESTAMP WHERE id = ?", [q.prospecto_id]);
+      await tx.run("UPDATE crm_prospectos SET estado = 'Convertido', actualizado_en = CURRENT_TIMESTAMP WHERE id = ?", [q.prospecto_id]);
     }
-    
-    res.json({ message: 'Quotation status updated successfully' });
+      return { status: 200, body: { message: 'Quotation status updated successfully' } };
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update status' });
@@ -1101,21 +1127,26 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   let client;
   try {
-    const q = await db.get('SELECT * FROM cotizaciones WHERE id = ?', [id]);
-    if (!q) return res.status(404).json({ error: 'Quotation not found' });
+    client = await db.pool.connect();
+    await client.query('BEGIN');
+    const quoteResult = await client.query('SELECT * FROM cotizaciones WHERE id = $1 FOR UPDATE', [id]);
+    const q = quoteResult.rows[0];
+    if (!q) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Quotation not found' });
+    }
     
     // Authorization check
     if (req.user.nivel_rol === 'Asesor') {
       if (q.asesor_id !== req.user.id) {
+        await client.query('ROLLBACK');
         return res.status(403).json({ error: 'Unauthorized to delete this quote' });
       }
       if (!['Borrador', 'Pendiente', 'Pendiente Autorización'].includes(q.estatus)) {
+        await client.query('ROLLBACK');
         return res.status(403).json({ error: 'Un asesor solo puede eliminar sus cotizaciones pendientes de autorización.' });
       }
     }
-    
-    client = await db.pool.connect();
-    await client.query('BEGIN');
 
     // The warehouse rows reference the quotation and must be removed before its header.
     await client.query('DELETE FROM almacen_movimientos WHERE cotizacion_id = $1', [id]);
@@ -1376,31 +1407,42 @@ app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async
   }
 
   try {
-    const product = await db.get('SELECT id, producto FROM productos WHERE id = ?', [productId]);
-    if (!product) return res.status(404).json({ error: 'Producto no encontrado.' });
+    const outcome = await db.transaction(async tx => {
+      const product = await tx.get('SELECT id FROM productos WHERE id = ? FOR UPDATE', [productId]);
+      if (!product) return { status: 404, body: { error: 'Producto no encontrado.' } };
 
-    const lastMove = await db.get(
-      'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
-      [productId]
-    );
-    const currentStock = Number(lastMove?.existencias_resultantes || 0);
-    const difference = targetStock - currentStock;
-    if (difference === 0) return res.json({ existencias: currentStock, message: 'Las existencias ya tienen ese valor.' });
+      const lastMove = await tx.get(
+        'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+        [productId]
+      );
+      const currentStock = Number(lastMove?.existencias_resultantes || 0);
+      const difference = targetStock - currentStock;
+      if (difference === 0) {
+        return {
+          status: 200,
+          body: { existencias: currentStock, message: 'Las existencias ya tienen ese valor.' }
+        };
+      }
 
-    await db.run(`
-      INSERT INTO almacen_movimientos
-        (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, referencia_factura, asesor_id, notas)
-      VALUES (?, 'Ajuste de Inventario', ?, ?, ?, ?, 'Ajuste manual', ?, ?)
-    `, [
-      new Date().toISOString(),
-      productId,
-      difference > 0 ? difference : 0,
-      difference < 0 ? Math.abs(difference) : 0,
-      targetStock,
-      req.user.id,
-      notes || `Ajuste de existencias físicas de ${currentStock} a ${targetStock}.`
-    ]);
-    res.status(201).json({ existencias: targetStock, message: 'Existencias ajustadas correctamente.' });
+      await tx.run(`
+        INSERT INTO almacen_movimientos
+          (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, referencia_factura, asesor_id, notas)
+        VALUES (?, 'Ajuste de Inventario', ?, ?, ?, ?, 'Ajuste manual', ?, ?)
+      `, [
+        new Date().toISOString(),
+        productId,
+        difference > 0 ? difference : 0,
+        difference < 0 ? Math.abs(difference) : 0,
+        targetStock,
+        req.user.id,
+        notes || `Ajuste de existencias físicas de ${currentStock} a ${targetStock}.`
+      ]);
+      return {
+        status: 201,
+        body: { existencias: targetStock, message: 'Existencias ajustadas correctamente.' }
+      };
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'No fue posible ajustar las existencias.' });
@@ -1418,28 +1460,32 @@ app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
   }
   
   try {
-    const prod = await db.get('SELECT * FROM productos WHERE id = ?', [producto_id]);
-    if (!prod) return res.status(404).json({ error: 'Product not found' });
-    
-    const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [producto_id]);
-    const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
-    
     const ent = Number(cantidad_entrante) || 0.0;
     const sal = Number(cantidad_saliente) || 0.0;
-    
-    if (tipo_movimiento.startsWith('Salida') && current_stock < sal) {
-      return res.status(400).json({ error: 'Insufficient stock in warehouse' });
-    }
-    
-    const new_stock = current_stock + ent - sal;
-    const now = new Date().toISOString();
-    
-    await db.run(`
-      INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, referencia_factura, asesor_id, notas)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [now, tipo_movimiento, producto_id, ent, sal, new_stock, referencia_factura || null, req.user.id, notas]);
-    
-    res.status(201).json({ existencias: new_stock, message: 'Stock movement logged successfully' });
+    const outcome = await db.transaction(async tx => {
+      const prod = await tx.get('SELECT id FROM productos WHERE id = ? FOR UPDATE', [producto_id]);
+      if (!prod) return { status: 404, body: { error: 'Product not found' } };
+
+      const lastMove = await tx.get(
+        'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+        [producto_id]
+      );
+      const currentStock = Number(lastMove?.existencias_resultantes || 0);
+      if (tipo_movimiento.startsWith('Salida') && currentStock < sal) {
+        return { status: 400, body: { error: 'Insufficient stock in warehouse' } };
+      }
+
+      const newStock = currentStock + ent - sal;
+      await tx.run(`
+        INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, referencia_factura, asesor_id, notas)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [new Date().toISOString(), tipo_movimiento, producto_id, ent, sal, newStock, referencia_factura || null, req.user.id, notas]);
+      return {
+        status: 201,
+        body: { existencias: newStock, message: 'Stock movement logged successfully' }
+      };
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to record movement' });
@@ -1458,48 +1504,63 @@ app.post('/api/almacen/produccion-uan32', authenticateToken, async (req, res) =>
   }
   
   try {
-    const solub = await db.get("SELECT id FROM productos WHERE producto LIKE '%Solub 45%'");
-    const uan = await db.get("SELECT id FROM productos WHERE producto = 'UAN-32'");
-    
-    if (!solub || !uan) return res.status(404).json({ error: 'Solub 45 or UAN-32 products not found in catalog' });
-    
-    const last_solub = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [solub.id]);
-    const current_solub = last_solub ? last_solub.existencias_resultantes : 0.0;
-    
     const solub_to_deduct = Number(cantidad_solub_toneladas);
-    if (current_solub < solub_to_deduct) {
-      return res.status(400).json({ error: `Insufficient stock of Novatec Solub 45 (Current: ${current_solub} Tons)` });
-    }
-    
-    // Conversion formula: 2000 Liters of UAN-32 per 1 Ton of Solub 45
-    const uan_to_add = solub_to_deduct * 2000.0;
-    
-    const last_uan = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [uan.id]);
-    const current_uan = last_uan ? last_uan.existencias_resultantes : 0.0;
-    
-    const new_solub = current_solub - solub_to_deduct;
-    const new_uan = current_uan + uan_to_add;
-    
-    const now = new Date().toISOString();
-    
-    // Deduct Solub
-    await db.run(`
-      INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, asesor_id, notas)
-      VALUES (?, 'Conversión Producción UAN-32', ?, 0, ?, ?, ?, 'Salida de materia prima para producción interna UAN-32')
-    `, [now, solub.id, solub_to_deduct, new_solub, req.user.id]);
-    
-    // Add UAN
-    await db.run(`
-      INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, asesor_id, notas)
-      VALUES (?, 'Conversión Producción UAN-32', ?, ?, 0, ?, ?, 'Entrada de producto terminado por producción interna')
-    `, [now, uan.id, uan_to_add, new_uan, req.user.id]);
-    
-    res.json({
-      solub_existencias: new_solub,
-      uan_existencias: new_uan,
-      uan_produced_liters: uan_to_add,
-      message: 'UAN-32 production successfully completed and stock updated.'
+    const outcome = await db.transaction(async tx => {
+      const products = await tx.all(`
+        SELECT id, producto
+        FROM productos
+        WHERE producto LIKE '%Solub 45%' OR producto = 'UAN-32'
+        ORDER BY id
+        FOR UPDATE
+      `);
+      const solub = products.find(product => product.producto.includes('Solub 45'));
+      const uan = products.find(product => product.producto === 'UAN-32');
+      if (!solub || !uan) {
+        return { status: 404, body: { error: 'Solub 45 or UAN-32 products not found in catalog' } };
+      }
+
+      const lastSolub = await tx.get(
+        'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+        [solub.id]
+      );
+      const currentSolub = Number(lastSolub?.existencias_resultantes || 0);
+      if (currentSolub < solub_to_deduct) {
+        return {
+          status: 400,
+          body: { error: `Insufficient stock of Novatec Solub 45 (Current: ${currentSolub} Tons)` }
+        };
+      }
+
+      const uanToAdd = solub_to_deduct * 2000;
+      const lastUan = await tx.get(
+        'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+        [uan.id]
+      );
+      const currentUan = Number(lastUan?.existencias_resultantes || 0);
+      const newSolub = currentSolub - solub_to_deduct;
+      const newUan = currentUan + uanToAdd;
+      const now = new Date().toISOString();
+
+      await tx.run(`
+        INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, asesor_id, notas)
+        VALUES (?, 'Conversión Producción UAN-32', ?, 0, ?, ?, ?, 'Salida de materia prima para producción interna UAN-32')
+      `, [now, solub.id, solub_to_deduct, newSolub, req.user.id]);
+      await tx.run(`
+        INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, asesor_id, notas)
+        VALUES (?, 'Conversión Producción UAN-32', ?, ?, 0, ?, ?, 'Entrada de producto terminado por producción interna')
+      `, [now, uan.id, uanToAdd, newUan, req.user.id]);
+
+      return {
+        status: 200,
+        body: {
+          solub_existencias: newSolub,
+          uan_existencias: newUan,
+          uan_produced_liters: uanToAdd,
+          message: 'UAN-32 production successfully completed and stock updated.'
+        }
+      };
     });
+    res.status(outcome.status).json(outcome.body);
     
   } catch (err) {
     console.error(err);
@@ -1709,38 +1770,48 @@ app.put('/api/asignacion/clientes/:id/asesor', authenticateToken, async (req, re
   const { asesor_id } = req.body;
   
   try {
-    const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [id]);
-    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const outcome = await db.transaction(async tx => {
+    const client = await tx.get('SELECT * FROM clientes WHERE id = ? AND activo = 1 FOR UPDATE', [id]);
+    if (!client) return { status: 404, body: { error: 'Client not found' } };
+    if (asesor_id) {
+      const advisor = await tx.get(
+        "SELECT id FROM asesores WHERE id = ? AND activo = 1 AND nivel_rol = 'Asesor' FOR UPDATE",
+        [asesor_id]
+      );
+      if (!advisor) return { status: 400, body: { error: 'Active advisor is required' } };
+    }
     
     const oldAsesorId = client.asesor_id;
-    await db.run('UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?', [asesor_id || null, id]);
+    await tx.run('UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?', [asesor_id || null, id]);
     
     // Create notifications for changes
     if (asesor_id && Number(oldAsesorId) !== Number(asesor_id)) {
-      await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+      await tx.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)',
         [asesor_id, `Se te ha asignado al agricultor: ${client.nombre}`]);
     }
     
     if (oldAsesorId && Number(oldAsesorId) !== Number(asesor_id)) {
-      await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+      await tx.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)',
         [oldAsesorId, `Se te ha retirado del agricultor: ${client.nombre}`]);
     }
     
     // Reject any pending bids and notify those advisors
-    const pendingBids = await db.all("SELECT id, asesor_id FROM crm_pujas WHERE cliente_id = ? AND estatus = 'Pendiente'", [id]);
+    const pendingBids = await tx.all("SELECT id, asesor_id FROM crm_pujas WHERE cliente_id = ? AND estatus = 'Pendiente' FOR UPDATE", [id]);
     for (const b of pendingBids) {
       if (asesor_id && Number(b.asesor_id) === Number(asesor_id)) {
-        await db.run("UPDATE crm_pujas SET estatus = 'Aprobada' WHERE id = ?", [b.id]);
-        await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+        await tx.run("UPDATE crm_pujas SET estatus = 'Aprobada' WHERE id = ?", [b.id]);
+        await tx.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)',
           [b.asesor_id, `Tu propuesta para el agricultor ${client.nombre} fue Aprobada y se te ha asignado.`]);
       } else {
-        await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [b.id]);
-        await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+        await tx.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [b.id]);
+        await tx.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)',
           [b.asesor_id, `Tu propuesta para el agricultor ${client.nombre} fue rechazada (asignado a otro asesor).`]);
       }
     }
     
-    res.json({ message: 'Client advisor assigned successfully' });
+    return { status: 200, body: { message: 'Client advisor assigned successfully' } };
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to assign client advisor' });
@@ -1774,17 +1845,20 @@ app.put('/api/clientes/:id/puja-status', authenticateToken, async (req, res) => 
   const { disponible_para_puja } = req.body;
   
   try {
-    const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [id]);
-    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const outcome = await db.transaction(async tx => {
+    const client = await tx.get('SELECT * FROM clientes WHERE id = ? AND activo = 1 FOR UPDATE', [id]);
+    if (!client) return { status: 404, body: { error: 'Client not found' } };
     
-    await db.run('UPDATE clientes SET disponible_para_puja = ? WHERE id = ?', [disponible_para_puja ? 1 : 0, id]);
+    await tx.run('UPDATE clientes SET disponible_para_puja = ? WHERE id = ?', [disponible_para_puja ? 1 : 0, id]);
     
     // If removed from biddable pool, clean up pending bids
     if (!disponible_para_puja) {
-      await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND estatus = 'Pendiente'", [id]);
+      await tx.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND estatus = 'Pendiente'", [id]);
     }
     
-    res.json({ message: 'Client bidding status updated successfully' });
+    return { status: 200, body: { message: 'Client bidding status updated successfully' } };
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update client bidding status' });
@@ -1819,39 +1893,45 @@ app.get('/api/asignacion/pujas', authenticateToken, async (req, res) => {
 app.post('/api/asignacion/pujas', authenticateToken, async (req, res) => {
   const { cliente_id, justificacion } = req.body;
   const asesor_id = req.user.id;
+  if (req.user.nivel_rol !== 'Asesor') {
+    return res.status(403).json({ error: 'Only advisors can submit bids' });
+  }
   
   if (!cliente_id || !justificacion) {
     return res.status(400).json({ error: 'cliente_id and justificacion are required' });
   }
   
   try {
-    const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [cliente_id]);
-    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const outcome = await db.transaction(async tx => {
+    const client = await tx.get('SELECT * FROM clientes WHERE id = ? AND activo = 1 FOR UPDATE', [cliente_id]);
+    if (!client) return { status: 404, body: { error: 'Client not found' } };
     if (!client.disponible_para_puja) {
-      return res.status(400).json({ error: 'Client is not available for bidding' });
+      return { status: 400, body: { error: 'Client is not available for bidding' } };
     }
     if (client.asesor_id !== null) {
-      return res.status(400).json({ error: 'Client already has an advisor assigned' });
+      return { status: 409, body: { error: 'Client already has an advisor assigned' } };
     }
     
-    const existing = await db.get(
-      "SELECT * FROM crm_pujas WHERE cliente_id = ? AND asesor_id = ? AND estatus = 'Pendiente'",
+    const existing = await tx.get(
+      "SELECT * FROM crm_pujas WHERE cliente_id = ? AND asesor_id = ? AND estatus = 'Pendiente' FOR UPDATE",
       [cliente_id, asesor_id]
     );
     
     if (existing) {
-      await db.run(
+      await tx.run(
         "UPDATE crm_pujas SET justificacion = ?, creado_en = CURRENT_TIMESTAMP WHERE id = ?",
         [justificacion, existing.id]
       );
-      return res.json({ message: 'Bid updated successfully', bidId: existing.id });
+      return { status: 200, body: { message: 'Bid updated successfully', bidId: existing.id } };
     }
     
-    const result = await db.run(
+    const result = await tx.run(
       "INSERT INTO crm_pujas (cliente_id, asesor_id, justificacion) VALUES (?, ?, ?)",
       [cliente_id, asesor_id, justificacion]
     );
-    res.json({ message: 'Bid placed successfully', bidId: result.id });
+    return { status: 200, body: { message: 'Bid placed successfully', bidId: result.id } };
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to place bid' });
@@ -1871,53 +1951,57 @@ app.post('/api/asignacion/pujas/:id/decision', authenticateToken, async (req, re
   }
   
   try {
-    const bid = await db.get('SELECT * FROM crm_pujas WHERE id = ?', [id]);
-    if (!bid) return res.status(404).json({ error: 'Bid not found' });
+    const outcome = await db.transaction(async tx => {
+    const bidSnapshot = await tx.get('SELECT cliente_id FROM crm_pujas WHERE id = ?', [id]);
+    if (!bidSnapshot) return { status: 404, body: { error: 'Bid not found' } };
+    const client = await tx.get('SELECT * FROM clientes WHERE id = ? FOR UPDATE', [bidSnapshot.cliente_id]);
+    if (!client) return { status: 404, body: { error: 'Client not found' } };
+    const bid = await tx.get('SELECT * FROM crm_pujas WHERE id = ? FOR UPDATE', [id]);
+    if (!bid) return { status: 404, body: { error: 'Bid not found' } };
     if (bid.estatus !== 'Pendiente') {
-      return res.status(400).json({ error: 'Decision has already been made on this bid' });
+      return { status: 409, body: { error: 'Decision has already been made on this bid' } };
     }
     
     if (decision === 'Aprobada') {
-      const client = await db.get('SELECT * FROM clientes WHERE id = ?', [bid.cliente_id]);
-      if (!client) return res.status(404).json({ error: 'Client not found' });
       if (client.asesor_id !== null) {
-        return res.status(400).json({ error: 'Client already has an advisor assigned' });
+        return { status: 409, body: { error: 'Client already has an advisor assigned' } };
       }
       
       const oldAsesorId = client.asesor_id;
-      await db.run('UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?', [bid.asesor_id, bid.cliente_id]);
-      await db.run("UPDATE crm_pujas SET estatus = 'Aprobada' WHERE id = ?", [id]);
+      await tx.run('UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?', [bid.asesor_id, bid.cliente_id]);
+      await tx.run("UPDATE crm_pujas SET estatus = 'Aprobada' WHERE id = ?", [id]);
       
       // Notify approved advisor
-      await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+      await tx.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)',
         [bid.asesor_id, `Tu propuesta para el agricultor ${client.nombre} fue Aprobada. Se te ha asignado el cliente.`]);
         
       if (oldAsesorId && Number(oldAsesorId) !== Number(bid.asesor_id)) {
-        await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+        await tx.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)',
           [oldAsesorId, `Se te ha retirado del agricultor: ${client.nombre}`]);
       }
       
       // Reject and notify other pending candidates
-      const otherBids = await db.all("SELECT id, asesor_id FROM crm_pujas WHERE cliente_id = ? AND id != ? AND estatus = 'Pendiente'", [bid.cliente_id, id]);
+      const otherBids = await tx.all("SELECT id, asesor_id FROM crm_pujas WHERE cliente_id = ? AND id != ? AND estatus = 'Pendiente' FOR UPDATE", [bid.cliente_id, id]);
       for (const ob of otherBids) {
-        await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [ob.id]);
-        await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+        await tx.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [ob.id]);
+        await tx.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)',
           [ob.asesor_id, `Tu propuesta para el agricultor ${client.nombre} fue rechazada (asignado a otro asesor).`]);
       }
       
-      res.json({ message: 'Bid approved and client assigned successfully' });
+      return { status: 200, body: { message: 'Bid approved and client assigned successfully' } };
     } else {
-      await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [id]);
+      await tx.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = ?", [id]);
       
-      const client = await db.get('SELECT nombre FROM clientes WHERE id = ?', [bid.cliente_id]);
-      const clientName = client ? client.nombre : 'desconocido';
+      const clientName = client.nombre || 'desconocido';
       
       // Notify rejected advisor
-      await db.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)', 
+      await tx.run('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES (?, ?)',
         [bid.asesor_id, `Tu propuesta para el agricultor ${clientName} fue rechazada.`]);
         
-      res.json({ message: 'Bid rejected successfully' });
+      return { status: 200, body: { message: 'Bid rejected successfully' } };
     }
+    });
+    res.status(outcome.status).json(outcome.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to process decision' });

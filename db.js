@@ -1,5 +1,6 @@
 const { Pool, types } = require('pg');
 const dotenv = require('dotenv');
+const { createTransactionRunner } = require('./utils/databaseTransaction');
 dotenv.config();
 
 // Force PostgreSQL DATE columns (OID 1082) to be returned as simple strings (YYYY-MM-DD)
@@ -310,6 +311,8 @@ function rewriteQuery(sql) {
   return rewritten;
 }
 
+const transaction = createTransactionRunner(pool, rewriteQuery);
+
 module.exports = {
   get: async (sql, params = []) => {
     const rewritten = rewriteQuery(sql);
@@ -346,5 +349,6 @@ module.exports = {
   },
   
   pool, // Expose raw pool in case direct operations are needed
-  initSchema
+  initSchema,
+  transaction
 };

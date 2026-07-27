@@ -105,3 +105,33 @@
 - Nivel: estructural y suite completa
 - Aserciones: rutas comerciales críticas declaran política; TDD-TC-018..028 pasan
 - Estado: passed
+
+## TDD-TC-030 — Commit y rollback
+
+- Cubre: BDD-SC-013, PRD-NFR-004
+- Aserciones: `BEGIN/COMMIT/release` al éxito; `BEGIN/ROLLBACK/release` al fallo
+- Estado: passed
+
+## TDD-TC-031 — Conexión única
+
+- Cubre: PRD-FR-009
+- Aserciones: todas las consultas del callback usan el mismo cliente
+- Estado: passed
+
+## TDD-TC-032 — Locks de inventario
+
+- Cubre: BDD-SC-014, BDD-SC-015, PRD-FR-010
+- Aserciones: movimientos y producción usan transacción y `FOR UPDATE`
+- Estado: passed
+
+## TDD-TC-033 — Locks de estado
+
+- Cubre: BDD-SC-016, BDD-SC-017, PRD-FR-011
+- Aserciones: decisiones y estatus bloquean y revalidan antes de mutar
+- Estado: passed
+
+## TDD-TC-034 — Regresión completa
+
+- Cubre: PRD-NFR-004
+- Aserciones: TDD-TC-018..033 y suite anterior permanecen verdes
+- Estado: passed

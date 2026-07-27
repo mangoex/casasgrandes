@@ -38,6 +38,14 @@ Un Asesor solo podrá leer o mutar clientes, cotizaciones, planeaciones, prospec
 
 Las rutas sensibles aplicarán denegación por defecto y una lista explícita de roles permitidos.
 
+### PROJECT-PR-009
+
+Toda operación que cambie más de una fila financiera, de inventario o de asignación será atómica y bloqueará su recurso canónico antes de calcular el nuevo estado.
+
+### PROJECT-PR-010
+
+Una transición repetida o concurrente no podrá duplicar efectos de inventario, asignación ni notificaciones.
+
 ## Fuentes canónicas
 
 | Fuente | Autoridad | Responsable |
@@ -46,11 +54,12 @@ Las rutas sensibles aplicarán denegación por defecto y una lista explícita de
 | `docs/02-PRD.md` | Requisitos del incremento | Responsable del producto |
 | `docs/adr/ADR-001.md` | Decisión de sesión web | Responsable técnico |
 | `docs/adr/ADR-002.md` | Autorización central y revocación | Responsable técnico |
+| `docs/adr/ADR-003.md` | Transacciones y bloqueos pesimistas | Responsable técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: cambios P0 de `CHG-001` y autorización/revocación local de `CHG-002`.
+- Incluye: CHG-001, CHG-002 y atomicidad local de inventario/pujas bajo `CHG-003`.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios

@@ -15,7 +15,7 @@
 | RSK-003 | Acceso mediante contraseña conocida | alta | crítico | contraseña explícita de 12 caracteres y defaults retirados | administrador | partially-mitigated |
 | RSK-004 | Acceso horizontal a carteras ajenas | alta | alto | CHG-002: identidad vigente, middleware central y pruebas por rol/propiedad | responsable técnico | mitigated-local |
 | RSK-007 | Coordinador conserva acceso comercial global sin modelo de equipos | media | alto | EXC-001 visible; diseñar relación coordinador-equipo con producto | propietario | accepted-temporary-local |
-| RSK-005 | Inconsistencia de inventario y pujas | media | crítico | transacciones, locks e idempotencia | responsable técnico | open |
+| RSK-005 | Inconsistencia de inventario y pujas | media | crítico | CHG-003 cubre movimientos, producción, entrega y decisiones; faltan edición de cotización y conversiones comerciales | responsable técnico | partially-mitigated |
 | RSK-006 | Tratamiento de PII y proveedores IA no gobernado | alta | alto | minimización, política y control de proveedores | propietario | open |
 
 ## Riesgo residual
@@ -28,4 +28,4 @@
 
 - Gate 4 local: aprobado.
 - Gate 5 producción: `NOT READY`.
-- Motivos: sin PostgreSQL aislado, prueba visual, auditoría durable, rollback probado ni resolución de RSK-005 y RSK-006.
+- Motivos: sin PostgreSQL aislado, prueba visual, auditoría durable, rollback productivo ni resolución completa de RSK-005 y RSK-006.

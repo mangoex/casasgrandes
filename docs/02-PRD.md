@@ -97,3 +97,23 @@ Criterio de aceptación: reutilizar un token anterior a cualquiera de esos event
 La autorización debe fallar cerrada, responder antes de la lógica productiva y no depender de filtros enviados por el cliente.
 
 Métrica: 100% de TDD-TC-024..029 aprobadas y ninguna regresión de TDD-TC-018..023.
+
+## Incremento CHG-003 — Integridad transaccional
+
+### OBJ-005 — Conservar inventario y asignaciones bajo fallos y concurrencia
+
+### PRD-FR-009 — Unidad atómica
+
+Producción UAN-32, movimientos de almacén, entrega/reversión de cotizaciones y decisiones de puja deben confirmar todos sus efectos o ninguno.
+
+### PRD-FR-010 — Bloqueo antes de calcular
+
+El saldo o estado nuevo se calcula después de bloquear el producto o recurso canónico mediante `FOR UPDATE`.
+
+### PRD-FR-011 — Transición idempotente
+
+Una decisión o transición concurrente debe revalidar el estado bloqueado e impedir efectos duplicados.
+
+### PRD-NFR-004 — Recuperación
+
+Un fallo simulado después de una escritura debe ejecutar `ROLLBACK`, liberar la conexión y conservar el error original.

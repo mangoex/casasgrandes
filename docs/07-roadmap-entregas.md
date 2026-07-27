@@ -32,3 +32,12 @@
 | 2 | Probar denegación y revocación | TDD-TC-024..029 | Pruebas inicialmente rojas | completed |
 | 3 | Implementar middleware y cierres IDOR | SDD-CMP-005..008 | Pruebas verdes | completed |
 | 4 | Validar suite y readiness | OBJ-004 | EVD-001 y validación estricta | completed |
+
+## Incremento 3 — CHG-003
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Contrato de atomicidad y concurrencia | ADR-003, PRD-FR-009..011 | completed |
+| 2 | Pruebas rojas transaccionales | TDD-TC-030..034 | completed |
+| 3 | Adaptador, locks y refactor crítico | SDD-CMP-009..011 | completed |
+| 4 | Simulación de fallos y gate | OBJ-005 | completed |

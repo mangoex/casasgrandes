@@ -83,3 +83,22 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - `session_version` inicia en 1.
 - Logout y cambios sensibles incrementan la versión en la misma base canónica.
 - Tokens anteriores fallan antes de alcanzar el controlador.
+
+## Diseño CHG-003
+
+### SDD-CMP-009 — Adaptador transaccional
+
+- Cubre: PRD-FR-009, PRD-NFR-004
+- `db.transaction(work)` expone `get/all/run` sobre una misma conexión.
+- Siempre libera la conexión; confirma al éxito y revierte ante excepción.
+
+### SDD-CMP-010 — Inventario serializado
+
+- Cubre: PRD-FR-009, PRD-FR-010
+- Bloquea filas de `productos` en orden estable y lee el último movimiento dentro de la misma transacción.
+
+### SDD-CMP-011 — Estados serializados
+
+- Cubre: PRD-FR-011
+- Cotización, puja y cliente se bloquean antes de validar transición.
+- El segundo competidor observa el estado confirmado por el primero y no repite efectos.

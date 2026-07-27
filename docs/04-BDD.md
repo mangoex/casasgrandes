@@ -117,3 +117,45 @@ Given una sesión válida
 When ejecuta logout y reutiliza el token anterior
 Then recibe 403
 ```
+
+## Feature: CHG-003 — Integridad transaccional
+
+### BDD-SC-013 — Fallo intermedio
+
+```gherkin
+Given una operación con dos escrituras
+When la segunda falla
+Then PostgreSQL ejecuta ROLLBACK y no confirma la primera
+```
+
+### BDD-SC-014 — Salidas concurrentes
+
+```gherkin
+Given dos salidas sobre el mismo producto
+When se procesan simultáneamente
+Then ambas bloquean el producto y ninguna calcula desde un saldo obsoleto
+```
+
+### BDD-SC-015 — Producción atómica
+
+```gherkin
+Given una conversión UAN-32
+When falla la entrada del producto terminado
+Then tampoco se descuenta la materia prima
+```
+
+### BDD-SC-016 — Puja concurrente
+
+```gherkin
+Given dos decisiones sobre el mismo cliente
+When compiten por aprobar una puja
+Then solo la primera asignación confirmada produce efectos
+```
+
+### BDD-SC-017 — Entrega repetida
+
+```gherkin
+Given una cotización ya entregada
+When otra petición intenta aplicar la misma transición
+Then no genera una segunda salida de inventario
+```
