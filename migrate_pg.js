@@ -2,7 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 
-const defaultPasswordHash = "$2b$10$Ly0wcxrAZmfzIOSLPRzwdO3YxJQ2dPT6osFpn0j0hlAT9uK7ojTKm"; // Default: password123
+const initialAdvisorPasswordHash = (process.env.INITIAL_ADVISOR_PASSWORD_HASH || '').trim();
+if (!/^\$2[aby]\$\d{2}\$.{53}$/.test(initialAdvisorPasswordHash)) {
+  throw new Error('INITIAL_ADVISOR_PASSWORD_HASH must contain a valid bcrypt hash before migration.');
+}
 
 function parseCsvFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8');
@@ -444,9 +447,9 @@ async function runMigration() {
         const emailKey = email.trim().toLowerCase();
         const nameKey = nombre.trim().toLowerCase();
         
-        // Use custom credentials if found in SQLite, otherwise use default
+        // Preserve an existing credential when available; otherwise use the operator-supplied hash.
         let finalUsuario = usuarioVal;
-        let finalPasswordHash = defaultPasswordHash;
+        let finalPasswordHash = initialAdvisorPasswordHash;
         
         if (customUserCredentials[emailKey]) {
           finalUsuario = customUserCredentials[emailKey].usuario;

@@ -8,6 +8,7 @@ const agentsService = require('./agentsService');
 const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
 const { authenticateToken, requireProgramacionManager } = require('./middleware/auth');
+const { validateInitialPassword } = require('./utils/security');
 
 // Routers
 const authRouter = require('./routes/auth');
@@ -47,6 +48,17 @@ app.use(cors((req, callback) => {
   return callback(new Error('Origin not allowed by CORS'));
 }));
 app.use(express.json({ limit: '12mb' }));
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+  );
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Mount API Routers
@@ -389,8 +401,11 @@ app.post('/api/asesores', authenticateToken, async (req, res) => {
     if (existing) {
       return res.status(400).json({ error: 'An advisor with this email or username already exists' });
     }
-    const rawPassword = password || 'password123';
-    const password_hash = await bcrypt.hash(rawPassword, 10);
+    const passwordValidation = validateInitialPassword(password);
+    if (!passwordValidation.ok) {
+      return res.status(400).json({ error: passwordValidation.error });
+    }
+    const password_hash = await bcrypt.hash(password, 10);
     const califVal = (calificacion === undefined || calificacion === null || calificacion === '') ? 5.0 : Number(calificacion);
     const result = await db.run(`
       INSERT INTO asesores (nombre, usuario, nivel_rol, email, telefono, cumpleanos, password_hash, activo, calificacion)
@@ -423,6 +438,10 @@ app.put('/api/asesores/:id', authenticateToken, async (req, res) => {
 
     let passwordHash = adv.password_hash;
     if (password && password.trim().length > 0) {
+      const passwordValidation = validateInitialPassword(password);
+      if (!passwordValidation.ok) {
+        return res.status(400).json({ error: passwordValidation.error });
+      }
       passwordHash = await bcrypt.hash(password.trim(), 10);
     }
 

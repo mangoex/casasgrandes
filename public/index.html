@@ -21,11 +21,11 @@
       <form id="login-form">
         <div class="form-group">
           <label for="login-username">Usuario o Correo Electrónico</label>
-          <input type="text" id="login-username" class="form-input" placeholder="ej. miguel.g o correo@casasgrandes.mx" required value="miguel.gonzalez@mobimuebles.com">
+          <input type="text" id="login-username" class="form-input" placeholder="ej. miguel.g o correo@casasgrandes.mx" required autocomplete="username">
         </div>
         <div class="form-group">
           <label for="login-password">Contraseña</label>
-          <input type="password" id="login-password" class="form-input" placeholder="••••••••" required value="password123">
+          <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
         </div>
         <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Iniciar Sesión</button>
       </form>
@@ -2112,7 +2112,7 @@
             </div>
             <div class="form-group">
               <label for="asesor-password" id="asesor-password-label">Contraseña</label>
-              <input type="password" id="asesor-password" class="form-input" placeholder="Dejar vacío para usar 'password123'">
+              <input type="password" id="asesor-password" class="form-input" placeholder="Mínimo 12 caracteres" minlength="12">
             </div>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top: 10px;" id="asesor-submit-btn">Registrar Asesor</button>
@@ -2486,6 +2486,7 @@
   </div>
 
   <!-- Load script -->
-  <script src="js/app.js?v=20260724-quantity"></script>
+  <script src="js/security.js?v=20260726-p0"></script>
+  <script src="js/app.js?v=20260726-p0"></script>
 </body>
 </html>

@@ -1,11 +1,14 @@
 const jwt = require('jsonwebtoken');
+const { parseCookies, SESSION_COOKIE_NAME } = require('../utils/security');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const bearerToken = authHeader && authHeader.split(' ')[1];
+  const cookieToken = parseCookies(req.headers.cookie)[SESSION_COOKIE_NAME];
+  const token = bearerToken || cookieToken;
   
   if (!token) return res.status(401).json({ error: 'Access token required' });
   

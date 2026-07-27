@@ -2,8 +2,7 @@
 const API_URL = ''; // Relative path since served on same host
 
 // State Variables
-let token = localStorage.getItem('token');
-let user = JSON.parse(localStorage.getItem('user'));
+let user = null;
 
 // Global fetch interceptor for handling session expiration (401/403)
 const originalFetch = window.fetch;
@@ -23,10 +22,7 @@ window.fetch = async function(...args) {
       const invalidSession = ['Access token required', 'Invalid or expired token'].includes(errorMessage);
       if (!urlStr.includes('/api/auth/login') && invalidSession) {
         console.warn('Session expired or invalid. Redirecting to login...', urlStr);
-        token = null;
         user = null;
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
         showLoginView();
       }
     }
@@ -147,10 +143,15 @@ async function loadAllCycles() {
 }
 
 // Initialize App Check Auth
-function initApp() {
-  if (token && user) {
-    showAppView();
-  } else {
+async function initApp() {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/me`, { headers: getHeaders() });
+    if (!response.ok) throw new Error('No active session');
+    const data = await response.json();
+    user = data.user;
+    await showAppView();
+  } catch {
+    user = null;
     showLoginView();
   }
 }
@@ -444,8 +445,7 @@ function openMobileAgenda() {
 // Helper headers loader
 function getHeaders() {
   return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+    'Content-Type': 'application/json'
   };
 }
 
@@ -475,13 +475,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       throw new Error(data.error || 'Login failed');
     }
     
-    // Save login credentials
-    token = data.token;
     user = data.user;
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    
-    showAppView();
+    await showAppView();
   } catch (err) {
     errorBox.textContent = err.message;
     errorBox.style.display = 'block';
@@ -489,15 +484,20 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 });
 
 // LOG OUT
-document.getElementById('logout-btn').addEventListener('click', (e) => {
+document.getElementById('logout-btn').addEventListener('click', async (e) => {
   e.preventDefault();
-  token = null;
+  try {
+    await fetch(`${API_URL}/api/auth/logout`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+  } catch (error) {
+    console.warn('No fue posible confirmar el cierre de sesión con el servidor.', error);
+  }
   user = null;
   allMatchingMetrics = null;
   allUnassignedClients = [];
   allActiveBids = [];
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
   showLoginView();
 });
 
@@ -3348,7 +3348,9 @@ if (document.getElementById('btn-open-asesor-modal')) {
     document.getElementById('asesor-modal-title').textContent = 'Registrar Nuevo Asesor';
     document.getElementById('asesor-submit-btn').textContent = 'Registrar Asesor';
     document.getElementById('asesor-password-label').textContent = 'Contraseña';
-    document.getElementById('asesor-password').placeholder = 'Dejar vacío para usar "password123"';
+    document.getElementById('asesor-password').placeholder = 'Mínimo 12 caracteres';
+    document.getElementById('asesor-password').required = true;
+    document.getElementById('asesor-password').minLength = 12;
     document.getElementById('asesor-status').value = '1';
     document.getElementById('asesor-calificacion').value = '5.0';
     
@@ -3375,6 +3377,8 @@ window.openEditAsesorModal = function(id) {
   document.getElementById('asesor-submit-btn').textContent = 'Guardar Cambios';
   document.getElementById('asesor-password-label').textContent = 'Nueva Contraseña (Opcional)';
   document.getElementById('asesor-password').placeholder = 'Dejar vacío para no modificar';
+  document.getElementById('asesor-password').required = false;
+  document.getElementById('asesor-password').minLength = 12;
   
   openModal('add-asesor-modal');
 };
@@ -4872,20 +4876,11 @@ const ADVISOR_STAGE_DEFINITIONS = [
 ];
 
 function escapeAttribute(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return SecurityUtils.escapeHtml(value);
 }
 
 function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  return SecurityUtils.escapeHtml(value);
 }
 
 function normalizeStageText(stage) {
@@ -7326,67 +7321,7 @@ function toggleLogDetail(btn) {
 
 // Simple Markdown parser for proposal presentation
 function simpleMarkdownToHtml(md) {
-  if (!md) return '';
-  let html = md;
-  
-  // Headers
-  html = html.replace(/^### (.*$)/gim, '<h5 style="margin-top: 12px; margin-bottom: 6px; font-size: 15px; font-weight: 600;">$1</h5>');
-  html = html.replace(/^## (.*$)/gim, '<h4 style="margin-top: 16px; margin-bottom: 8px; font-size: 16px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 4px;">$1</h4>');
-  html = html.replace(/^# (.*$)/gim, '<h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px; font-weight: 800;">$1</h3>');
-  
-  // Bold
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  
-  // Tables
-  // Simple check if markdown table is present and replace it with a styled table
-  const lines = html.split('\n');
-  let inTable = false;
-  let tableRows = [];
-  let parsedLines = [];
-  
-  lines.forEach(line => {
-    if (line.trim().startsWith('|')) {
-      inTable = true;
-      // skip separators
-      if (!line.includes('---')) {
-        const cells = line.split('|').map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1);
-        tableRows.push(cells);
-      }
-    } else {
-      if (inTable) {
-        // construct HTML table
-        let tableHtml = '<table class="data-table" style="margin: 15px 0; font-size: 13px;"><thead><tr>';
-        // Header row
-        tableRows[0].forEach(cell => {
-          tableHtml += `<th>${cell}</th>`;
-        });
-        tableHtml += '</tr></thead><tbody>';
-        // Body rows
-        for (let r = 1; r < tableRows.length; r++) {
-          tableHtml += '<tr>';
-          tableRows[r].forEach(cell => {
-            tableHtml += `<td>${cell}</td>`;
-          });
-          tableHtml += '</tr>';
-        }
-        tableHtml += '</tbody></table>';
-        parsedLines.push(tableHtml);
-        inTable = false;
-        tableRows = [];
-      }
-      parsedLines.push(line);
-    }
-  });
-  
-  html = parsedLines.join('\n');
-  
-  // Bullet lists
-  html = html.replace(/^\s*\-\s*(.*$)/gim, '<li style="margin-left: 20px; list-style-type: disc;">$1</li>');
-  
-  // Paragraphs
-  html = html.replace(/\n\n/g, '<br><br>');
-  
-  return html;
+  return SecurityUtils.renderSafeMarkdown(md);
 }
 
 // Bind event listeners for the system config buttons

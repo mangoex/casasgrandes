@@ -3,6 +3,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { authenticateToken, JWT_SECRET, JWT_EXPIRES_IN } = require('../middleware/auth');
+const {
+  buildSessionCookieOptions,
+  SESSION_COOKIE_NAME
+} = require('../utils/security');
 
 const router = express.Router();
 
@@ -34,8 +38,7 @@ router.post('/login', async (req, res) => {
       { expiresIn: JWT_EXPIRES_IN }
     );
     
-    res.json({
-      token,
+    const responseBody = {
       user: {
         id: user.id,
         nombre: user.nombre,
@@ -44,7 +47,13 @@ router.post('/login', async (req, res) => {
         email: user.email,
         telefono: user.telefono
       }
-    });
+    };
+    if (req.get('x-auth-mode') === 'bearer') {
+      responseBody.token = token;
+    } else {
+      res.cookie(SESSION_COOKIE_NAME, token, buildSessionCookieOptions());
+    }
+    res.json(responseBody);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -54,6 +63,18 @@ router.post('/login', async (req, res) => {
 // GET /api/auth/me
 router.get('/me', authenticateToken, async (req, res) => {
   res.json({ user: req.user });
+});
+
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  const options = buildSessionCookieOptions();
+  res.clearCookie(SESSION_COOKIE_NAME, {
+    httpOnly: options.httpOnly,
+    sameSite: options.sameSite,
+    secure: options.secure,
+    path: options.path
+  });
+  res.status(204).end();
 });
 
 module.exports = router;
