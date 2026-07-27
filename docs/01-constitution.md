@@ -70,6 +70,10 @@ Autenticación y parsing HTTP limitarán consumo por actor, tamaño y tiempo; la
 
 Creación y edición de cotizaciones, conversión de planeación y movimientos derivados se revalidarán dentro de una única transacción.
 
+### PROJECT-PR-017
+
+El proceso expondrá salud sin divulgar secretos, correlacionará solicitudes sin registrar PII y cerrará servidor, tareas y PostgreSQL de forma ordenada.
+
 ## Fuentes canónicas
 
 | Fuente | Autoridad | Responsable |
@@ -83,11 +87,12 @@ Creación y edición de cotizaciones, conversión de planeación y movimientos d
 | `docs/adr/ADR-005.md` | Política de dependencias vulnerables | Responsable técnico |
 | `docs/adr/ADR-006.md` | Controles contra abuso HTTP | Responsable técnico |
 | `docs/adr/ADR-007.md` | Unidad transaccional comercial | Responsable técnico |
+| `docs/adr/ADR-008.md` | Salud, observabilidad y ciclo de vida | Responsable técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: CHG-001..007; CHG-007 cierra la atomicidad comercial residual.
+- Incluye: CHG-001..008; CHG-008 cubre salud operativa y apagado ordenado.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios

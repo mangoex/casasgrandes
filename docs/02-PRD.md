@@ -197,3 +197,27 @@ Planificación→prospecto bloquea la planificación, revalida elegibilidad y re
 ### PRD-NFR-008 — Fallo cerrado
 
 Cantidades inválidas o saldo insuficiente abortan antes de confirmar; una carrera responde conflicto sin dejar efectos parciales.
+
+## Incremento CHG-008 — Salud operativa y ciclo de vida
+
+### OBJ-010 — Detectar degradación y cerrar sin pérdida evitable
+
+### PRD-FR-024 — Sonda de vida
+
+`GET /health/live` responde `200` mientras el proceso HTTP está activo y no depende de PostgreSQL.
+
+### PRD-FR-025 — Sonda de disponibilidad
+
+`GET /health/ready` ejecuta una consulta acotada a PostgreSQL y responde `200 ready` o `503 degraded` sin divulgar el error interno.
+
+### PRD-FR-026 — Correlación segura
+
+Cada solicitud recibe un `X-Request-ID` validado o generado, lo devuelve en la respuesta y emite un evento de cierre sin query string, cuerpos, identidad o PII.
+
+### PRD-FR-027 — Apagado ordenado
+
+Ante `SIGTERM` o `SIGINT`, el proceso deja de aceptar conexiones, detiene nuevas ejecuciones del scheduler, espera el trabajo activo y cierra el pool una sola vez.
+
+### PRD-NFR-009 — Degradación acotada
+
+La disponibilidad falla cerrada dentro del timeout configurado y el apagado tiene un límite explícito para evitar procesos colgados.

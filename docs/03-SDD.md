@@ -168,3 +168,20 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 
 - Cubre: PRD-FR-023
 - La ruta bloquea planificación antes de consultar elegibilidad y prospecto existente.
+
+## Diseño CHG-008
+
+### SDD-CMP-023 — Sondas operativas
+
+- Cubre: PRD-FR-024, PRD-FR-025, PRD-NFR-009
+- Vida no consulta dependencias; disponibilidad usa `SELECT 1` con timeout y un cuerpo público mínimo.
+
+### SDD-CMP-024 — Contexto de solicitud
+
+- Cubre: PRD-FR-026
+- Un middleware valida identificadores acotados o genera UUID y registra método, ruta sin query, estado y duración.
+
+### SDD-CMP-025 — Controlador de ciclo de vida
+
+- Cubre: PRD-FR-027, PRD-NFR-009
+- El cierre es idempotente, detiene aceptación y scheduler, espera actividad y cierra PostgreSQL antes del límite.

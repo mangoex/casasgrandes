@@ -29,6 +29,9 @@
 | OBJ-009 | PRD-FR-021 | SDD-CMP-020, ADR-007 | BDD-SC-030 | TDD-TC-046 | creación de cotización | EVD-006: un solo `tx` y locks de vínculo | verified-local |
 | OBJ-009 | PRD-FR-023 | SDD-CMP-022 | BDD-SC-031 | TDD-TC-047 | conversión de planificación | EVD-006: lock y reutilización | verified-local |
 | OBJ-009 | PRD-FR-022, PRD-NFR-008 | SDD-CMP-021 | BDD-SC-032, BDD-SC-033 | TDD-TC-048, TDD-TC-049 | edición e inventario | EVD-006: saldos simulados, locks ordenados y 47/47 | Gate 4 passed |
+| OBJ-010 | PRD-FR-024, PRD-FR-025 | SDD-CMP-023, ADR-008 | BDD-SC-034, BDD-SC-035, BDD-SC-036 | TDD-TC-050, TDD-TC-051 | `server.js`, `db.js` | EVD-007: sondas HTTP 200/503 | verified-local |
+| OBJ-010 | PRD-FR-026 | SDD-CMP-024 | BDD-SC-037 | TDD-TC-052 | `utils/observability.js`, `server.js` | EVD-007: ID y log mínimo | verified-local |
+| OBJ-010 | PRD-FR-027, PRD-NFR-009 | SDD-CMP-025 | BDD-SC-038, BDD-SC-039 | TDD-TC-053, TDD-TC-054 | `utils/serverLifecycle.js`, `agentsService.js`, `db.js`, `server.js` | EVD-007: cierre idempotente y 55/55 | Gate 4 passed |
 
 ## Huecos
 
@@ -103,3 +106,16 @@
 - Auditoría: `npm audit --omit=dev`, exit 0, cero vulnerabilidades.
 - Verificación adicional: sintaxis Node, Humanio estricto, política readiness y `git diff --check`.
 - Alcance no ejecutado: carrera real y rollback contra PostgreSQL aislado, navegador y despliegue.
+
+## EVD-007 — Evidencia local CHG-008
+
+- Fecha: 2026-07-27
+- Comando rojo: `node --test test/operationalReadiness.test.js`
+- Resultado rojo: exit 1, módulo operativo ausente antes de implementación.
+- Comando focalizado: `node --test test/operationalReadiness.test.js` fuera del sandbox para permitir HTTP local.
+- Resultado focalizado: exit 0, 8/8 aprobadas; liveness independiente, readiness 503→200 por ruta productiva y cierre DB aun con drenado fallido.
+- Regresión: `npm test`, exit 0, 55/55 aprobadas.
+- Auditoría: `npm audit --omit=dev`, exit 0, cero vulnerabilidades.
+- Humanio estricto sobre fuente, excluyendo `.git`, `node_modules` y artefactos visuales ajenos: 0 errores, 0 advertencias.
+- Política readiness: 5/5 casos aprobados; sintaxis Node y `git diff --check`: exit 0.
+- Alcance no ejecutado: señal y drenado contra PostgreSQL/orquestador de staging, retención central de logs y despliegue.

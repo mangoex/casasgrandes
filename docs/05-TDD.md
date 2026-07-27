@@ -225,3 +225,33 @@
 - Cubre: PRD-NFR-008
 - Aserciones: suite completa y verificaciones de seguridad permanecen verdes
 - Estado: passed
+
+## TDD-TC-050 — Sondas HTTP
+
+- Cubre: BDD-SC-034, BDD-SC-035, BDD-SC-036
+- Aserciones: vida no depende de DB; readiness traduce éxito a 200 y fallo a 503 sin detalle
+- Estado: passed
+
+## TDD-TC-051 — Timeout de disponibilidad
+
+- Cubre: BDD-SC-036, PRD-NFR-009
+- Aserciones: una consulta que no termina degrada dentro del límite
+- Estado: passed
+
+## TDD-TC-052 — ID y log de solicitud
+
+- Cubre: BDD-SC-037, PRD-FR-026
+- Aserciones: conserva ID válido, reemplaza entrada inválida y excluye query/PII
+- Estado: passed
+
+## TDD-TC-053 — Cierre ordenado e idempotente
+
+- Cubre: BDD-SC-038, BDD-SC-039, PRD-FR-027
+- Aserciones: servidor, scheduler y pool cierran una sola vez aun con llamadas repetidas
+- Estado: passed
+
+## TDD-TC-054 — Regresión CHG-008
+
+- Cubre: PRD-NFR-009
+- Aserciones: suite, auditoría de dependencias y gates Humanio permanecen verdes
+- Estado: passed

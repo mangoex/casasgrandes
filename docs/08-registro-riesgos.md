@@ -19,15 +19,16 @@
 | RSK-006 | Tratamiento de PII y proveedores IA no gobernado | alta | alto | CHG-004: opt-in, minimización, claves por entorno y logs redactados; falta aprobación legal/productiva del proveedor | propietario | partially-mitigated |
 | RSK-008 | DoS y manipulación por dependencias vulnerables | alta | crítico | CHG-005 actualiza transitivas compatibles y exige auditoría reproducible | responsable técnico | mitigated-local |
 | RSK-009 | Fuerza bruta y consumo HTTP no acotado | alta | alto | CHG-006 limita login, payloads, proxy y scripts inline; store distribuido pendiente para múltiples réplicas | responsable técnico | partially-mitigated |
+| RSK-010 | Fallos de dependencia invisibles o apagado abrupto deja trabajo incompleto | media | alto | CHG-008 añade sondas, correlación y cierre ordenado; falta validar orquestador real | responsable técnico | partially-mitigated |
 
 ## Riesgo residual
 
 - Riesgos aceptados: ninguno en este incremento.
 - Aprobador: pendiente del gate de producción; no bloquea implementación local.
-- Condiciones: no desplegar hasta resetear cuentas existentes, probar CHG-002 con PostgreSQL/staging y resolver RSK-005..006.
+- Condiciones: no desplegar hasta resetear cuentas existentes, probar transacciones y cierre con PostgreSQL/staging, aprobar privacidad IA y ensayar rollback.
 
 ## Readiness CHG-002
 
 - Gate 4 local: aprobado.
 - Gate 5 producción: `NOT READY`.
-- Motivos: sin PostgreSQL aislado, prueba visual, auditoría durable, rollback productivo ni resolución completa de RSK-005 y RSK-006.
+- Motivos: sin PostgreSQL aislado, prueba visual, auditoría durable, drenado del orquestador, rollback productivo ni resolución completa de RSK-003, RSK-006, RSK-009 y RSK-010.

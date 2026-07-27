@@ -76,3 +76,12 @@
 | 2 | Probar creación, conversión y edición | TDD-TC-046..049 | completed |
 | 3 | Implementar transacciones y locks | SDD-CMP-020..022 | completed |
 | 4 | Ejecutar regresión y gates | EVD-006 | completed |
+
+## Incremento 8 — CHG-008
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar salud y ciclo de vida | ADR-008, PRD-FR-024..027 | completed |
+| 2 | Probar sondas, correlación y cierre | TDD-TC-050..054 | completed |
+| 3 | Implementar controles operativos | SDD-CMP-023..025 | completed |
+| 4 | Ejecutar regresión y gates | EVD-007 | completed |

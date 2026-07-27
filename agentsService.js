@@ -11,6 +11,7 @@ const {
 } = require('./utils/aiPrivacy');
 
 let schedulerInterval = null;
+let schedulerRunPromise = null;
 
 // Helper to generate text using Gemini or OpenRouter
 async function generateText(prompt) {
@@ -619,22 +620,42 @@ async function runScheduledAgents() {
   }
 }
 
+function runSchedulerCycle() {
+  if (schedulerRunPromise) return schedulerRunPromise;
+  schedulerRunPromise = runScheduledAgents()
+    .finally(() => {
+      schedulerRunPromise = null;
+    });
+  return schedulerRunPromise;
+}
+
 function startBackgroundScheduler() {
   if (schedulerInterval) {
     clearInterval(schedulerInterval);
   }
   
   // Run checks every 10 minutes
-  schedulerInterval = setInterval(runScheduledAgents, 10 * 60 * 1000);
+  schedulerInterval = setInterval(() => {
+    void runSchedulerCycle();
+  }, 10 * 60 * 1000);
   console.log('AI Agents background scheduler initialized.');
   
   // Also run immediately on boot
-  runScheduledAgents();
+  void runSchedulerCycle();
+}
+
+async function stopBackgroundScheduler() {
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+    schedulerInterval = null;
+  }
+  await schedulerRunPromise;
 }
 
 module.exports = {
   executeAgent,
   startBackgroundScheduler,
+  stopBackgroundScheduler,
   runCEOAgent,
   runCoordinatorAgent,
   runOutreachAgent

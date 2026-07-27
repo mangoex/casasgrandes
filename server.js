@@ -16,6 +16,8 @@ const {
 const { validateInitialPassword } = require('./utils/security');
 const { buildSecurityHeaders, parseTrustProxyHops } = require('./utils/httpSecurity');
 const { normalizeQuoteItems } = require('./utils/quoteValidation');
+const { createHealthHandlers, requestContextMiddleware } = require('./utils/observability');
+const { createGracefulShutdown } = require('./utils/serverLifecycle');
 
 // Routers
 const authRouter = require('./routes/auth');
@@ -32,6 +34,8 @@ if (!JWT_SECRET) {
 
 const trustProxyHops = parseTrustProxyHops(process.env.TRUST_PROXY_HOPS);
 if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
+
+app.use(requestContextMiddleware());
 
 const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
@@ -67,6 +71,9 @@ app.use('/api', (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
 });
+const healthHandlers = createHealthHandlers({ checkReadiness: db.checkReadiness });
+app.get('/health/live', healthHandlers.live);
+app.get('/health/ready', healthHandlers.ready);
 app.use('/api/cotizaciones/:id/adjuntos', authenticateToken, express.json({ limit: '12mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -3488,20 +3495,65 @@ app.use((err, req, res, next) => {
   if (err.message === 'Origin not allowed by CORS') {
     return res.status(403).json({ error: 'Origin not allowed' });
   }
-  console.error('Unhandled request error:', err.message);
+  console.error(JSON.stringify({
+    event: 'http_request_failed',
+    request_id: req.requestId
+  }));
   return res.status(500).json({ error: 'Internal server error' });
 });
 
 // Start only after the schema is ready, avoiding requests against a partially migrated database.
 async function startServer() {
   await db.initSchema();
-  app.listen(PORT, () => {
-    console.log(`Casas Grandes Sales Management Server running on port ${PORT}`);
-    agentsService.startBackgroundScheduler();
+  return new Promise((resolve, reject) => {
+    const server = app.listen(PORT);
+    server.once('error', reject);
+    server.once('listening', () => {
+      console.log(`Casas Grandes Sales Management Server running on port ${PORT}`);
+      agentsService.startBackgroundScheduler();
+      resolve(server);
+    });
   });
 }
 
-startServer().catch(err => {
-  console.error('Unable to initialize database schema:', err.message);
-  process.exit(1);
-});
+function parseShutdownTimeout(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1_000 && parsed <= 60_000 ? parsed : 10_000;
+}
+
+function installSignalHandlers(server) {
+  const shutdown = createGracefulShutdown({
+    server,
+    stopScheduler: agentsService.stopBackgroundScheduler,
+    closeDatabase: db.close,
+    timeoutMs: parseShutdownTimeout(process.env.SHUTDOWN_TIMEOUT_MS),
+    forceExit: code => process.exit(code)
+  });
+  const handleSignal = signal => {
+    shutdown(signal).catch(() => {
+      process.exitCode = 1;
+    });
+  };
+  process.once('SIGTERM', () => handleSignal('SIGTERM'));
+  process.once('SIGINT', () => handleSignal('SIGINT'));
+  return shutdown;
+}
+
+if (require.main === module) {
+  startServer()
+    .then(installSignalHandlers)
+    .catch(async err => {
+      console.error(JSON.stringify({
+        event: 'server_start_failed',
+        error_name: err.name
+      }));
+      await db.close().catch(() => {});
+      process.exitCode = 1;
+    });
+}
+
+module.exports = {
+  app,
+  installSignalHandlers,
+  startServer
+};

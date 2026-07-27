@@ -1,6 +1,7 @@
 const { Pool, types } = require('pg');
 const dotenv = require('dotenv');
 const { createTransactionRunner } = require('./utils/databaseTransaction');
+const { createReadinessCheck } = require('./utils/observability');
 dotenv.config();
 
 // Force PostgreSQL DATE columns (OID 1082) to be returned as simple strings (YYYY-MM-DD)
@@ -324,6 +325,26 @@ function rewriteQuery(sql) {
 }
 
 const transaction = createTransactionRunner(pool, rewriteQuery);
+let closePromise = null;
+
+function parseReadinessTimeout(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 100 && parsed <= 10_000 ? parsed : 2_000;
+}
+
+const readinessTimeoutMs = parseReadinessTimeout(process.env.READINESS_TIMEOUT_MS);
+const checkReadiness = createReadinessCheck({
+  timeoutMs: readinessTimeoutMs,
+  query: () => pool.query({
+    text: 'SELECT 1',
+    query_timeout: readinessTimeoutMs
+  })
+});
+
+function close() {
+  if (!closePromise) closePromise = pool.end();
+  return closePromise;
+}
 
 module.exports = {
   get: async (sql, params = []) => {
@@ -362,5 +383,7 @@ module.exports = {
   
   pool, // Expose raw pool in case direct operations are needed
   initSchema,
-  transaction
+  transaction,
+  checkReadiness,
+  close
 };

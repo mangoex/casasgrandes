@@ -295,3 +295,53 @@ Given una edición que ya insertó una reversión
 When falla el reemplazo de detalles
 Then PostgreSQL revierte la reversión y conserva la cotización original
 ```
+
+## Feature: CHG-008 — Salud operativa y ciclo de vida
+
+### BDD-SC-034 — Proceso vivo
+
+```gherkin
+Given el servidor HTTP está aceptando solicitudes
+When se consulta /health/live aunque PostgreSQL esté degradado
+Then responde 200 con estado alive
+```
+
+### BDD-SC-035 — Dependencia disponible
+
+```gherkin
+Given PostgreSQL responde dentro del límite
+When se consulta /health/ready
+Then responde 200 con estado ready
+```
+
+### BDD-SC-036 — Dependencia degradada
+
+```gherkin
+Given PostgreSQL falla o excede el límite
+When se consulta /health/ready
+Then responde 503 con estado degraded y sin detalle interno
+```
+
+### BDD-SC-037 — Solicitud correlacionada
+
+```gherkin
+Given una solicitud con ID válido o malicioso
+When termina la respuesta
+Then devuelve un ID seguro y registra solo metadatos operativos sin query ni PII
+```
+
+### BDD-SC-038 — Terminación ordenada
+
+```gherkin
+Given servidor, scheduler y pool activos
+When el proceso recibe una señal de terminación
+Then deja de aceptar, espera actividad y cierra cada recurso
+```
+
+### BDD-SC-039 — Señal repetida
+
+```gherkin
+Given un apagado ya iniciado
+When llega otra solicitud de apagado
+Then reutiliza el mismo resultado sin cerrar recursos por segunda vez
+```
