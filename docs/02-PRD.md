@@ -145,3 +145,15 @@ Los mensajes de agenda se construyen localmente, sin enviar asesor, agricultor o
 ### PRD-NFR-005 — Privacidad verificable
 
 Las pruebas inspeccionan el contexto productivo y fallan si reaparece PII o lectura de claves desde PostgreSQL.
+
+## Incremento CHG-005 — Dependencias seguras
+
+### OBJ-007 — Eliminar vulnerabilidades conocidas del runtime
+
+### PRD-FR-017 — Remediación compatible
+
+Las dependencias transitivas vulnerables se actualizarán a versiones corregidas sin introducir saltos mayores innecesarios.
+
+### PRD-NFR-006 — Auditoría reproducible
+
+`npm audit --omit=dev` debe terminar con código 0 y cero vulnerabilidades; la suite completa debe permanecer verde.

@@ -171,3 +171,9 @@
 - Cubre: PRD-NFR-005
 - Aserciones: código productivo usa entorno y transacción Outreach
 - Estado: passed
+
+## TDD-TC-041 — Auditoría de dependencias
+
+- Cubre: BDD-SC-024, PRD-NFR-006
+- Aserciones: `npm audit --omit=dev` reporta cero y `npm test` permanece verde
+- Estado: passed

@@ -24,6 +24,7 @@ Modelo vigente para CHG-001 y CHG-002. Activos principales: sesiones, PII de agr
 | THR-007 | Divulgación | XSS obtiene sesión o PII | HttpOnly, codificación, CSP P0 | retirar `unsafe-inline` en incremento frontend |
 | THR-008 | Manipulación | Condición de carrera en inventario o pujas | transacciones y locks en operaciones CHG-003 | alcance residual documentado en RSK-005 |
 | THR-009 | Privacidad | PII enviada a proveedor IA o expuesta en logs | CHG-004: opt-in, pseudonimización, claves por entorno y redacción | política legal/retención pendiente |
+| THR-010 | DoS / cadena de suministro | Dependencia vulnerable permite caída o manipulación de tráfico | CHG-005: lockfile corregido y `npm audit` | nuevas divulgaciones requieren monitoreo continuo |
 
 ## Casos de abuso obligatorios
 

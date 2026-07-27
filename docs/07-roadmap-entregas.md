@@ -50,3 +50,11 @@
 | 2 | Pruebas de privacidad | TDD-TC-035..040 | completed |
 | 3 | Contextos, logs y coordinación local | SDD-CMP-012..014 | completed |
 | 4 | Persistencia Outreach atómica y gate | SDD-CMP-015 | completed |
+
+## Incremento 5 — CHG-005
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Registrar hallazgo y decisión | RSK-008, ADR-005 | completed |
+| 2 | Actualizar dependencias transitivas compatibles | SDD-CMP-016 | completed |
+| 3 | Ejecutar auditoría y regresión | TDD-TC-041 | completed |

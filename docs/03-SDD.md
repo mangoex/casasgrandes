@@ -123,3 +123,11 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 ### SDD-CMP-015 — Persistencia IA atómica
 
 - La cotización Outreach, detalles, total y notificación se confirman en una transacción.
+
+## Diseño CHG-005
+
+### SDD-CMP-016 — Lockfile corregido
+
+- Cubre: PRD-FR-017, PRD-NFR-006
+- `package-lock.json` fija versiones corregidas de `body-parser`, `tar` y `undici`.
+- No cambia las dependencias directas ni el rango de runtime declarado por la aplicación.

@@ -22,6 +22,7 @@
 | OBJ-006 | PRD-FR-015 | SDD-CMP-014 | BDD-SC-023 | TDD-TC-039 | `writeLog`, `sanitizeLogDetail` | EVD-003: redacción recursiva aprobada | verified-local |
 | OBJ-006 | PRD-FR-016 | SDD-CMP-013 | BDD-SC-021 | TDD-TC-038 | `runCoordinatorAgent` | EVD-003: generación determinista local | verified-local |
 | OBJ-006 | PRD-NFR-005 | SDD-CMP-012, SDD-CMP-013, SDD-CMP-014, SDD-CMP-015 | BDD-SC-018..023 | TDD-TC-035, TDD-TC-036, TDD-TC-037, TDD-TC-038, TDD-TC-039, TDD-TC-040 | CHG-004 | EVD-003: suite completa 37/37 | Gate 4 passed |
+| OBJ-007 | PRD-FR-017, PRD-NFR-006 | SDD-CMP-016, ADR-005 | BDD-SC-024 | TDD-TC-041 | `package-lock.json` | EVD-004: cero vulnerabilidades y 37/37 pruebas | Gate 4 passed |
 
 ## Huecos
 
@@ -61,3 +62,14 @@
 - Resultado de regresión: exit 0, 37/37 aprobadas.
 - Verificación adicional: sintaxis Node, Humanio estricto, política readiness y `git diff --check`.
 - Alcance no ejecutado: invocación contra proveedor IA, PostgreSQL productivo, navegador visual y despliegue.
+
+## EVD-004 — Evidencia local CHG-005
+
+- Fecha: 2026-07-27
+- Comando inicial: `npm audit --omit=dev`
+- Resultado inicial: exit 1, 3 vulnerabilidades (1 crítica, 1 alta, 1 baja).
+- Actualizaciones: `body-parser` 2.2.2→2.3.0, `tar` 7.5.16→7.5.22 y `undici` 6.26.0→6.28.0.
+- Comando verde: `npm audit --omit=dev`
+- Resultado verde: exit 0, cero vulnerabilidades.
+- Regresión: `npm test`, exit 0, 37/37 aprobadas.
+- Verificación adicional: sintaxis Node, Humanio estricto, política readiness y `git diff --check`.

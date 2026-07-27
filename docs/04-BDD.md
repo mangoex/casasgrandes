@@ -209,3 +209,13 @@ Given un error o resultado con email, teléfono o token
 When se registra
 Then el detalle persistido contiene marcadores redactados
 ```
+
+## Feature: CHG-005 — Dependencias seguras
+
+### BDD-SC-024 — Vulnerabilidad conocida
+
+```gherkin
+Given un lockfile con vulnerabilidades críticas o altas conocidas
+When se aplican actualizaciones transitivas compatibles
+Then la auditoría reporta cero vulnerabilidades y la regresión funcional permanece verde
+```

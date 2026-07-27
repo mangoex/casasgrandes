@@ -58,6 +58,10 @@ Nombres, correos, teléfonos, direcciones, URLs de contacto, credenciales y text
 
 Las claves de proveedores solo residirán en el gestor de secretos o variables de entorno; PostgreSQL y logs no serán almacenes autorizados.
 
+### PROJECT-PR-014
+
+Ningún incremento podrá cerrarse con vulnerabilidades críticas o altas conocidas en dependencias de producción.
+
 ## Fuentes canónicas
 
 | Fuente | Autoridad | Responsable |
@@ -68,11 +72,12 @@ Las claves de proveedores solo residirán en el gestor de secretos o variables d
 | `docs/adr/ADR-002.md` | Autorización central y revocación | Responsable técnico |
 | `docs/adr/ADR-003.md` | Transacciones y bloqueos pesimistas | Responsable técnico |
 | `docs/adr/ADR-004.md` | Frontera de privacidad para IA | Responsable de producto y técnico |
+| `docs/adr/ADR-005.md` | Política de dependencias vulnerables | Responsable técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: CHG-001..004; CHG-004 gobierna egreso IA y secretos localmente.
+- Incluye: CHG-001..005; CHG-005 gobierna vulnerabilidades conocidas en dependencias.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios

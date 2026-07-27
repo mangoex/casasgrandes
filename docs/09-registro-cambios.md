@@ -6,6 +6,7 @@
 | CHG-002 | 2026-07-27 | Las sesiones usan identidad vigente, pueden revocarse y las carteras se aíslan por rol y propiedad | PROJECT-PR-006..008, ADR-002, PRD-FR-005..008 | TDD-TC-024..029; EVD-001 | implemented-local |
 | CHG-003 | 2026-07-27 | Inventario, producción y decisiones críticas confirman todos sus efectos o ninguno bajo concurrencia | PROJECT-PR-009..010, ADR-003, PRD-FR-009..011 | TDD-TC-030..034; EVD-002 | implemented-local |
 | CHG-004 | 2026-07-27 | IA externa es opt-in, usa contexto minimizado, secretos por entorno y logs redactados | PROJECT-PR-011..013, ADR-004, PRD-FR-012..016 | TDD-TC-035..040; EVD-003 | implemented-local |
+| CHG-005 | 2026-07-27 | Eliminar vulnerabilidades conocidas críticas y altas del árbol npm sin salto mayor | PROJECT-PR-014, ADR-005, PRD-FR-017 | TDD-TC-041; EVD-004 | implemented-local |
 
 ## Reglas
 
