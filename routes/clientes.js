@@ -1,11 +1,17 @@
 const express = require('express');
 const db = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const {
+  COMMERCIAL_ROLES,
+  requireOwnedResource,
+  requireRoles
+} = require('../middleware/authorization');
 
 const router = express.Router();
+router.use(authenticateToken, requireRoles(COMMERCIAL_ROLES));
 
 // GET /api/clientes
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
   const { asesor_id, cuenta_clave_id, q, page, limit } = req.query;
   try {
     const usesPagination = page !== undefined || limit !== undefined || q !== undefined;
@@ -73,7 +79,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
 // GET /api/clientes/seleccionados?ids=1,2,3
 // Returns the current records for a catalog selection, independently of pagination.
-router.get('/seleccionados', authenticateToken, async (req, res) => {
+router.get('/seleccionados', async (req, res) => {
   const ids = String(req.query.ids || '')
     .split(',')
     .map(value => Number(value))
@@ -112,7 +118,7 @@ router.get('/seleccionados', authenticateToken, async (req, res) => {
 });
 
 // GET /api/clientes/:id
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const client = await db.get(`
@@ -129,6 +135,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     `, [id]);
 
     if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (!requireOwnedResource(req.user, client.asesor_id, res, 'No puedes consultar agricultores de otra cartera.')) return;
     res.json(client);
   } catch (err) {
     console.error(err);
@@ -137,7 +144,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // GET /api/clientes/:id/asociados
-router.get('/:id/asociados', authenticateToken, async (req, res) => {
+router.get('/:id/asociados', async (req, res) => {
   const principalId = Number(req.params.id);
   if (!Number.isInteger(principalId) || principalId <= 0) {
     return res.status(400).json({ error: 'Valid principal client id is required' });
@@ -181,18 +188,19 @@ router.get('/:id/asociados', authenticateToken, async (req, res) => {
 });
 
 // POST /api/clientes
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', async (req, res) => {
   const { nombre, asesor_id, cuenta_clave_id, contacto, telefono, correo, cumpleanos, ubicacion, superficie_text } = req.body;
   if (!nombre) return res.status(400).json({ error: 'Client name is required' });
   
   try {
     const trimmedName = nombre.trim();
-    const existing = await db.get('SELECT id, activo FROM clientes WHERE LOWER(nombre) = LOWER(?)', [trimmedName]);
+    const existing = await db.get('SELECT id, activo, asesor_id FROM clientes WHERE LOWER(nombre) = LOWER(?)', [trimmedName]);
     
     if (existing) {
       if (Number(existing.activo) === 1) {
         return res.status(400).json({ error: 'Un agricultor activo con este nombre ya existe en el sistema.' });
       }
+      if (!requireOwnedResource(req.user, existing.asesor_id, res, 'No puedes reactivar agricultores de otra cartera.')) return;
       
       // Reactivate previously soft-deleted farmer (activo = 0)
       const assignedAsesor = req.user.nivel_rol === 'Asesor'
@@ -237,7 +245,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/clientes/:id
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, asesor_id, cuenta_clave_id, contacto, telefono, correo, cumpleanos, estado_status, ubicacion, superficie_text } = req.body;
   
@@ -245,9 +253,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
     
-    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
-      return res.status(403).json({ error: 'Unauthorized to edit this client' });
-    }
+    if (!requireOwnedResource(req.user, client.asesor_id, res, 'Unauthorized to edit this client')) return;
     
     await db.run(`
       UPDATE clientes
@@ -275,7 +281,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/clientes/:id
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   if (req.user.nivel_rol !== 'Administrador') {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
@@ -295,7 +301,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/clientes/bulk-delete
-router.post('/bulk-delete', authenticateToken, async (req, res) => {
+router.post('/bulk-delete', async (req, res) => {
   if (req.user.nivel_rol !== 'Administrador') {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
@@ -330,14 +336,12 @@ router.post('/bulk-delete', authenticateToken, async (req, res) => {
 });
 
 // GET /api/clientes/:id/visitas
-router.get('/:id/visitas', authenticateToken, async (req, res) => {
+router.get('/:id/visitas', async (req, res) => {
   const { id } = req.params;
   try {
     const client = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
-    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
-      return res.status(403).json({ error: 'Unauthorized to view this client history' });
-    }
+    if (!requireOwnedResource(req.user, client.asesor_id, res, 'Unauthorized to view this client history')) return;
 
     const visits = await db.all(`
       SELECT v.*, a.nombre as asesor_nombre
@@ -373,7 +377,7 @@ router.get('/:id/visitas', authenticateToken, async (req, res) => {
 });
 
 // POST /api/clientes/:id/visitas
-router.post('/:id/visitas', authenticateToken, async (req, res) => {
+router.post('/:id/visitas', async (req, res) => {
   const { id } = req.params;
   const { comentarios_bitacora, proxima_cita } = req.body;
   if (!comentarios_bitacora) return res.status(400).json({ error: 'Comentarios are required' });
@@ -381,9 +385,7 @@ router.post('/:id/visitas', authenticateToken, async (req, res) => {
   try {
     const client = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
-    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
-      return res.status(403).json({ error: 'Unauthorized to register a visit for this client' });
-    }
+    if (!requireOwnedResource(req.user, client.asesor_id, res, 'Unauthorized to register a visit for this client')) return;
     
     const now = new Date().toISOString().slice(0, 10);
     await db.run(`
@@ -399,7 +401,7 @@ router.post('/:id/visitas', authenticateToken, async (req, res) => {
 });
 
 // POST /api/clientes/asociar
-router.post('/asociar', authenticateToken, async (req, res) => {
+router.post('/asociar', async (req, res) => {
   const { principal_id, asociados_ids } = req.body;
   if (!principal_id || !Array.isArray(asociados_ids) || asociados_ids.length === 0) {
     return res.status(400).json({ error: 'principal_id and asociados_ids array are required' });
@@ -451,7 +453,7 @@ router.post('/asociar', authenticateToken, async (req, res) => {
 });
 
 // POST /api/clientes/desasociar
-router.post('/desasociar', authenticateToken, async (req, res) => {
+router.post('/desasociar', async (req, res) => {
   const { cliente_id } = req.body;
   const cId = Number(cliente_id);
   if (!cId || !Number.isInteger(cId)) {
@@ -459,6 +461,9 @@ router.post('/desasociar', authenticateToken, async (req, res) => {
   }
 
   try {
+    const client = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [cId]);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (!requireOwnedResource(req.user, client.asesor_id, res, 'No puedes desasociar agricultores de otra cartera.')) return;
     await db.run('UPDATE clientes SET cliente_principal_id = NULL WHERE id = ?', [cId]);
     res.json({ message: 'Farmer disassociated successfully' });
   } catch (err) {
@@ -468,7 +473,7 @@ router.post('/desasociar', authenticateToken, async (req, res) => {
 });
 
 // POST /api/clientes/disolver-grupo
-router.post('/disolver-grupo', authenticateToken, async (req, res) => {
+router.post('/disolver-grupo', async (req, res) => {
   const { principal_id } = req.body;
   const pId = Number(principal_id);
   if (!pId || !Number.isInteger(pId)) {
@@ -476,6 +481,20 @@ router.post('/disolver-grupo', authenticateToken, async (req, res) => {
   }
 
   try {
+    const principal = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [pId]);
+    if (!principal) return res.status(404).json({ error: 'Principal client not found' });
+    if (!requireOwnedResource(req.user, principal.asesor_id, res, 'No puedes disolver grupos de otra cartera.')) return;
+    if (req.user.nivel_rol === 'Asesor') {
+      const foreignMembers = await db.get(
+        `SELECT count(*)::int AS total
+         FROM clientes
+         WHERE cliente_principal_id = ? AND activo = 1 AND asesor_id <> ?`,
+        [pId, req.user.id]
+      );
+      if (Number(foreignMembers?.total || 0) > 0) {
+        return res.status(409).json({ error: 'El grupo contiene agricultores de otra cartera y requiere intervención administrativa.' });
+      }
+    }
     await db.run('UPDATE clientes SET cliente_principal_id = NULL WHERE cliente_principal_id = ?', [pId]);
     res.json({ message: 'Association group disbanded successfully' });
   } catch (err) {

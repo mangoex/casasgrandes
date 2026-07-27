@@ -10,8 +10,10 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const authRouter = require('../routes/auth');
 
-test('TDD-TC-019/020: login, sesión por cookie HttpOnly y logout funcionan de extremo a extremo HTTP', async t => {
+test('TDD-TC-019/020/028: login, cookie, logout revocable y Bearer funcionan por HTTP', async t => {
   const originalGet = db.get;
+  const originalRun = db.run;
+  let sessionVersion = 1;
   const password = 'Unica-y-segura-2026';
   const passwordHash = await bcrypt.hash(password, 4);
   db.get = async () => ({
@@ -21,10 +23,17 @@ test('TDD-TC-019/020: login, sesión por cookie HttpOnly y logout funcionan de e
     nivel_rol: 'Asesor',
     email: 'asesora@example.test',
     telefono: null,
-    password_hash: passwordHash
+    password_hash: passwordHash,
+    activo: 1,
+    session_version: sessionVersion
   });
+  db.run = async query => {
+    if (String(query).includes('session_version')) sessionVersion += 1;
+    return { changes: 1 };
+  };
   t.after(() => {
     db.get = originalGet;
+    db.run = originalRun;
   });
 
   const app = express();
@@ -68,6 +77,11 @@ test('TDD-TC-019/020: login, sesión por cookie HttpOnly y logout funcionan de e
   });
   assert.equal(logoutResponse.status, 204);
   assert.match(logoutResponse.headers.get('set-cookie'), /^auth_token=;/);
+
+  const revokedResponse = await fetch(`${baseUrl}/api/auth/me`, {
+    headers: { Cookie: cookie }
+  });
+  assert.equal(revokedResponse.status, 403);
 
   const bearerResponse = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',

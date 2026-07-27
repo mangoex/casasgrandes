@@ -26,6 +26,18 @@ Ninguna cuenta nueva o importada tendrá una contraseña conocida, compartida o 
 
 Las sesiones del navegador se transportarán en cookies protegidas contra lectura por JavaScript.
 
+### PROJECT-PR-006
+
+Toda autorización se decidirá en el servidor con la identidad activa y el rol vigente almacenados en PostgreSQL; los datos del JWT no serán autoridad suficiente.
+
+### PROJECT-PR-007
+
+Un Asesor solo podrá leer o mutar clientes, cotizaciones, planeaciones, prospectos y reportes cuyo `asesor_id` corresponda a su identidad vigente.
+
+### PROJECT-PR-008
+
+Las rutas sensibles aplicarán denegación por defecto y una lista explícita de roles permitidos.
+
 ## Fuentes canónicas
 
 | Fuente | Autoridad | Responsable |
@@ -33,11 +45,12 @@ Las sesiones del navegador se transportarán en cookies protegidas contra lectur
 | Esta Constitución | Reglas de seguridad del proyecto | Responsable del producto |
 | `docs/02-PRD.md` | Requisitos del incremento | Responsable del producto |
 | `docs/adr/ADR-001.md` | Decisión de sesión web | Responsable técnico |
+| `docs/adr/ADR-002.md` | Autorización central y revocación | Responsable técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: cambios P0 aprobados bajo `CHG-001`.
+- Incluye: cambios P0 de `CHG-001` y autorización/revocación local de `CHG-002`.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios

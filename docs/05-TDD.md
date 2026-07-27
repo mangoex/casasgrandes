@@ -63,3 +63,45 @@
 - Contrato: alta de asesor exige contraseña.
 - Seguridad: XSS, sesión y credencial inicial.
 - Regresión: arranque no destructivo y ausencia de secretos demostrativos.
+
+## TDD-TC-024 — Cuenta activa y versión
+
+- Cubre: BDD-SC-007, BDD-SC-008, PRD-FR-005
+- Nivel: unitario de middleware
+- Aserciones: usuario inexistente/inactivo o versión distinta recibe 403; usuario vigente continúa con rol de DB
+- Estado: passed
+
+## TDD-TC-025 — Política de roles
+
+- Cubre: BDD-SC-011, PRD-FR-007
+- Nivel: unitario
+- Aserciones: lista permitida continúa; cualquier otro rol recibe 403
+- Estado: passed
+
+## TDD-TC-026 — Lectura de cliente ajeno
+
+- Cubre: BDD-SC-009, PRD-FR-006
+- Nivel: integración HTTP
+- Aserciones: Asesor recibe 403 y no obtiene PII; Administrador y Coordinador continúan
+- Estado: passed
+
+## TDD-TC-027 — Mutación de asociaciones ajenas
+
+- Cubre: BDD-SC-010, PRD-FR-006
+- Nivel: integración HTTP
+- Aserciones: desasociar y disolver grupo ajeno no ejecutan UPDATE
+- Estado: passed
+
+## TDD-TC-028 — Revocación por logout
+
+- Cubre: BDD-SC-012, PRD-FR-008
+- Nivel: integración HTTP
+- Aserciones: logout incrementa versión; token previo ya no autentica
+- Estado: passed
+
+## TDD-TC-029 — Regresión de cobertura
+
+- Cubre: PRD-NFR-003
+- Nivel: estructural y suite completa
+- Aserciones: rutas comerciales críticas declaran política; TDD-TC-018..028 pasan
+- Estado: passed

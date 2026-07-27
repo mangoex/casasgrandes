@@ -55,3 +55,31 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - Permisos: login público; sesión requerida para APIs; alta de asesor reservada a Administrador.
 - Logs y métricas: errores existentes; observabilidad ampliada permanece en fase posterior.
 - Migraciones y rollback: el cambio elimina una mutación destructiva; rollback de código restaura archivos, nunca datos borrados.
+
+## Diseño CHG-002
+
+### SDD-CMP-005 — Identidad activa
+
+- Cubre: PRD-FR-005, PRD-FR-008, PRD-NFR-003
+- `authenticateToken` valida firma y después consulta `asesores`.
+- El JWT incluye `session_version`.
+- `req.user` se reconstruye desde la fila vigente, no desde claims de rol.
+
+### SDD-CMP-006 — Políticas de rol
+
+- Cubre: PRD-FR-007, PRD-NFR-003
+- `requireRoles(...roles)` deniega cualquier rol no listado.
+- Matriz: Administrador global; Coordinador comercial/programación; Asesor cartera propia; Almacen y Acopio inventario según operación.
+
+### SDD-CMP-007 — Propiedad de recursos
+
+- Cubre: PRD-FR-006, PRD-NFR-003
+- `requireOwnership(user, ownerId)` permite Administrador/Coordinador y exige igualdad para Asesor.
+- Los endpoints cargan primero una proyección mínima `{id, asesor_id}` y autorizan antes de devolver PII o mutar.
+
+### SDD-CMP-008 — Revocación
+
+- Cubre: PRD-FR-008
+- `session_version` inicia en 1.
+- Logout y cambios sensibles incrementan la versión en la misma base canónica.
+- Tokens anteriores fallan antes de alcanzar el controlador.

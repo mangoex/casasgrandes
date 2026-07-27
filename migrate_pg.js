@@ -106,6 +106,7 @@ async function runMigration() {
         telefono TEXT,
         cumpleanos TEXT,
         password_hash TEXT NOT NULL,
+        session_version INTEGER NOT NULL DEFAULT 1,
         activo INTEGER DEFAULT 1,
         calificacion REAL DEFAULT 5.0
       )

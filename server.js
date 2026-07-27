@@ -8,6 +8,11 @@ const agentsService = require('./agentsService');
 const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
 const { authenticateToken, requireProgramacionManager } = require('./middleware/auth');
+const {
+  COMMERCIAL_ROLES,
+  INVENTORY_ROLES,
+  requireRoles
+} = require('./middleware/authorization');
 const { validateInitialPassword } = require('./utils/security');
 
 // Routers
@@ -64,6 +69,26 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Mount API Routers
 app.use('/api/auth', authRouter);
 app.use('/api/clientes', clientesRouter);
+
+app.use(
+  [
+    '/api/asesores',
+    '/api/asignacion',
+    '/api/cotizaciones',
+    '/api/cuentas-clave',
+    '/api/dashboard',
+    '/api/metas',
+    '/api/metas-globales',
+    '/api/notificaciones',
+    '/api/planificacion',
+    '/api/programacion',
+    '/api/prospectos',
+    '/api/reportes-etapa'
+  ],
+  authenticateToken,
+  requireRoles(COMMERCIAL_ROLES)
+);
+app.use('/api/almacen', authenticateToken, requireRoles(INVENTORY_ROLES));
 
 // -------------------------------------------------------------
 // PRODUCTS ENDPOINTS
@@ -408,8 +433,8 @@ app.post('/api/asesores', authenticateToken, async (req, res) => {
     const password_hash = await bcrypt.hash(password, 10);
     const califVal = (calificacion === undefined || calificacion === null || calificacion === '') ? 5.0 : Number(calificacion);
     const result = await db.run(`
-      INSERT INTO asesores (nombre, usuario, nivel_rol, email, telefono, cumpleanos, password_hash, activo, calificacion)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+      INSERT INTO asesores (nombre, usuario, nivel_rol, email, telefono, cumpleanos, password_hash, session_version, activo, calificacion)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)
     `, [nombre.trim(), usuario.trim(), nivel_rol, email.trim(), telefono || null, cumpleanos || null, password_hash, califVal]);
     res.status(201).json({ id: result.id, message: 'Advisor registered successfully' });
   } catch (err) {
@@ -447,12 +472,18 @@ app.put('/api/asesores/:id', authenticateToken, async (req, res) => {
 
     const activeVal = (activo === undefined || activo === null) ? adv.activo : (activo ? 1 : 0);
     const califVal = (calificacion === undefined || calificacion === null || calificacion === '') ? adv.calificacion : Number(calificacion);
+    const revokeSessions = Boolean(
+      (password && password.trim().length > 0)
+      || nivel_rol !== adv.nivel_rol
+      || Number(activeVal) !== Number(adv.activo)
+    );
 
     await db.run(`
       UPDATE asesores
-      SET nombre = ?, usuario = ?, nivel_rol = ?, email = ?, telefono = ?, cumpleanos = ?, password_hash = ?, activo = ?, calificacion = ?
+      SET nombre = ?, usuario = ?, nivel_rol = ?, email = ?, telefono = ?, cumpleanos = ?, password_hash = ?,
+          activo = ?, calificacion = ?, session_version = session_version + ?
       WHERE id = ?
-    `, [nombre.trim(), usuario.trim(), nivel_rol, email.trim(), telefono || null, cumpleanos || null, passwordHash, activeVal, califVal, id]);
+    `, [nombre.trim(), usuario.trim(), nivel_rol, email.trim(), telefono || null, cumpleanos || null, passwordHash, activeVal, califVal, revokeSessions ? 1 : 0, id]);
     res.json({ message: 'Advisor updated successfully' });
   } catch (err) {
     console.error(err);
@@ -469,7 +500,7 @@ app.delete('/api/asesores/:id', authenticateToken, async (req, res) => {
     const adv = await db.get('SELECT * FROM asesores WHERE id = ?', [id]);
     if (!adv) return res.status(404).json({ error: 'Advisor not found' });
 
-    await db.run('UPDATE asesores SET activo = 0 WHERE id = ?', [id]);
+    await db.run('UPDATE asesores SET activo = 0, session_version = session_version + 1 WHERE id = ?', [id]);
     await db.run('UPDATE clientes SET asesor_id = NULL WHERE asesor_id = ?', [id]);
     res.json({ message: 'Advisor deactivated and their clients unassigned successfully' });
   } catch (err) {

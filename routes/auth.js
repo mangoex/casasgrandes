@@ -33,7 +33,14 @@ router.post('/login', async (req, res) => {
     }
     
     const token = jwt.sign(
-      { id: user.id, nombre: user.nombre, usuario: user.usuario, nivel_rol: user.nivel_rol, email: user.email },
+      {
+        id: user.id,
+        nombre: user.nombre,
+        usuario: user.usuario,
+        nivel_rol: user.nivel_rol,
+        email: user.email,
+        session_version: Number(user.session_version || 1)
+      },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -66,8 +73,12 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 // POST /api/auth/logout
-router.post('/logout', (req, res) => {
+router.post('/logout', authenticateToken, async (req, res) => {
   const options = buildSessionCookieOptions();
+  await db.run(
+    'UPDATE asesores SET session_version = session_version + 1 WHERE id = ?',
+    [req.user.id]
+  );
   res.clearCookie(SESSION_COOKIE_NAME, {
     httpOnly: options.httpOnly,
     sameSite: options.sameSite,

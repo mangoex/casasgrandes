@@ -19,7 +19,7 @@ window.fetch = async function(...args) {
         // A non-JSON failure must not be treated as an expired session.
       }
 
-      const invalidSession = ['Access token required', 'Invalid or expired token'].includes(errorMessage);
+      const invalidSession = ['Access token required', 'Invalid or expired token', 'Session revoked'].includes(errorMessage);
       if (!urlStr.includes('/api/auth/login') && invalidSession) {
         console.warn('Session expired or invalid. Redirecting to login...', urlStr);
         user = null;

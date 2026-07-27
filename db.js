@@ -30,6 +30,7 @@ async function initSchema() {
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS disponible_para_puja INTEGER DEFAULT 0');
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cliente_principal_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL');
     await pool.query('ALTER TABLE asesores ADD COLUMN IF NOT EXISTS calificacion REAL DEFAULT 5.0');
+    await pool.query('ALTER TABLE asesores ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 1');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_faena REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_clavis REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cropprotection REAL DEFAULT 0.0');

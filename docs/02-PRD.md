@@ -61,3 +61,39 @@ Métrica: pruebas existentes aprobadas y login web funcional sin token legible p
 - Ninguna contraseña pública o implícita en rutas productivas o formularios.
 - Ningún flujo P0 renderiza contenido no confiable sin escape.
 - Pruebas y validación Humanio con evidencia ejecutada.
+
+## Incremento CHG-002 — Autorización y revocación
+
+### OBJ-004 — Contener acceso por identidad, rol y propiedad
+
+Impedir que una cuenta activa consulte o modifique recursos fuera de su función o cartera, y revocar inmediatamente sesiones que hayan dejado de ser válidas.
+
+### PRD-FR-005 — Identidad vigente
+
+Cada petición protegida debe validar en PostgreSQL que la cuenta siga activa, conservar el rol vigente y presentar la misma versión de sesión que el token.
+
+Criterio de aceptación: una cuenta desactivada, una versión anterior o un usuario inexistente recibe `403` sin ejecutar el endpoint.
+
+### PRD-FR-006 — Propiedad comercial
+
+Un Asesor solo puede acceder a clientes, asociaciones, cotizaciones, planeaciones, prospectos, visitas y reportes propios.
+
+Criterio de aceptación: cambiar el ID por el de otra cartera produce `403` y ninguna mutación.
+
+### PRD-FR-007 — Política explícita por rol
+
+Las rutas sensibles deben declarar roles permitidos mediante políticas reutilizables. Almacén y Acopio no pueden acceder a carteras comerciales; Asesor no puede ejecutar funciones administrativas.
+
+Criterio de aceptación: la matriz de roles cuenta con pruebas positivas y negativas.
+
+### PRD-FR-008 — Revocación
+
+Logout, desactivación, cambio de rol y cambio de contraseña revocan los tokens emitidos previamente.
+
+Criterio de aceptación: reutilizar un token anterior a cualquiera de esos eventos produce `403`.
+
+### PRD-NFR-003 — Denegación segura
+
+La autorización debe fallar cerrada, responder antes de la lógica productiva y no depender de filtros enviados por el cliente.
+
+Métrica: 100% de TDD-TC-024..029 aprobadas y ninguna regresión de TDD-TC-018..023.

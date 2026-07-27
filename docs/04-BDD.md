@@ -61,3 +61,59 @@ Then la migración se detiene antes de crear usuarios
 - Revocación inmediata de sesiones al desactivar usuarios.
 - Autorización horizontal completa.
 - Fallos concurrentes de inventario y pujas.
+
+## Feature: PRD-FR-005 — Identidad vigente
+
+### BDD-SC-007 — Cuenta desactivada
+
+```gherkin
+Given un token válido de una cuenta posteriormente desactivada
+When intenta usar una ruta protegida
+Then recibe 403 y el controlador no se ejecuta
+```
+
+### BDD-SC-008 — Rol actualizado
+
+```gherkin
+Given un token emitido antes de un cambio de rol
+When intenta reutilizarlo
+Then recibe 403 por versión revocada
+```
+
+## Feature: PRD-FR-006 — Propiedad comercial
+
+### BDD-SC-009 — Lectura horizontal
+
+```gherkin
+Given un Asesor autenticado
+When solicita por ID un agricultor de otro Asesor
+Then recibe 403 sin datos personales
+```
+
+### BDD-SC-010 — Mutación horizontal
+
+```gherkin
+Given un Asesor autenticado
+When intenta desasociar o disolver un grupo ajeno
+Then recibe 403 y ninguna fila cambia
+```
+
+## Feature: PRD-FR-007 — Roles explícitos
+
+### BDD-SC-011 — Rol de almacén en cartera
+
+```gherkin
+Given una cuenta con rol Almacen o Acopio
+When solicita una ruta de clientes
+Then recibe 403
+```
+
+## Feature: PRD-FR-008 — Logout revocable
+
+### BDD-SC-012 — Reutilización posterior al logout
+
+```gherkin
+Given una sesión válida
+When ejecuta logout y reutiliza el token anterior
+Then recibe 403
+```
