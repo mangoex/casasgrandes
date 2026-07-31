@@ -297,6 +297,62 @@ async function initSchema() {
       console.log('Operational data clean state verified: cleared leftover test planning records.');
     }
 
+    // Create comision_reglas_base table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS comision_reglas_base (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER REFERENCES productos(id) ON DELETE CASCADE,
+        tipo_categoria TEXT,
+        condicion_pago TEXT,
+        tipo_valor TEXT NOT NULL CHECK (tipo_valor IN ('porcentaje', 'monto_fijo')),
+        valor REAL NOT NULL,
+        activo INTEGER DEFAULT 1,
+        CONSTRAINT chk_producto_o_categoria CHECK (producto_id IS NOT NULL OR tipo_categoria IS NOT NULL)
+      )
+    `);
+
+    // Create comision_reglas_temporada table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS comision_reglas_temporada (
+        id SERIAL PRIMARY KEY,
+        temporada_id INTEGER NOT NULL REFERENCES temporadas(id) ON DELETE CASCADE,
+        producto_id INTEGER REFERENCES productos(id),
+        tipo_valor TEXT NOT NULL CHECK (tipo_valor IN ('porcentaje', 'monto_fijo')),
+        valor REAL NOT NULL,
+        comportamiento TEXT NOT NULL CHECK (comportamiento IN ('sobrescribir', 'sumar')),
+        activo INTEGER DEFAULT 1
+      )
+    `);
+
+    // Create comision_bonos_metas table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS comision_bonos_metas (
+        id SERIAL PRIMARY KEY,
+        ciclo_agricola TEXT NOT NULL,
+        porcentaje_meta_requerido REAL NOT NULL,
+        bono_mxn REAL NOT NULL,
+        activo INTEGER DEFAULT 1
+      )
+    `);
+
+    // Create comisiones_generadas table and indexes
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS comisiones_generadas (
+        id SERIAL PRIMARY KEY,
+        cotizacion_id INTEGER REFERENCES cotizaciones(id),
+        cotizacion_detalle_id INTEGER REFERENCES cotizacion_detalles(id),
+        asesor_id INTEGER NOT NULL REFERENCES asesores(id),
+        fecha_calculo TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        monto_base_aplicado REAL NOT NULL,
+        monto_temporada_aplicado REAL DEFAULT 0.0,
+        total_comision_mxn REAL NOT NULL,
+        estatus TEXT NOT NULL DEFAULT 'Pendiente',
+        notas TEXT
+      )
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_comisiones_asesor ON comisiones_generadas(asesor_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_comisiones_estatus ON comisiones_generadas(estatus)');
+
     console.log('PostgreSQL schema auto-updates checked/applied successfully.');
   } catch (err) {
     console.error('Error checking/applying PostgreSQL schema updates:', err.message);
@@ -325,8 +381,11 @@ function rewriteQuery(sql) {
   return rewritten;
 }
 
+const initSchemaPromise = initSchema();
+
 module.exports = {
   get: async (sql, params = []) => {
+    await initSchemaPromise;
     const rewritten = rewriteQuery(sql);
     try {
       const result = await pool.query(rewritten, params);
@@ -338,6 +397,7 @@ module.exports = {
   },
   
   all: async (sql, params = []) => {
+    await initSchemaPromise;
     const rewritten = rewriteQuery(sql);
     try {
       const result = await pool.query(rewritten, params);
@@ -349,6 +409,7 @@ module.exports = {
   },
   
   run: async (sql, params = []) => {
+    await initSchemaPromise;
     const rewritten = rewriteQuery(sql);
     try {
       const result = await pool.query(rewritten, params);
@@ -360,6 +421,7 @@ module.exports = {
     }
   },
   
-  pool, // Expose raw pool in case direct operations are needed
-  initSchema
+  initSchemaPromise,
+  initSchema,
+  pool // Expose raw pool in case direct operations are needed
 };

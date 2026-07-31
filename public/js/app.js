@@ -293,6 +293,7 @@ async function showAppView() {
         'crm-view': 'Canal de Ventas',
         'planeacion-view': 'Planificación',
         'cotizador-view': 'Cotizador',
+        'comisiones-view': 'Módulo de Comisiones',
         'catalog-view': 'Catálogo de Productos'
       };
       
@@ -418,6 +419,8 @@ function switchView(viewId, title) {
       activePlanningQuoteContext = null;
     }
     loadCotizadorConfig();
+  } else if (viewId === 'comisiones-view') {
+    loadComisionesView();
   } else if (viewId === 'catalog-view') {
     loadCatalogData();
   } else if (viewId === 'almacen-view') {
@@ -8080,5 +8083,447 @@ function bindProgramacionEventListeners() {
   const savePreciosBtn = document.getElementById('btn-save-precios');
   if (savePreciosBtn) {
     savePreciosBtn.addEventListener('click', saveMonthlyPricing);
+  }
+}
+
+// -------------------------------------------------------------
+// MÓDULO DE COMISIONES - FRONTEND CONTROLLER
+// -------------------------------------------------------------
+
+let currentComisionesReporteData = [];
+
+function switchComisionTab(tabName) {
+  const btnReportes = document.getElementById('tab-btn-reportes');
+  const btnTabulador = document.getElementById('tab-btn-tabulador');
+  const contentReportes = document.getElementById('tab-reportes');
+  const contentTabulador = document.getElementById('tab-tabulador');
+
+  if (!contentReportes || !contentTabulador) return;
+
+  if (tabName === 'reportes') {
+    if (btnReportes) {
+      btnReportes.classList.add('active', 'btn-primary');
+      btnReportes.classList.remove('btn-secondary');
+    }
+    if (btnTabulador) {
+      btnTabulador.classList.remove('active', 'btn-primary');
+      btnTabulador.classList.add('btn-secondary');
+    }
+    contentReportes.style.display = 'block';
+    contentReportes.classList.add('active');
+    contentTabulador.style.display = 'none';
+    contentTabulador.classList.remove('active');
+    cargarKPIsYReporteComisiones();
+  } else {
+    if (btnTabulador) {
+      btnTabulador.classList.add('active', 'btn-primary');
+      btnTabulador.classList.remove('btn-secondary');
+    }
+    if (btnReportes) {
+      btnReportes.classList.remove('active', 'btn-primary');
+      btnReportes.classList.add('btn-secondary');
+    }
+    contentTabulador.style.display = 'block';
+    contentTabulador.classList.add('active');
+    contentReportes.style.display = 'none';
+    contentReportes.classList.remove('active');
+    cargarTabuladorComisiones();
+  }
+}
+
+async function loadComisionesView() {
+  const mesInput = document.getElementById('comisiones-filtro-mes');
+  if (mesInput && !mesInput.value) {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    mesInput.value = `${today.getFullYear()}-${month}`;
+  }
+
+  try {
+    if (user && user.nivel_rol === 'Administrador') {
+      const resAdvisors = await fetch('/api/asesores', { headers: getHeaders() });
+      if (resAdvisors.ok) {
+        const advisors = await resAdvisors.json();
+        const selAsesor = document.getElementById('comisiones-filtro-asesor');
+        if (selAsesor) {
+          selAsesor.innerHTML = '<option value="">-- Todos los Asesores --</option>' + 
+            advisors.map(a => `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`).join('');
+        }
+      }
+    }
+
+    const resProds = await fetch('/api/productos', { headers: getHeaders() });
+    if (resProds.ok) {
+      const prods = await resProds.json();
+      const selBaseProd = document.getElementById('regla-base-producto-id');
+      const selTempProd = document.getElementById('regla-temp-producto-id');
+      if (selBaseProd) {
+        selBaseProd.innerHTML = prods.map(p => `<option value="${p.id}">${escapeHtml(p.producto)} ($${p.list_price_mxn})</option>`).join('');
+      }
+      if (selTempProd) {
+        selTempProd.innerHTML = '<option value="">-- Aplica a todos --</option>' + 
+          prods.map(p => `<option value="${p.id}">${escapeHtml(p.producto)}</option>`).join('');
+      }
+    }
+
+    const resTemp = await fetch('/api/temporadas', { headers: getHeaders() });
+    if (resTemp.ok) {
+      const temp = await resTemp.json();
+      const selTemp = document.getElementById('regla-temp-temporada-id');
+      if (selTemp) {
+        selTemp.innerHTML = temp.map(t => `<option value="${t.id}">${escapeHtml(t.actividad)} (${t.estado_operacion} ${t.descuento_porcentaje}%)</option>`).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Error loading comisiones dropdowns:', err);
+  }
+
+  await cargarKPIsYReporteComisiones();
+}
+
+async function cargarKPIsYReporteComisiones() {
+  const ciclo = document.getElementById('comisiones-filtro-ciclo')?.value || 'O-I 2026';
+  const valMes = document.getElementById('comisiones-filtro-mes')?.value || '';
+  let mes = '';
+  let anio = '';
+  if (valMes) {
+    const parts = valMes.split('-');
+    anio = parts[0];
+    mes = parts[1];
+  }
+  const asesorId = document.getElementById('comisiones-filtro-asesor')?.value || '';
+  const estatus = document.getElementById('comisiones-filtro-estatus')?.value || '';
+
+  try {
+    let kpiUrl = `/api/comisiones/kpis?ciclo=${encodeURIComponent(ciclo)}`;
+    if (mes) kpiUrl += `&mes=${mes}`;
+    if (anio) kpiUrl += `&anio=${anio}`;
+    if (asesorId) kpiUrl += `&asesor_id=${asesorId}`;
+
+    const resKpi = await fetch(kpiUrl, { headers: getHeaders() });
+    if (resKpi.ok) {
+      const kpis = await resKpi.json();
+      const elTotal = document.getElementById('kpi-total-mes');
+      const elMeta = document.getElementById('kpi-progreso-meta');
+      const elBono = document.getElementById('kpi-bono');
+
+      if (elTotal) elTotal.textContent = `$${parseFloat(kpis.total_generado_mes_mxn).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2})} MXN`;
+      if (elMeta) elMeta.textContent = `${kpis.progreso_meta_porcentaje}%`;
+      if (elBono) elBono.textContent = `$${parseFloat(kpis.bono_proyectado_mxn).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2})} MXN`;
+    }
+  } catch (err) {
+    console.error('Error loading KPIs:', err);
+  }
+
+  try {
+    let repUrl = '/api/comisiones/reporte?';
+    if (asesorId) repUrl += `&asesor_id=${asesorId}`;
+    if (estatus) repUrl += `&estatus=${encodeURIComponent(estatus)}`;
+
+    const resRep = await fetch(repUrl, { headers: getHeaders() });
+    if (resRep.ok) {
+      const data = await resRep.json();
+      currentComisionesReporteData = data;
+      renderTablaComisiones(data);
+    }
+  } catch (err) {
+    console.error('Error loading comisiones report:', err);
+  }
+}
+
+function renderTablaComisiones(data) {
+  const tbody = document.getElementById('tabla-comisiones-body');
+  if (!tbody) return;
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-light); padding: 30px;">No se encontraron comisiones registradas.</td></tr>`;
+    return;
+  }
+
+  const isAdmin = user && user.nivel_rol === 'Administrador';
+
+  tbody.innerHTML = data.map(row => {
+    const fechaStr = row.fecha_calculo ? row.fecha_calculo.slice(0, 10) : '-';
+    const totalVal = parseFloat(row.total_comision_mxn);
+    const isNegative = totalVal < 0;
+
+    let badgeClass = 'badge-secondary';
+    if (row.estatus === 'Pagada') badgeClass = 'badge-success';
+    else if (row.estatus === 'Pendiente') badgeClass = 'badge-warning';
+    else if (row.estatus === 'Cancelada') badgeClass = 'badge-danger';
+
+    const checkboxHtml = isAdmin
+      ? `<td style="text-align: center;">${row.estatus === 'Pendiente' ? `<input type="checkbox" class="check-comision-item" value="${row.id}">` : ''}</td>`
+      : '';
+
+    return `
+      <tr style="${isNegative ? 'background: rgba(220, 53, 69, 0.08);' : ''}">
+        ${checkboxHtml}
+        <td>${fechaStr}</td>
+        <td><strong>${escapeHtml(row.asesor_nombre || 'Asesor')}</strong></td>
+        <td>${escapeHtml(row.folio_cotizacion || ('Cot. #' + row.cotizacion_id))}</td>
+        <td>${escapeHtml(row.producto_nombre || row.notas || 'Detalle Venta')}</td>
+        <td>$${parseFloat(row.monto_base_aplicado).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td>$${parseFloat(row.monto_temporada_aplicado).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td style="font-weight: bold; color: ${isNegative ? 'var(--danger, #dc3545)' : 'var(--success, #28a745)'};">
+          $${totalVal.toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2})}
+        </td>
+        <td><span class="badge ${badgeClass}">${row.estatus}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function toggleReglaBaseTargetInput(targetType) {
+  const grpProd = document.getElementById('group-regla-base-producto');
+  const grpCat = document.getElementById('group-regla-base-categoria');
+  if (targetType === 'categoria') {
+    if (grpProd) grpProd.style.display = 'none';
+    if (grpCat) grpCat.style.display = 'block';
+  } else {
+    if (grpProd) grpProd.style.display = 'block';
+    if (grpCat) grpCat.style.display = 'none';
+  }
+}
+
+async function guardarReglaBase(e) {
+  e.preventDefault();
+  const targetType = document.getElementById('regla-base-target-type').value;
+  const productoId = targetType === 'producto' ? document.getElementById('regla-base-producto-id').value : null;
+  const tipoCategoria = targetType === 'categoria' ? document.getElementById('regla-base-categoria').value : null;
+  const condicionPago = document.getElementById('regla-base-condicion-pago').value;
+  const tipoValor = document.getElementById('regla-base-tipo-valor').value;
+  const valor = document.getElementById('regla-base-valor').value;
+
+  try {
+    const res = await fetch('/api/comisiones/reglas/base', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ producto_id: productoId, tipo_categoria: tipoCategoria, condicion_pago: condicionPago, tipo_valor: tipoValor, valor })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar regla');
+    alert('Regla base guardada correctamente');
+    document.getElementById('form-regla-base').reset();
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function guardarReglaTemporada(e) {
+  e.preventDefault();
+  const temporadaId = document.getElementById('regla-temp-temporada-id').value;
+  const productoId = document.getElementById('regla-temp-producto-id').value || null;
+  const tipoValor = document.getElementById('regla-temp-tipo-valor').value;
+  const valor = document.getElementById('regla-temp-valor').value;
+  const comportamiento = document.getElementById('regla-temp-comportamiento').value;
+
+  try {
+    const res = await fetch('/api/comisiones/reglas/temporada', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ temporada_id: temporadaId, producto_id: productoId, tipo_valor: tipoValor, valor, comportamiento })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar regla');
+    alert('Regla de temporada guardada correctamente');
+    document.getElementById('form-regla-temporada').reset();
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function guardarReglaBono(e) {
+  e.preventDefault();
+  const cicloAgricola = document.getElementById('regla-bono-ciclo').value;
+  const pct = document.getElementById('regla-bono-pct').value;
+  const bonoMxn = document.getElementById('regla-bono-mxn').value;
+
+  try {
+    const res = await fetch('/api/comisiones/bonos', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ ciclo_agricola: cicloAgricola, porcentaje_meta_requerido: pct, bono_mxn: bonoMxn })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar bono');
+    alert('Regla de bono guardada correctamente');
+    document.getElementById('form-regla-bono').reset();
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function cargarTabuladorComisiones() {
+  try {
+    const res = await fetch('/api/comisiones/reglas', { headers: getHeaders() });
+    if (!res.ok) return;
+
+    const { base, temporada, bonos } = await res.json();
+
+    const tbodyBase = document.getElementById('tabla-reglas-base-body');
+    if (tbodyBase) {
+      if (!base || base.length === 0) {
+        tbodyBase.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">No hay reglas base registradas.</td></tr>';
+      } else {
+        tbodyBase.innerHTML = base.map(r => `
+          <tr>
+            <td>#${r.id}</td>
+            <td><strong>${escapeHtml(r.producto_nombre || ('Categoría: ' + r.tipo_categoria))}</strong></td>
+            <td>${escapeHtml(r.condicion_pago || 'Todos')}</td>
+            <td>${r.tipo_valor === 'porcentaje' ? 'Porcentaje (%)' : 'Monto Fijo ($)'}</td>
+            <td>${r.tipo_valor === 'porcentaje' ? r.valor + '%' : '$' + r.valor}</td>
+            <td><span class="badge ${r.activo ? 'badge-success' : 'badge-secondary'}">${r.activo ? 'Activa' : 'Inactiva'}</span></td>
+            <td>
+              <button class="btn btn-outline" style="padding: 2px 8px; font-size: 12px;" onclick="toggleEstadoReglaBase(${r.id}, ${r.activo ? 0 : 1})">
+                ${r.activo ? 'Desactivar' : 'Activar'}
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    const tbodyTemp = document.getElementById('tabla-reglas-temporada-body');
+    if (tbodyTemp) {
+      if (!temporada || temporada.length === 0) {
+        tbodyTemp.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">No hay reglas de temporada registradas.</td></tr>';
+      } else {
+        tbodyTemp.innerHTML = temporada.map(t => `
+          <tr>
+            <td>#${t.id}</td>
+            <td>${escapeHtml(t.temporada_nombre || 'Temporada')}</td>
+            <td>${escapeHtml(t.producto_nombre || 'Todos los productos')}</td>
+            <td>${t.tipo_valor === 'porcentaje' ? 'Porcentaje (%)' : 'Monto Fijo ($)'}</td>
+            <td>${t.tipo_valor === 'porcentaje' ? t.valor + '%' : '$' + t.valor}</td>
+            <td><span class="badge badge-info">${escapeHtml(t.comportamiento)}</span></td>
+            <td><span class="badge ${t.activo ? 'badge-success' : 'badge-secondary'}">${t.activo ? 'Activa' : 'Inactiva'}</span></td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    const tbodyBonos = document.getElementById('tabla-reglas-bonos-body');
+    if (tbodyBonos) {
+      if (!bonos || bonos.length === 0) {
+        tbodyBonos.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-light);">No hay escalas de bonos registradas.</td></tr>';
+      } else {
+        tbodyBonos.innerHTML = bonos.map(b => `
+          <tr>
+            <td>#${b.id}</td>
+            <td>${escapeHtml(b.ciclo_agricola)}</td>
+            <td><strong>${b.porcentaje_meta_requerido}%</strong></td>
+            <td style="color: var(--success, #28a745); font-weight: bold;">$${parseFloat(b.bono_mxn).toLocaleString('es-MX', {minimumFractionDigits:2})} MXN</td>
+            <td><span class="badge ${b.activo ? 'badge-success' : 'badge-secondary'}">${b.activo ? 'Activa' : 'Inactiva'}</span></td>
+          </tr>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Error loading tabulador:', err);
+  }
+}
+
+async function toggleEstadoReglaBase(id, nuevoActivo) {
+  try {
+    const res = await fetch(`/api/comisiones/reglas/base/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ activo: nuevoActivo })
+    });
+    if (!res.ok) throw new Error('Error al actualizar regla');
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+function toggleSelectAllComisiones(masterCheckbox) {
+  const checkboxes = document.querySelectorAll('.check-comision-item');
+  checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+}
+
+async function aprobarPagoComisionesSeleccionadas() {
+  const checkboxes = document.querySelectorAll('.check-comision-item:checked');
+  if (checkboxes.length === 0) {
+    alert('Por favor selecciona al menos una comisión pendiente.');
+    return;
+  }
+
+  const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+  if (!confirm(`¿Estás seguro de marcar ${ids.length} comisiones como PAGADAS? Esta acción congela el registro contable.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/comisiones/pagar', {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ ids_comisiones: ids })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al procesar pago');
+    alert(data.message || 'Comisiones pagadas con éxito');
+    cargarKPIsYReporteComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function ejecutarCierreCicloComisiones() {
+  const ciclo = document.getElementById('comisiones-filtro-ciclo')?.value || 'O-I 2026';
+  if (!confirm(`¿Deseas realizar el Cierre de Ciclo Agrícola "${ciclo}"? Se evaluarán las metas de los asesores y se materializarán los bonos ganados.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/comisiones/cierre-ciclo', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ ciclo_agricola: ciclo })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al ejecutar cierre de ciclo');
+    alert(data.message || 'Cierre de ciclo completado');
+    cargarKPIsYReporteComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+function exportarComisiones(formato) {
+  if (!currentComisionesReporteData || currentComisionesReporteData.length === 0) {
+    alert('No hay datos de comisiones para exportar.');
+    return;
+  }
+
+  if (formato === 'csv') {
+    const headers = ['Fecha', 'Asesor', 'Folio Venta', 'Producto/Detalle', 'Monto Base MXN', 'Bono Temp MXN', 'Total MXN', 'Estatus', 'Notas'];
+    const rows = currentComisionesReporteData.map(r => [
+      `"${r.fecha_calculo ? r.fecha_calculo.slice(0, 10) : ''}"`,
+      `"${(r.asesor_nombre || '').replace(/"/g, '""')}"`,
+      `"${(r.folio_cotizacion || '').replace(/"/g, '""')}"`,
+      `"${(r.producto_nombre || r.notas || '').replace(/"/g, '""')}"`,
+      r.monto_base_aplicado,
+      r.monto_temporada_aplicado,
+      r.total_comision_mxn,
+      `"${r.estatus}"`,
+      `"${(r.notas || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `reporte_comisiones_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } else if (formato === 'pdf') {
+    window.print();
   }
 }

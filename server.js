@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { execFile } = require('child_process');
 const db = require('./db');
 const agentsService = require('./agentsService');
 const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
@@ -1016,9 +1017,16 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
           `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, 'Salida registrada por entrega de cotización']);
         }
       }
-      await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
-    } else if (q.estatus === 'Entregado' && estatus !== 'Entregado') {
-      // Returning a delivered quotation to a prior stage returns its items to stock.
+      if (estatus === 'Entregado') {
+        await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
+      } else {
+        await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = 0 WHERE cotizacion_id = ?', [id]);
+      }
+
+      // Materialize commissions for quote
+      await calcularComisionCotizacion(id);
+      
+    } else if (estatus === 'Borrador' || estatus === 'Autorizada' || estatus === 'Cancelado') {
       if (stockDeducted) {
         for (const item of items) {
           const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
@@ -1032,6 +1040,9 @@ app.put('/api/cotizaciones/:id/status', authenticateToken, async (req, res) => {
         }
       }
       await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = 0 WHERE cotizacion_id = ?', [id]);
+
+      // Revert / cancel commissions for quote
+      await cancelarComisionCotizacion(id);
     }
     
     await db.run('UPDATE cotizaciones SET estatus = ? WHERE id = ?', [estatus, id]);
@@ -3272,6 +3283,509 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
     res.status(500).json({ error: 'Failed to save monthly pricing' });
   } finally {
     pricingClient?.release();
+  }
+});
+
+// -------------------------------------------------------------
+// MODULO DE COMISIONES - HELPERS Y ENDPOINTS
+// -------------------------------------------------------------
+
+function resolverComisionPython(subtotal_mxn, cantidad_ordenada, reglaBase, reglaTemp) {
+  return new Promise((resolve) => {
+    const payload = JSON.stringify({
+      item_subtotal: subtotal_mxn,
+      cantidad_ordenada: cantidad_ordenada,
+      regla_base: reglaBase || null,
+      regla_temporada: reglaTemp || null
+    });
+    execFile('python', [path.join(__dirname, 'comisiones.py'), '--calc-item', payload], (err, stdout) => {
+      if (err || !stdout) {
+        let comisionBase = 0;
+        let comisionTemporada = 0;
+        if (reglaBase) {
+          comisionBase = (reglaBase.tipo_valor === 'porcentaje')
+            ? subtotal_mxn * (reglaBase.valor / 100)
+            : cantidad_ordenada * reglaBase.valor;
+        }
+        if (reglaTemp) {
+          let valorTemp = (reglaTemp.tipo_valor === 'porcentaje')
+            ? subtotal_mxn * (reglaTemp.valor / 100)
+            : cantidad_ordenada * reglaTemp.valor;
+          if (reglaTemp.comportamiento === 'sobrescribir') {
+            comisionBase = 0;
+            comisionTemporada = valorTemp;
+          } else {
+            comisionTemporada = valorTemp;
+          }
+        }
+        return resolve({
+          monto_base_aplicado: Math.round(comisionBase * 100) / 100,
+          monto_temporada_aplicado: Math.round(comisionTemporada * 100) / 100,
+          total_comision_mxn: Math.round((comisionBase + comisionTemporada) * 100) / 100
+        });
+      }
+      try {
+        const res = JSON.parse(stdout.trim());
+        resolve(res);
+      } catch (e) {
+        resolve({ monto_base_aplicado: 0, monto_temporada_aplicado: 0, total_comision_mxn: 0 });
+      }
+    });
+  });
+}
+
+function evaluarBonoPython(ventas_acumuladas, meta_ventas, reglas_bonos) {
+  return new Promise((resolve) => {
+    const payload = JSON.stringify({
+      ventas_acumuladas: ventas_acumuladas,
+      meta_ventas: meta_ventas,
+      reglas_bonos: reglas_bonos
+    });
+    execFile('python', [path.join(__dirname, 'comisiones.py'), '--eval-bonus', payload], (err, stdout) => {
+      if (err || !stdout) {
+        let pct = meta_ventas > 0 ? (ventas_acumuladas / meta_ventas) * 100 : 0;
+        let maxBono = 0;
+        for (const r of reglas_bonos) {
+          if (r.activo !== 0 && pct >= (r.porcentaje_meta_requerido || 0)) {
+            if (r.bono_mxn > maxBono) maxBono = r.bono_mxn;
+          }
+        }
+        return resolve({
+          porcentaje_meta_alcanzado: Math.round(pct * 100) / 100,
+          bono_proyectado_mxn: Math.round(maxBono * 100) / 100
+        });
+      }
+      try {
+        const res = JSON.parse(stdout.trim());
+        resolve(res);
+      } catch (e) {
+        resolve({ porcentaje_meta_alcanzado: 0, bono_proyectado_mxn: 0 });
+      }
+    });
+  });
+}
+
+async function calcularComisionCotizacion(cotizacion_id) {
+  const cotizacion = await db.get('SELECT * FROM cotizaciones WHERE id = ?', [cotizacion_id]);
+  if (!cotizacion) return;
+
+  const detalles = await db.all(`
+    SELECT cd.*, p.tipo AS tipo_categoria 
+    FROM cotizacion_detalles cd 
+    LEFT JOIN productos p ON cd.producto_id = p.id 
+    WHERE cd.cotizacion_id = ?
+  `, [cotizacion_id]);
+
+  for (let item of detalles) {
+    const exist = await db.get(`
+      SELECT * FROM comisiones_generadas 
+      WHERE cotizacion_id = ? AND cotizacion_detalle_id = ? AND estatus != 'Cancelada'
+    `, [cotizacion_id, item.id]);
+
+    if (exist) continue;
+
+    let reglaBase = await db.get(`
+      SELECT * FROM comision_reglas_base 
+      WHERE producto_id = ? AND condicion_pago IN (?, 'Todos') AND activo = 1 
+      ORDER BY (CASE WHEN condicion_pago = 'Todos' THEN 1 ELSE 2 END) DESC, id DESC LIMIT 1
+    `, [item.producto_id, cotizacion.condiciones_pago || 'Contado']);
+
+    if (!reglaBase && item.tipo_categoria) {
+      reglaBase = await db.get(`
+        SELECT * FROM comision_reglas_base 
+        WHERE tipo_categoria = ? AND condicion_pago IN (?, 'Todos') AND activo = 1 
+        ORDER BY (CASE WHEN condicion_pago = 'Todos' THEN 1 ELSE 2 END) DESC, id DESC LIMIT 1
+      `, [item.tipo_categoria, cotizacion.condiciones_pago || 'Contado']);
+    }
+
+    let reglaTemp = null;
+    if (item.temporada_id) {
+      reglaTemp = await db.get(`
+        SELECT * FROM comision_reglas_temporada 
+        WHERE temporada_id = ? AND (producto_id = ? OR producto_id IS NULL) AND activo = 1 
+        ORDER BY (CASE WHEN producto_id IS NOT NULL THEN 2 ELSE 1 END) DESC LIMIT 1
+      `, [item.temporada_id, item.producto_id]);
+    }
+
+    const subtotal = item.subtotal_mxn || (item.precio_neto_mxn * item.cantidad_ordenada);
+    const calc = await resolverComisionPython(
+      subtotal,
+      item.cantidad_ordenada,
+      reglaBase,
+      reglaTemp
+    );
+
+    await db.run(`
+      INSERT INTO comisiones_generadas 
+      (cotizacion_id, cotizacion_detalle_id, asesor_id, monto_base_aplicado, monto_temporada_aplicado, total_comision_mxn, estatus, notas) 
+      VALUES (?, ?, ?, ?, ?, ?, 'Pendiente', ?)
+    `, [
+      cotizacion_id,
+      item.id,
+      cotizacion.asesor_id,
+      calc.monto_base_aplicado,
+      calc.monto_temporada_aplicado,
+      calc.total_comision_mxn,
+      `Comisión generada por venta ${cotizacion.folio_cotizacion || ('#' + cotizacion_id)}`
+    ]);
+  }
+}
+
+async function cancelarComisionCotizacion(cotizacion_id) {
+  const cotizacion = await db.get('SELECT * FROM cotizaciones WHERE id = ?', [cotizacion_id]);
+  if (!cotizacion) return;
+
+  const comisiones = await db.all("SELECT * FROM comisiones_generadas WHERE cotizacion_id = ? AND estatus != 'Cancelada'", [cotizacion_id]);
+  for (const c of comisiones) {
+    if (c.estatus === 'Pendiente') {
+      await db.run("UPDATE comisiones_generadas SET estatus = 'Cancelada' WHERE id = ?", [c.id]);
+    } else if (c.estatus === 'Pagada') {
+      await db.run("UPDATE comisiones_generadas SET estatus = 'Cancelada' WHERE id = ?", [c.id]);
+      await db.run(`
+        INSERT INTO comisiones_generadas 
+        (cotizacion_id, cotizacion_detalle_id, asesor_id, monto_base_aplicado, monto_temporada_aplicado, total_comision_mxn, estatus, notas) 
+        VALUES (?, ?, ?, ?, ?, ?, 'Pendiente', ?)
+      `, [
+        cotizacion_id,
+        c.cotizacion_detalle_id,
+        c.asesor_id,
+        -Math.abs(c.monto_base_aplicado),
+        -Math.abs(c.monto_temporada_aplicado),
+        -Math.abs(c.total_comision_mxn),
+        `Cargo a cuenta (Clawback) por cancelación de cotización pagada ${cotizacion.folio_cotizacion || ('#' + cotizacion_id)}`
+      ]);
+    }
+  }
+}
+
+// 1. GET /api/comisiones/reglas (Solo Administrador)
+app.get('/api/comisiones/reglas', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  try {
+    const base = await db.all(`
+      SELECT r.*, p.producto AS producto_nombre 
+      FROM comision_reglas_base r 
+      LEFT JOIN productos p ON r.producto_id = p.id 
+      ORDER BY r.id DESC
+    `);
+    const temporada = await db.all(`
+      SELECT t.*, temp.actividad AS temporada_nombre, p.producto AS producto_nombre 
+      FROM comision_reglas_temporada t 
+      JOIN temporadas temp ON t.temporada_id = temp.id 
+      LEFT JOIN productos p ON t.producto_id = p.id 
+      ORDER BY t.id DESC
+    `);
+    const bonos = await db.all('SELECT * FROM comision_bonos_metas ORDER BY porcentaje_meta_requerido ASC');
+    res.json({ base, temporada, bonos });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch rules' });
+  }
+});
+
+// 2. POST /api/comisiones/reglas/base (Solo Administrador)
+app.post('/api/comisiones/reglas/base', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { producto_id, tipo_categoria, condicion_pago, tipo_valor, valor } = req.body;
+  if ((!producto_id && !tipo_categoria) || !tipo_valor || valor === undefined) {
+    return res.status(400).json({ error: 'Producto o Categoría, tipo_valor y valor son requeridos' });
+  }
+  try {
+    const result = await db.run(`
+      INSERT INTO comision_reglas_base (producto_id, tipo_categoria, condicion_pago, tipo_valor, valor, activo)
+      VALUES (?, ?, ?, ?, ?, 1)
+    `, [producto_id || null, tipo_categoria || null, condicion_pago || 'Todos', tipo_valor, parseFloat(valor)]);
+    res.json({ success: true, id: result.id, message: 'Regla base creada exitosamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create base rule' });
+  }
+});
+
+// 3. PUT /api/comisiones/reglas/base/:id (Solo Administrador)
+app.put('/api/comisiones/reglas/base/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { id } = req.params;
+  const { valor, activo } = req.body;
+  try {
+    const rule = await db.get('SELECT * FROM comision_reglas_base WHERE id = ?', [id]);
+    if (!rule) return res.status(404).json({ error: 'Rule not found' });
+
+    const newValor = valor !== undefined ? parseFloat(valor) : rule.valor;
+    const newActivo = activo !== undefined ? (activo ? 1 : 0) : rule.activo;
+
+    await db.run(`
+      UPDATE comision_reglas_base SET valor = ?, activo = ? WHERE id = ?
+    `, [newValor, newActivo, id]);
+    res.json({ success: true, message: 'Regla base actualizada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update base rule' });
+  }
+});
+
+// 4. POST /api/comisiones/reglas/temporada (Solo Administrador)
+app.post('/api/comisiones/reglas/temporada', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { temporada_id, producto_id, tipo_valor, valor, comportamiento } = req.body;
+  if (!temporada_id || !tipo_valor || valor === undefined || !comportamiento) {
+    return res.status(400).json({ error: 'temporada_id, tipo_valor, valor y comportamiento son requeridos' });
+  }
+  try {
+    const result = await db.run(`
+      INSERT INTO comision_reglas_temporada (temporada_id, producto_id, tipo_valor, valor, comportamiento, activo)
+      VALUES (?, ?, ?, ?, ?, 1)
+    `, [temporada_id, producto_id || null, tipo_valor, parseFloat(valor), comportamiento]);
+    res.json({ success: true, id: result.id, message: 'Regla de temporada creada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create season rule' });
+  }
+});
+
+// 5. POST /api/comisiones/bonos (Solo Administrador)
+app.post('/api/comisiones/bonos', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { ciclo_agricola, porcentaje_meta_requerido, bono_mxn } = req.body;
+  if (!ciclo_agricola || porcentaje_meta_requerido === undefined || bono_mxn === undefined) {
+    return res.status(400).json({ error: 'ciclo_agricola, porcentaje_meta_requerido y bono_mxn son requeridos' });
+  }
+  try {
+    const result = await db.run(`
+      INSERT INTO comision_bonos_metas (ciclo_agricola, porcentaje_meta_requerido, bono_mxn, activo)
+      VALUES (?, ?, ?, 1)
+    `, [ciclo_agricola, parseFloat(porcentaje_meta_requerido), parseFloat(bono_mxn)]);
+    res.json({ success: true, id: result.id, message: 'Regla de bono por meta creada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create bonus rule' });
+  }
+});
+
+// 6. GET /api/comisiones/kpis (Admin + Asesor)
+app.get('/api/comisiones/kpis', authenticateToken, async (req, res) => {
+  try {
+    const mes = req.query.mes || new Date().toISOString().slice(5, 7);
+    const anio = req.query.anio || new Date().getFullYear().toString();
+    const ciclo = req.query.ciclo || 'O-I 2026';
+
+    let targetAsesorId = null;
+    if (req.user.nivel_rol === 'Asesor') {
+      targetAsesorId = req.user.id;
+    } else if (req.query.asesor_id) {
+      targetAsesorId = parseInt(req.query.asesor_id);
+    }
+
+    let kpiSql = `
+      SELECT COALESCE(SUM(total_comision_mxn), 0.0) AS total_mes
+      FROM comisiones_generadas
+      WHERE estatus != 'Cancelada'
+        AND TO_CHAR(fecha_calculo, 'YYYY-MM') = ?
+    `;
+    let kpiParams = [`${anio}-${mes}`];
+
+    if (targetAsesorId) {
+      kpiSql += ' AND asesor_id = ?';
+      kpiParams.push(targetAsesorId);
+    }
+
+    const rowMes = await db.get(kpiSql, kpiParams);
+    const totalMes = rowMes ? parseFloat(rowMes.total_mes) : 0.0;
+
+    let salesSql = `
+      SELECT COALESCE(SUM(c.costo_total_neto), 0.0) AS total_ventas
+      FROM cotizaciones c
+      WHERE c.estatus IN ('Vendido', 'Entregado') AND c.ciclo_agricola = ?
+    `;
+    let salesParams = [ciclo];
+    if (targetAsesorId) {
+      salesSql += ' AND c.asesor_id = ?';
+      salesParams.push(targetAsesorId);
+    }
+    const salesRow = await db.get(salesSql, salesParams);
+    const acumuladoVentas = salesRow ? parseFloat(salesRow.total_ventas) : 0.0;
+
+    let metaSql = `SELECT COALESCE(SUM(meta_monto_total), 0.0) AS meta_total FROM metas_ventas WHERE ciclo_agricola = ?`;
+    let metaParams = [ciclo];
+    if (targetAsesorId) {
+      metaSql += ' AND asesor_id = ?';
+      metaParams.push(targetAsesorId);
+    }
+    const metaRow = await db.get(metaSql, metaParams);
+    let metaVentas = metaRow ? parseFloat(metaRow.meta_total) : 0.0;
+    if (!metaVentas || metaVentas === 0) metaVentas = 1000000.0;
+
+    const reglasBonos = await db.all('SELECT * FROM comision_bonos_metas WHERE ciclo_agricola = ? AND activo = 1', [ciclo]);
+
+    const bonusEval = await evaluarBonoPython(acumuladoVentas, metaVentas, reglasBonos);
+
+    res.json({
+      mes,
+      anio,
+      ciclo,
+      total_generado_mes_mxn: Math.round(totalMes * 100) / 100,
+      progreso_meta_porcentaje: bonusEval.porcentaje_meta_alcanzado,
+      bono_proyectado_mxn: bonusEval.bono_proyectado_mxn,
+      acumulado_ventas_mxn: Math.round(acumuladoVentas * 100) / 100,
+      meta_ventas_mxn: metaVentas
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch KPIs' });
+  }
+});
+
+// 7. GET /api/comisiones/reporte (Admin + Asesor)
+app.get('/api/comisiones/reporte', authenticateToken, async (req, res) => {
+  try {
+    let targetAsesorId = null;
+    if (req.user.nivel_rol === 'Asesor') {
+      targetAsesorId = req.user.id;
+    } else if (req.query.asesor_id) {
+      targetAsesorId = parseInt(req.query.asesor_id);
+    }
+
+    const { fecha_ini, fecha_fin, estatus } = req.query;
+
+    let sql = `
+      SELECT cg.*, 
+             a.nombre AS asesor_nombre, 
+             c.folio_cotizacion, c.fecha_cotizacion, c.condiciones_pago,
+             p.producto AS producto_nombre
+      FROM comisiones_generadas cg
+      JOIN asesores a ON cg.asesor_id = a.id
+      LEFT JOIN cotizaciones c ON cg.cotizacion_id = c.id
+      LEFT JOIN cotizacion_detalles cd ON cg.cotizacion_detalle_id = cd.id
+      LEFT JOIN productos p ON cd.producto_id = p.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (targetAsesorId) {
+      sql += ' AND cg.asesor_id = ?';
+      params.push(targetAsesorId);
+    }
+    if (estatus) {
+      sql += ' AND cg.estatus = ?';
+      params.push(estatus);
+    }
+    if (fecha_ini) {
+      sql += ' AND cg.fecha_calculo >= ?';
+      params.push(fecha_ini);
+    }
+    if (fecha_fin) {
+      sql += ' AND cg.fecha_calculo <= ?';
+      params.push(fecha_fin);
+    }
+
+    sql += ' ORDER BY cg.id DESC';
+
+    const reporte = await db.all(sql, params);
+    res.json(reporte);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch report' });
+  }
+});
+
+// 8. PUT /api/comisiones/pagar (Solo Administrador)
+app.put('/api/comisiones/pagar', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { ids_comisiones } = req.body;
+  if (!Array.isArray(ids_comisiones) || ids_comisiones.length === 0) {
+    return res.status(400).json({ error: 'ids_comisiones array required' });
+  }
+  try {
+    let updatedCount = 0;
+    for (const id of ids_comisiones) {
+      const resCount = await db.run(`
+        UPDATE comisiones_generadas 
+        SET estatus = 'Pagada' 
+        WHERE id = ? AND estatus = 'Pendiente'
+      `, [id]);
+      if (resCount.changes > 0) updatedCount += resCount.changes;
+    }
+    res.json({ success: true, updated_count: updatedCount, message: `${updatedCount} comisiones marcadas como Pagadas` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to process payments' });
+  }
+});
+
+// 9. POST /api/comisiones/cierre-ciclo (Solo Administrador)
+app.post('/api/comisiones/cierre-ciclo', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { ciclo_agricola } = req.body;
+  const ciclo = ciclo_agricola || 'O-I 2026';
+  try {
+    const asesores = await db.all("SELECT id, nombre FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'");
+    const reglasBonos = await db.all('SELECT * FROM comision_bonos_metas WHERE ciclo_agricola = ? AND activo = 1', [ciclo]);
+
+    let bonosMaterializados = 0;
+
+    for (const a of asesores) {
+      const salesRow = await db.get(`
+        SELECT COALESCE(SUM(costo_total_neto), 0.0) AS total_ventas 
+        FROM cotizaciones 
+        WHERE asesor_id = ? AND estatus IN ('Vendido', 'Entregado') AND ciclo_agricola = ?
+      `, [a.id, ciclo]);
+
+      const totalVentas = salesRow ? parseFloat(salesRow.total_ventas) : 0.0;
+
+      const metaRow = await db.get(`
+        SELECT COALESCE(SUM(meta_monto_total), 0.0) AS meta_total 
+        FROM metas_ventas 
+        WHERE asesor_id = ? AND ciclo_agricola = ?
+      `, [a.id, ciclo]);
+
+      let metaVentas = metaRow ? parseFloat(metaRow.meta_total) : 0.0;
+      if (!metaVentas || metaVentas === 0) metaVentas = 1000000.0;
+
+      const bonusEval = await evaluarBonoPython(totalVentas, metaVentas, reglasBonos);
+      const bonoMxn = bonusEval.bono_proyectado_mxn;
+
+      if (bonoMxn > 0) {
+        const existBono = await db.get(`
+          SELECT * FROM comisiones_generadas 
+          WHERE asesor_id = ? AND notas LIKE ? AND estatus != 'Cancelada'
+        `, [a.id, `%Bono por Meta Cierre de Ciclo ${ciclo}%`]);
+
+        if (!existBono) {
+          const firstQuote = await db.get('SELECT id FROM cotizaciones WHERE asesor_id = ? ORDER BY id DESC LIMIT 1', [a.id]);
+          const quoteId = firstQuote ? firstQuote.id : 1;
+          await db.run(`
+            INSERT INTO comisiones_generadas 
+            (cotizacion_id, asesor_id, monto_base_aplicado, monto_temporada_aplicado, total_comision_mxn, estatus, notas) 
+            VALUES (?, ?, 0, ?, ?, 'Pendiente', ?)
+          `, [
+            quoteId,
+            a.id,
+            bonoMxn,
+            bonoMxn,
+            `Bono por Meta Cierre de Ciclo ${ciclo} (${bonusEval.porcentaje_meta_alcanzado}% de la meta)`
+          ]);
+          bonosMaterializados++;
+        }
+      }
+    }
+    res.json({ success: true, bonos_materializados: bonosMaterializados, message: `Cierre de ciclo ${ciclo} procesado con éxito` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to execute cycle closing' });
   }
 });
 

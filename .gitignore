@@ -4,4 +4,7 @@ database.sqlite
 *.log
 .gemini/
 .DS_Store
-
+scratch/
+*.pdf
+*.xlsx
+*.csv
