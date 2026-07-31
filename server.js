@@ -3485,11 +3485,9 @@ app.get('/api/comisiones/reglas', authenticateToken, async (req, res) => {
   }
 });
 
-// 2. POST /api/comisiones/reglas/base (Solo Administrador)
+// 2. POST /api/comisiones/reglas/base (Administrador o Gerente)
 app.post('/api/comisiones/reglas/base', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador') {
-    return res.status(403).json({ error: 'Admin privileges required' });
-  }
+  if (!checkAdminOrGerente(req, res)) return;
   const { producto_id, tipo_categoria, condicion_pago, tipo_valor, valor } = req.body;
   if ((!producto_id && !tipo_categoria) || !tipo_valor || valor === undefined) {
     return res.status(400).json({ error: 'Producto o Categoría, tipo_valor y valor son requeridos' });
@@ -3506,23 +3504,27 @@ app.post('/api/comisiones/reglas/base', authenticateToken, async (req, res) => {
   }
 });
 
-// 3. PUT /api/comisiones/reglas/base/:id (Solo Administrador)
+// 3. PUT /api/comisiones/reglas/base/:id (Administrador o Gerente)
 app.put('/api/comisiones/reglas/base/:id', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador') {
-    return res.status(403).json({ error: 'Admin privileges required' });
-  }
+  if (!checkAdminOrGerente(req, res)) return;
   const { id } = req.params;
-  const { valor, activo } = req.body;
+  const { producto_id, tipo_categoria, condicion_pago, tipo_valor, valor, activo } = req.body;
   try {
     const rule = await db.get('SELECT * FROM comision_reglas_base WHERE id = ?', [id]);
     if (!rule) return res.status(404).json({ error: 'Rule not found' });
 
+    const newProductoId = producto_id !== undefined ? (producto_id || null) : rule.producto_id;
+    const newTipoCategoria = tipo_categoria !== undefined ? (tipo_categoria || null) : rule.tipo_categoria;
+    const newCondicion = condicion_pago !== undefined ? condicion_pago : rule.condicion_pago;
+    const newTipoValor = tipo_valor !== undefined ? tipo_valor : rule.tipo_valor;
     const newValor = valor !== undefined ? parseFloat(valor) : rule.valor;
     const newActivo = activo !== undefined ? (activo ? 1 : 0) : rule.activo;
 
     await db.run(`
-      UPDATE comision_reglas_base SET valor = ?, activo = ? WHERE id = ?
-    `, [newValor, newActivo, id]);
+      UPDATE comision_reglas_base 
+      SET producto_id = ?, tipo_categoria = ?, condicion_pago = ?, tipo_valor = ?, valor = ?, activo = ? 
+      WHERE id = ?
+    `, [newProductoId, newTipoCategoria, newCondicion, newTipoValor, newValor, newActivo, id]);
     res.json({ success: true, message: 'Regla base actualizada' });
   } catch (err) {
     console.error(err);
@@ -3530,11 +3532,22 @@ app.put('/api/comisiones/reglas/base/:id', authenticateToken, async (req, res) =
   }
 });
 
-// 4. POST /api/comisiones/reglas/temporada (Solo Administrador)
-app.post('/api/comisiones/reglas/temporada', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador') {
-    return res.status(403).json({ error: 'Admin privileges required' });
+// DELETE /api/comisiones/reglas/base/:id (Administrador o Gerente)
+app.delete('/api/comisiones/reglas/base/:id', authenticateToken, async (req, res) => {
+  if (!checkAdminOrGerente(req, res)) return;
+  const { id } = req.params;
+  try {
+    await db.run('DELETE FROM comision_reglas_base WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Regla base eliminada exitosamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete base rule' });
   }
+});
+
+// 4. POST /api/comisiones/reglas/temporada (Administrador o Gerente)
+app.post('/api/comisiones/reglas/temporada', authenticateToken, async (req, res) => {
+  if (!checkAdminOrGerente(req, res)) return;
   const { temporada_id, producto_id, tipo_valor, valor, comportamiento } = req.body;
   if (!temporada_id || !tipo_valor || valor === undefined || !comportamiento) {
     return res.status(400).json({ error: 'temporada_id, tipo_valor, valor y comportamiento son requeridos' });
@@ -3551,11 +3564,50 @@ app.post('/api/comisiones/reglas/temporada', authenticateToken, async (req, res)
   }
 });
 
-// 5. POST /api/comisiones/bonos (Solo Administrador)
-app.post('/api/comisiones/bonos', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador') {
-    return res.status(403).json({ error: 'Admin privileges required' });
+// PUT /api/comisiones/reglas/temporada/:id (Administrador o Gerente)
+app.put('/api/comisiones/reglas/temporada/:id', authenticateToken, async (req, res) => {
+  if (!checkAdminOrGerente(req, res)) return;
+  const { id } = req.params;
+  const { temporada_id, producto_id, tipo_valor, valor, comportamiento, activo } = req.body;
+  try {
+    const rule = await db.get('SELECT * FROM comision_reglas_temporada WHERE id = ?', [id]);
+    if (!rule) return res.status(404).json({ error: 'Season rule not found' });
+
+    const newTempId = temporada_id !== undefined ? temporada_id : rule.temporada_id;
+    const newProductoId = producto_id !== undefined ? (producto_id || null) : rule.producto_id;
+    const newTipoValor = tipo_valor !== undefined ? tipo_valor : rule.tipo_valor;
+    const newValor = valor !== undefined ? parseFloat(valor) : rule.valor;
+    const newComp = comportamiento !== undefined ? comportamiento : rule.comportamiento;
+    const newActivo = activo !== undefined ? (activo ? 1 : 0) : rule.activo;
+
+    await db.run(`
+      UPDATE comision_reglas_temporada 
+      SET temporada_id = ?, producto_id = ?, tipo_valor = ?, valor = ?, comportamiento = ?, activo = ? 
+      WHERE id = ?
+    `, [newTempId, newProductoId, newTipoValor, newValor, newComp, newActivo, id]);
+    res.json({ success: true, message: 'Regla de temporada actualizada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update season rule' });
   }
+});
+
+// DELETE /api/comisiones/reglas/temporada/:id (Administrador o Gerente)
+app.delete('/api/comisiones/reglas/temporada/:id', authenticateToken, async (req, res) => {
+  if (!checkAdminOrGerente(req, res)) return;
+  const { id } = req.params;
+  try {
+    await db.run('DELETE FROM comision_reglas_temporada WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Regla de temporada eliminada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete season rule' });
+  }
+});
+
+// 5. POST /api/comisiones/bonos (Administrador o Gerente)
+app.post('/api/comisiones/bonos', authenticateToken, async (req, res) => {
+  if (!checkAdminOrGerente(req, res)) return;
   const { ciclo_agricola, porcentaje_meta_requerido, bono_mxn } = req.body;
   if (!ciclo_agricola || porcentaje_meta_requerido === undefined || bono_mxn === undefined) {
     return res.status(400).json({ error: 'ciclo_agricola, porcentaje_meta_requerido y bono_mxn son requeridos' });
@@ -3569,6 +3621,45 @@ app.post('/api/comisiones/bonos', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create bonus rule' });
+  }
+});
+
+// PUT /api/comisiones/bonos/:id (Administrador o Gerente)
+app.put('/api/comisiones/bonos/:id', authenticateToken, async (req, res) => {
+  if (!checkAdminOrGerente(req, res)) return;
+  const { id } = req.params;
+  const { ciclo_agricola, porcentaje_meta_requerido, bono_mxn, activo } = req.body;
+  try {
+    const bonus = await db.get('SELECT * FROM comision_bonos_metas WHERE id = ?', [id]);
+    if (!bonus) return res.status(404).json({ error: 'Bonus rule not found' });
+
+    const newCiclo = ciclo_agricola !== undefined ? ciclo_agricola : bonus.ciclo_agricola;
+    const newPct = porcentaje_meta_requerido !== undefined ? parseFloat(porcentaje_meta_requerido) : bonus.porcentaje_meta_requerido;
+    const newBono = bono_mxn !== undefined ? parseFloat(bono_mxn) : bonus.bono_mxn;
+    const newActivo = activo !== undefined ? (activo ? 1 : 0) : bonus.activo;
+
+    await db.run(`
+      UPDATE comision_bonos_metas 
+      SET ciclo_agricola = ?, porcentaje_meta_requerido = ?, bono_mxn = ?, activo = ? 
+      WHERE id = ?
+    `, [newCiclo, newPct, newBono, newActivo, id]);
+    res.json({ success: true, message: 'Regla de bono por meta actualizada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update bonus rule' });
+  }
+});
+
+// DELETE /api/comisiones/bonos/:id (Administrador o Gerente)
+app.delete('/api/comisiones/bonos/:id', authenticateToken, async (req, res) => {
+  if (!checkAdminOrGerente(req, res)) return;
+  const { id } = req.params;
+  try {
+    await db.run('DELETE FROM comision_bonos_metas WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Regla de bono eliminada' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete bonus rule' });
   }
 });
 

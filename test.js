@@ -154,6 +154,20 @@ async function runTests() {
         process.exit(1);
       }
 
+      // DB Commission Test 7: Rule Edit & Delete CRUD operations
+      const editRuleRes = await db.run("INSERT INTO comision_reglas_base (tipo_categoria, condicion_pago, tipo_valor, valor, activo) VALUES ('TEST_CAT', 'TEST_PAGO', 'porcentaje', 5.0, 1)");
+      await db.run("UPDATE comision_reglas_base SET valor = 7.5 WHERE id = ?", [editRuleRes.id]);
+      const updatedRule = await db.get("SELECT * FROM comision_reglas_base WHERE id = ?", [editRuleRes.id]);
+      await db.run("DELETE FROM comision_reglas_base WHERE id = ?", [editRuleRes.id]);
+      const deletedRule = await db.get("SELECT * FROM comision_reglas_base WHERE id = ?", [editRuleRes.id]);
+
+      if (updatedRule && updatedRule.valor === 7.5 && !deletedRule) {
+        console.log("🟢 TEST CASE 7 PASSED (Rule Edit & Delete CRUD)!");
+      } else {
+        console.error("🔴 TEST CASE 7 FAILED!");
+        process.exit(1);
+      }
+
       // Cleanup test data
       await db.run("DELETE FROM comision_reglas_base WHERE condicion_pago = 'TEST_CONTADO'");
       await db.run("DELETE FROM comisiones_generadas WHERE notas LIKE '%TEST_COMMISSION%'");

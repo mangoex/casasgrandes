@@ -8132,6 +8132,15 @@ function switchComisionTab(tabName) {
 }
 
 async function loadComisionesView() {
+  const isAuthorized = user && (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Gerente');
+  const btnTabulador = document.getElementById('tab-btn-tabulador');
+  if (btnTabulador) {
+    btnTabulador.style.display = isAuthorized ? 'inline-block' : 'none';
+  }
+  if (!isAuthorized) {
+    switchComisionTab('reportes');
+  }
+
   const mesInput = document.getElementById('comisiones-filtro-mes');
   if (mesInput && !mesInput.value) {
     const today = new Date();
@@ -8140,7 +8149,7 @@ async function loadComisionesView() {
   }
 
   try {
-    if (user && user.nivel_rol === 'Administrador') {
+    if (isAuthorized) {
       const resAdvisors = await fetch('/api/asesores', { headers: getHeaders() });
       if (resAdvisors.ok) {
         const advisors = await resAdvisors.json();
@@ -8240,7 +8249,7 @@ function renderTablaComisiones(data) {
     return;
   }
 
-  const isAdmin = user && user.nivel_rol === 'Administrador';
+  const isAdmin = user && (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Gerente');
 
   tbody.innerHTML = data.map(row => {
     const fechaStr = row.fecha_calculo ? row.fecha_calculo.slice(0, 10) : '-';
@@ -8378,7 +8387,9 @@ async function cargarTabuladorComisiones() {
             <td>${r.tipo_valor === 'porcentaje' ? r.valor + '%' : '$' + r.valor}</td>
             <td><span class="badge ${r.activo ? 'badge-success' : 'badge-secondary'}">${r.activo ? 'Activa' : 'Inactiva'}</span></td>
             <td>
-              <button class="btn btn-outline" style="padding: 2px 8px; font-size: 12px;" onclick="toggleEstadoReglaBase(${r.id}, ${r.activo ? 0 : 1})">
+              <button class="btn btn-outline" style="padding: 2px 6px; font-size: 11px; margin-right: 4px;" onclick="editarReglaBase(${r.id}, ${r.valor})">✏️ Editar</button>
+              <button class="btn btn-danger" style="padding: 2px 6px; font-size: 11px; margin-right: 4px;" onclick="eliminarReglaBase(${r.id})">🗑️ Eliminar</button>
+              <button class="btn btn-outline" style="padding: 2px 6px; font-size: 11px;" onclick="toggleEstadoReglaBase(${r.id}, ${r.activo ? 0 : 1})">
                 ${r.activo ? 'Desactivar' : 'Activar'}
               </button>
             </td>
@@ -8390,7 +8401,7 @@ async function cargarTabuladorComisiones() {
     const tbodyTemp = document.getElementById('tabla-reglas-temporada-body');
     if (tbodyTemp) {
       if (!temporada || temporada.length === 0) {
-        tbodyTemp.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">No hay reglas de temporada registradas.</td></tr>';
+        tbodyTemp.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-light);">No hay reglas de temporada registradas.</td></tr>';
       } else {
         tbodyTemp.innerHTML = temporada.map(t => `
           <tr>
@@ -8401,6 +8412,10 @@ async function cargarTabuladorComisiones() {
             <td>${t.tipo_valor === 'porcentaje' ? t.valor + '%' : '$' + t.valor}</td>
             <td><span class="badge badge-info">${escapeHtml(t.comportamiento)}</span></td>
             <td><span class="badge ${t.activo ? 'badge-success' : 'badge-secondary'}">${t.activo ? 'Activa' : 'Inactiva'}</span></td>
+            <td>
+              <button class="btn btn-outline" style="padding: 2px 6px; font-size: 11px; margin-right: 4px;" onclick="editarReglaTemporada(${t.id}, ${t.valor})">✏️ Editar</button>
+              <button class="btn btn-danger" style="padding: 2px 6px; font-size: 11px;" onclick="eliminarReglaTemporada(${t.id})">🗑️ Eliminar</button>
+            </td>
           </tr>
         `).join('');
       }
@@ -8409,7 +8424,7 @@ async function cargarTabuladorComisiones() {
     const tbodyBonos = document.getElementById('tabla-reglas-bonos-body');
     if (tbodyBonos) {
       if (!bonos || bonos.length === 0) {
-        tbodyBonos.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-light);">No hay escalas de bonos registradas.</td></tr>';
+        tbodyBonos.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-light);">No hay escalas de bonos registradas.</td></tr>';
       } else {
         tbodyBonos.innerHTML = bonos.map(b => `
           <tr>
@@ -8418,12 +8433,121 @@ async function cargarTabuladorComisiones() {
             <td><strong>${b.porcentaje_meta_requerido}%</strong></td>
             <td style="color: var(--success, #28a745); font-weight: bold;">$${parseFloat(b.bono_mxn).toLocaleString('es-MX', {minimumFractionDigits:2})} MXN</td>
             <td><span class="badge ${b.activo ? 'badge-success' : 'badge-secondary'}">${b.activo ? 'Activa' : 'Inactiva'}</span></td>
+            <td>
+              <button class="btn btn-outline" style="padding: 2px 6px; font-size: 11px; margin-right: 4px;" onclick="editarReglaBono(${b.id}, ${b.porcentaje_meta_requerido}, ${b.bono_mxn})">✏️ Editar</button>
+              <button class="btn btn-danger" style="padding: 2px 6px; font-size: 11px;" onclick="eliminarReglaBono(${b.id})">🗑️ Eliminar</button>
+            </td>
           </tr>
         `).join('');
       }
     }
   } catch (err) {
     console.error('Error loading tabulador:', err);
+  }
+}
+
+async function editarReglaBase(id, valorActual) {
+  const nuevoValor = prompt('Ingrese el nuevo valor para la regla base (monto o %):', valorActual);
+  if (nuevoValor === null || nuevoValor.trim() === '') return;
+  const val = parseFloat(nuevoValor);
+  if (isNaN(val)) return alert('Ingrese un número válido.');
+
+  try {
+    const res = await fetch(`/api/comisiones/reglas/base/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ valor: val })
+    });
+    if (!res.ok) throw new Error('Error al actualizar regla base');
+    alert('Regla base actualizada correctamente');
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function eliminarReglaBase(id) {
+  if (!confirm('¿Está seguro de eliminar esta regla base?')) return;
+  try {
+    const res = await fetch(`/api/comisiones/reglas/base/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al eliminar regla base');
+    alert('Regla base eliminada correctamente');
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function editarReglaTemporada(id, valorActual) {
+  const nuevoValor = prompt('Ingrese el nuevo valor para la regla de temporada (monto o %):', valorActual);
+  if (nuevoValor === null || nuevoValor.trim() === '') return;
+  const val = parseFloat(nuevoValor);
+  if (isNaN(val)) return alert('Ingrese un número válido.');
+
+  try {
+    const res = await fetch(`/api/comisiones/reglas/temporada/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ valor: val })
+    });
+    if (!res.ok) throw new Error('Error al actualizar regla de temporada');
+    alert('Regla de temporada actualizada correctamente');
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function eliminarReglaTemporada(id) {
+  if (!confirm('¿Está seguro de eliminar esta regla de temporada?')) return;
+  try {
+    const res = await fetch(`/api/comisiones/reglas/temporada/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al eliminar regla de temporada');
+    alert('Regla de temporada eliminada correctamente');
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function editarReglaBono(id, pctActual, bonoActual) {
+  const nuevoBono = prompt(`Editar monto del bono para ${pctActual}% de meta (MXN):`, bonoActual);
+  if (nuevoBono === null || nuevoBono.trim() === '') return;
+  const val = parseFloat(nuevoBono);
+  if (isNaN(val)) return alert('Ingrese un número válido.');
+
+  try {
+    const res = await fetch(`/api/comisiones/bonos/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ bono_mxn: val })
+    });
+    if (!res.ok) throw new Error('Error al actualizar regla de bono');
+    alert('Regla de bono actualizada correctamente');
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
+
+async function eliminarReglaBono(id) {
+  if (!confirm('¿Está seguro de eliminar esta regla de bono?')) return;
+  try {
+    const res = await fetch(`/api/comisiones/bonos/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Error al eliminar regla de bono');
+    alert('Regla de bono eliminada correctamente');
+    cargarTabuladorComisiones();
+  } catch (err) {
+    alert(`Error: ${err.message}`);
   }
 }
 
