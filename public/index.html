@@ -743,17 +743,29 @@
 
       <!-- E. WAREHOUSE VIEW -->
       <div id="almacen-view" class="view-section">
-        <!-- View selection tabs -->
-        <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
-          <button id="tab-existencias" class="btn btn-secondary active" style="width: auto; padding: 8px 20px; font-size: 14px;">📦 Existencias Físicas</button>
-          <button id="tab-movimientos" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">📋 Historial de Movimientos</button>
-          <button id="tab-produccion" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">⚡ Producción UAN-32</button>
+        <!-- View selection tabs & quick actions -->
+        <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button id="tab-existencias" class="btn btn-secondary active" style="width: auto; padding: 8px 18px; font-size: 14px;">📦 Existencias Físicas</button>
+            <button id="tab-movimientos" class="btn btn-secondary" style="width: auto; padding: 8px 18px; font-size: 14px;">📋 Historial de Movimientos</button>
+            <button id="tab-produccion" class="btn btn-secondary" style="width: auto; padding: 8px 18px; font-size: 14px;">⚡ Producción UAN-32</button>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="btn-top-registrar-entrada" type="button" class="btn btn-secondary" style="width: auto; padding: 8px 16px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--success, #10b981); color: var(--success, #10b981); background: #ecfdf5;">📥 Registrar Entrada</button>
+            <button id="btn-top-registrar-salida" type="button" class="btn btn-secondary" style="width: auto; padding: 8px 16px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--danger, #ef4444); color: var(--danger, #ef4444); background: #fef2f2;">📤 Registrar Salida</button>
+          </div>
         </div>
 
         <!-- 1. Stock inventories -->
         <div id="panel-existencias" class="almacen-panel active">
           <div class="card">
-            <h3 style="margin-bottom: 16px;">Inventario Actual en Almacén</h3>
+            <div class="flex-header" style="margin-bottom: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+              <h3 style="margin: 0;">Inventario Actual en Almacén</h3>
+              <div style="display: flex; gap: 8px;">
+                <button id="btn-card-registrar-entrada" type="button" class="btn btn-secondary" style="width: auto; padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--success, #10b981); color: var(--success, #10b981); background: #ecfdf5;">📥 + Nueva Entrada</button>
+                <button id="btn-card-registrar-salida" type="button" class="btn btn-secondary" style="width: auto; padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--danger, #ef4444); color: var(--danger, #ef4444); background: #fef2f2;">📤 + Nueva Salida</button>
+              </div>
+            </div>
             <div class="table-container">
               <table>
                 <thead>

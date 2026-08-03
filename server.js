@@ -1385,10 +1385,6 @@ app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async
 });
 
 app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Almacen' && req.user.nivel_rol !== 'Acopio') {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
   const {
     categoria,
     tipo, // 'Entrada' o 'Salida' (o tipo_movimiento completo)

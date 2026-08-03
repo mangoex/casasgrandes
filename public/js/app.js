@@ -2777,7 +2777,7 @@ function updateWarehouseMovementLayout() {
   const toggleButton = document.getElementById('btn-toggle-movement-form');
   if (!layout || !entryContainer || !entryCard || !toggleButton) return;
 
-  const canRegisterMovements = ['Administrador', 'Almacen', 'Acopio'].includes(user?.nivel_rol);
+  const canRegisterMovements = true;
   if (!canRegisterMovements) {
     entryContainer.style.display = 'none';
     layout.style.gridTemplateColumns = 'minmax(0, 1fr)';
@@ -2794,6 +2794,26 @@ function updateWarehouseMovementLayout() {
   toggleButton.title = warehouseMovementFormCollapsed ? 'Expandir registro de movimientos' : 'Contraer registro de movimientos';
   toggleButton.setAttribute('aria-label', toggleButton.title);
   toggleButton.style.right = warehouseMovementFormCollapsed ? '0' : '-15px';
+}
+
+function openWarehouseEntryForm() {
+  toggleAlmacenTab('movimientos');
+  if (warehouseMovementFormCollapsed) {
+    warehouseMovementFormCollapsed = false;
+    updateWarehouseMovementLayout();
+  }
+  document.getElementById('op-btn-entrada')?.click();
+  document.getElementById('movement-entry-card')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function openWarehouseExitForm() {
+  toggleAlmacenTab('movimientos');
+  if (warehouseMovementFormCollapsed) {
+    warehouseMovementFormCollapsed = false;
+    updateWarehouseMovementLayout();
+  }
+  document.getElementById('op-btn-salida')?.click();
+  document.getElementById('movement-entry-card')?.scrollIntoView({ behavior: 'smooth' });
 }
 
 function setupWarehouseFormHandlers() {
@@ -2856,6 +2876,16 @@ function setupWarehouseFormHandlers() {
   btnSemilla.onclick = () => updateCategoryUI('Semilla');
   btnSalida.onclick = () => updateOperationUI('Salida');
   btnEntrada.onclick = () => updateOperationUI('Entrada');
+
+  const btnTopEntrada = document.getElementById('btn-top-registrar-entrada');
+  const btnTopSalida = document.getElementById('btn-top-registrar-salida');
+  const btnCardEntrada = document.getElementById('btn-card-registrar-entrada');
+  const btnCardSalida = document.getElementById('btn-card-registrar-salida');
+
+  if (btnTopEntrada) btnTopEntrada.onclick = openWarehouseEntryForm;
+  if (btnTopSalida) btnTopSalida.onclick = openWarehouseExitForm;
+  if (btnCardEntrada) btnCardEntrada.onclick = openWarehouseEntryForm;
+  if (btnCardSalida) btnCardSalida.onclick = openWarehouseExitForm;
 
   // Default date to today
   const moveFecha = document.getElementById('move-fecha');
