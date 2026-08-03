@@ -2914,17 +2914,30 @@ async function populateWarehouseAuxiliaryControls() {
     }
   }
 
-  // Load clients if needed
-  if (moveCliente && moveCliente.children.length <= 1) {
+  // Load all active clients for selection
+  if (moveCliente && (moveCliente.children.length <= 1 || moveCliente.getAttribute('data-loaded') !== 'true')) {
     try {
-      const res = await fetch(`${API_URL}/api/clientes?limit=1000`, { headers: getHeaders() });
+      const res = await fetch(`${API_URL}/api/clientes?all=true`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
         const clientes = Array.isArray(data) ? data : (data.clientes || []);
+        window.allWarehouseClientsMap = {};
         moveCliente.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
         clientes.forEach(c => {
-          moveCliente.innerHTML += `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`;
+          window.allWarehouseClientsMap[c.id] = c;
+          const asesorText = c.asesor_nombre ? ` (${escapeHtml(c.asesor_nombre)})` : '';
+          moveCliente.innerHTML += `<option value="${c.id}" data-asesor-id="${c.asesor_id || ''}">${escapeHtml(c.nombre)}${asesorText}</option>`;
         });
+        moveCliente.setAttribute('data-loaded', 'true');
+
+        // Auto-select advisor when client is chosen
+        moveCliente.onchange = function() {
+          const clientId = Number(this.value);
+          const clientData = window.allWarehouseClientsMap[clientId];
+          if (clientData && clientData.asesor_id && moveAsesor) {
+            moveAsesor.value = clientData.asesor_id;
+          }
+        };
       }
     } catch (e) {
       console.warn('Failed to load clients for warehouse form:', e);

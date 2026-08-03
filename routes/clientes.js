@@ -6,15 +6,16 @@ const router = express.Router();
 
 // GET /api/clientes
 router.get('/', authenticateToken, async (req, res) => {
-  const { asesor_id, cuenta_clave_id, q, page, limit } = req.query;
+  const { asesor_id, cuenta_clave_id, q, page, limit, all } = req.query;
   try {
-    const usesPagination = page !== undefined || limit !== undefined || q !== undefined;
+    const isFetchAll = all === 'true';
+    const usesPagination = !isFetchAll && (page !== undefined || limit !== undefined || q !== undefined);
     const requestedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
     const requestedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 10), 100);
     let whereSql = 'WHERE c.activo = 1';
     const params = [];
 
-    if (req.user.nivel_rol === 'Asesor') {
+    if (!isFetchAll && req.user.nivel_rol === 'Asesor') {
       whereSql += ' AND c.asesor_id = ?';
       params.push(req.user.id);
     } else if (asesor_id) {
