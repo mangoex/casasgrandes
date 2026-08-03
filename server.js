@@ -2630,6 +2630,68 @@ app.post('/api/admin/limpiar-almacen', authenticateToken, async (req, res) => {
   }
 });
 
+app.post('/api/admin/restaurar-planificacion', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Se requieren privilegios de Administrador' });
+  }
+  try {
+    const backupPlanRes = await db.query(`
+      SELECT id, creado_en, datos->'planificacion' AS planificacion
+      FROM crm_respaldos_limpieza_operacion
+      WHERE datos->'planificacion' IS NOT NULL 
+        AND jsonb_array_length(datos->'planificacion') > 0
+      ORDER BY id DESC LIMIT 1
+    `);
+
+    if (!backupPlanRes.rows || !backupPlanRes.rows.length || !Array.isArray(backupPlanRes.rows[0].planificacion)) {
+      return res.status(404).json({ error: 'No se encontraron respaldos de planificación semanal para restaurar.' });
+    }
+
+    const planItems = backupPlanRes.rows[0].planificacion;
+    let restoredCount = 0;
+
+    for (const item of planItems) {
+      if (item && item.asesor_id && item.cliente_id) {
+        await db.query(`
+          INSERT INTO planificacion_semanal (id, asesor_id, cliente_id, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, realizada, visita_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (id) DO UPDATE SET
+            asesor_id = EXCLUDED.asesor_id,
+            cliente_id = EXCLUDED.cliente_id,
+            fecha_programada = EXCLUDED.fecha_programada,
+            objetivo_visita = EXCLUDED.objetivo_visita,
+            pronostico_bolsas = EXCLUDED.pronostico_bolsas,
+            pronostico_monto_mxn = EXCLUDED.pronostico_monto_mxn,
+            realizada = EXCLUDED.realizada
+        `, [
+          item.id,
+          item.asesor_id,
+          item.cliente_id,
+          item.fecha_programada,
+          item.objetivo_visita || '',
+          item.pronostico_bolsas || 0,
+          item.pronostico_monto_mxn || 0.0,
+          item.realizada || 0,
+          item.visita_id || null
+        ]);
+        restoredCount++;
+      }
+    }
+
+    await db.query("SELECT setval('planificacion_semanal_id_seq', (SELECT COALESCE(MAX(id), 1) FROM planificacion_semanal))");
+
+    res.json({
+      message: `Restauración exitosa: ${restoredCount} registros de planificación recuperados desde el respaldo #${backupPlanRes.rows[0].id}.`,
+      restaurados: restoredCount,
+      respaldo_id: backupPlanRes.rows[0].id,
+      fecha_respaldo: backupPlanRes.rows[0].creado_en
+    });
+  } catch (err) {
+    console.error('Error restaurando planificación:', err);
+    res.status(500).json({ error: 'No fue posible restaurar la planificación.' });
+  }
+});
+
 // -------------------------------------------------------------
 // PROYECCIONES REPORT ENDPOINT
 // -------------------------------------------------------------

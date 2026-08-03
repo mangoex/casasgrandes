@@ -299,11 +299,44 @@ async function initSchema() {
       )
     `);
 
-    // Ensure clean state: if operational data (cotizaciones) has been reset, purge leftover test planning records
-    const quoteCountRes = await pool.query('SELECT count(*)::int AS count FROM cotizaciones');
-    if (quoteCountRes.rows[0]?.count === 0) {
-      await pool.query('DELETE FROM planificacion_semanal');
-      console.log('Operational data clean state verified: cleared leftover test planning records.');
+    // Auto-restore planificacion_semanal from backup table if planificacion_semanal is empty
+    try {
+      const planCountRes = await pool.query('SELECT count(*)::int AS count FROM planificacion_semanal');
+      if (planCountRes.rows[0]?.count === 0) {
+        const backupPlanRes = await pool.query(`
+          SELECT datos->'planificacion' AS planificacion
+          FROM crm_respaldos_limpieza_operacion
+          WHERE datos->'planificacion' IS NOT NULL 
+            AND jsonb_array_length(datos->'planificacion') > 0
+          ORDER BY id DESC LIMIT 1
+        `);
+        if (backupPlanRes.rows.length > 0 && Array.isArray(backupPlanRes.rows[0].planificacion)) {
+          const planItems = backupPlanRes.rows[0].planificacion;
+          for (const item of planItems) {
+            if (item && item.asesor_id && item.cliente_id) {
+              await pool.query(`
+                INSERT INTO planificacion_semanal (id, asesor_id, cliente_id, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, realizada, visita_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (id) DO NOTHING
+              `, [
+                item.id,
+                item.asesor_id,
+                item.cliente_id,
+                item.fecha_programada,
+                item.objetivo_visita || '',
+                item.pronostico_bolsas || 0,
+                item.pronostico_monto_mxn || 0.0,
+                item.realizada || 0,
+                item.visita_id || null
+              ]);
+            }
+          }
+          await pool.query("SELECT setval('planificacion_semanal_id_seq', (SELECT COALESCE(MAX(id), 1) FROM planificacion_semanal))");
+          console.log(`Auto-restored ${planItems.length} planning records from operational backup.`);
+        }
+      }
+    } catch (restoreErr) {
+      console.warn('Auto-restore check for planificacion_semanal skipped:', restoreErr.message);
     }
 
     // Create comision_reglas_base table
