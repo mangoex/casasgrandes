@@ -2789,23 +2789,139 @@ function updateWarehouseMovementLayout() {
   entryContainer.style.width = warehouseMovementFormCollapsed ? '38px' : '';
   layout.style.gridTemplateColumns = warehouseMovementFormCollapsed
     ? '38px minmax(0, 1fr)'
-    : 'minmax(300px, 1fr) minmax(0, 1.5fr)';
+    : 'minmax(320px, 1fr) minmax(0, 1.5fr)';
   toggleButton.textContent = warehouseMovementFormCollapsed ? '›' : '‹';
   toggleButton.title = warehouseMovementFormCollapsed ? 'Expandir registro de movimientos' : 'Contraer registro de movimientos';
   toggleButton.setAttribute('aria-label', toggleButton.title);
   toggleButton.style.right = warehouseMovementFormCollapsed ? '0' : '-15px';
 }
 
+function setupWarehouseFormHandlers() {
+  const btnAgroquimicos = document.getElementById('cat-btn-agroquimicos');
+  const btnSemilla = document.getElementById('cat-btn-semilla');
+  const inputCat = document.getElementById('move-categoria');
+  const groupTamano = document.getElementById('group-move-tamano');
+  const inputTamano = document.getElementById('move-tamano');
+
+  const btnSalida = document.getElementById('op-btn-salida');
+  const btnEntrada = document.getElementById('op-btn-entrada');
+  const inputTipoOp = document.getElementById('move-tipo-operacion');
+  const containerSalida = document.getElementById('fields-salida-container');
+  const containerEntrada = document.getElementById('fields-entrada-container');
+  const btnSubmit = document.getElementById('btn-submit-movement');
+  const labelProveedor = document.getElementById('label-move-proveedor');
+
+  if (!btnAgroquimicos || !btnSemilla) return;
+
+  const updateCategoryUI = (cat) => {
+    inputCat.value = cat;
+    if (cat === 'Semilla') {
+      btnSemilla.classList.add('active');
+      btnAgroquimicos.classList.remove('active');
+      groupTamano.style.display = 'block';
+      if (inputTamano) inputTamano.required = true;
+    } else {
+      btnAgroquimicos.classList.add('active');
+      btnSemilla.classList.remove('active');
+      groupTamano.style.display = 'none';
+      if (inputTamano) {
+        inputTamano.required = false;
+        inputTamano.value = '';
+      }
+    }
+    populateWarehouseProductControls();
+  };
+
+  const updateOperationUI = (op) => {
+    inputTipoOp.value = op;
+    if (op === 'Salida') {
+      btnSalida.classList.add('active');
+      btnEntrada.classList.remove('active');
+      containerSalida.style.display = 'block';
+      containerEntrada.style.display = 'none';
+      if (btnSubmit) btnSubmit.textContent = 'Registrar Salida';
+    } else {
+      btnEntrada.classList.add('active');
+      btnSalida.classList.remove('active');
+      containerSalida.style.display = 'none';
+      containerEntrada.style.display = 'block';
+      if (btnSubmit) btnSubmit.textContent = 'Registrar Entrada';
+    }
+    if (labelProveedor) {
+      labelProveedor.textContent = inputCat.value === 'Semilla' ? 'Proveedor' : 'Proveedor o Cliente';
+    }
+  };
+
+  btnAgroquimicos.onclick = () => updateCategoryUI('Agroquímicos');
+  btnSemilla.onclick = () => updateCategoryUI('Semilla');
+  btnSalida.onclick = () => updateOperationUI('Salida');
+  btnEntrada.onclick = () => updateOperationUI('Entrada');
+
+  // Default date to today
+  const moveFecha = document.getElementById('move-fecha');
+  if (moveFecha && !moveFecha.value) {
+    moveFecha.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+async function populateWarehouseAuxiliaryControls() {
+  const moveAsesor = document.getElementById('move-asesor');
+  const moveCliente = document.getElementById('move-cliente');
+
+  // Load advisors if needed
+  if (moveAsesor && moveAsesor.children.length <= 1) {
+    try {
+      const res = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
+      if (res.ok) {
+        const asesores = await res.json();
+        moveAsesor.innerHTML = '<option value="">-- Seleccionar Asesor --</option>';
+        asesores.forEach(a => {
+          moveAsesor.innerHTML += `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`;
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to load advisors for warehouse form:', e);
+    }
+  }
+
+  // Load clients if needed
+  if (moveCliente && moveCliente.children.length <= 1) {
+    try {
+      const res = await fetch(`${API_URL}/api/clientes?limit=1000`, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const clientes = Array.isArray(data) ? data : (data.clientes || []);
+        moveCliente.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
+        clientes.forEach(c => {
+          moveCliente.innerHTML += `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`;
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to load clients for warehouse form:', e);
+    }
+  }
+}
+
 function populateWarehouseProductControls() {
   const moveProdSelect = document.getElementById('move-prod');
   const filterSelect = document.getElementById('movement-filter-product');
+  const activeCategory = document.getElementById('move-categoria')?.value || 'Agroquímicos';
   const selectedMovementProduct = moveProdSelect?.value || '';
   const selectedFilterProduct = filterSelect?.value || '';
 
   if (moveProdSelect) {
     moveProdSelect.innerHTML = '<option value="">-- Selecciona un Producto --</option>';
-    allProducts.filter(product => product.activo === 1).forEach(product => {
-      moveProdSelect.innerHTML += `<option value="${product.id}">${escapeHtml(product.producto)}</option>`;
+    const filtered = allProducts.filter(p => p.activo === 1).filter(p => {
+      if (activeCategory === 'Semilla') {
+        return p.tipo_categoria === 'Híbrido' || p.tipo_categoria === 'Semilla';
+      } else {
+        return p.tipo_categoria !== 'Híbrido' && p.tipo_categoria !== 'Semilla';
+      }
+    });
+    // Fallback: if category filter leaves no products, show all active
+    const listToRender = filtered.length > 0 ? filtered : allProducts.filter(p => p.activo === 1);
+    listToRender.forEach(product => {
+      moveProdSelect.innerHTML += `<option value="${product.id}">${escapeHtml(product.producto)} (${escapeHtml(product.tipo_categoria)})</option>`;
     });
     moveProdSelect.value = selectedMovementProduct;
   }
@@ -2822,13 +2938,11 @@ async function loadWarehouseMovementTypes() {
   const select = document.getElementById('movement-filter-type');
   if (!select) return;
   const selectedType = select.value;
-  const res = await fetch(`${API_URL}/api/almacen/movimientos/tipos`, { headers: getHeaders() });
-  if (!res.ok) throw new Error('No fue posible cargar los tipos de movimiento.');
-  const types = await res.json();
-  select.innerHTML = '<option value="">Todos los movimientos</option>';
-  types.forEach(type => {
-    select.innerHTML += `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`;
-  });
+  select.innerHTML = `
+    <option value="">Todos los movimientos</option>
+    <option value="Salida">Salidas</option>
+    <option value="Entrada">Entradas</option>
+  `;
   select.value = selectedType;
 }
 
@@ -2836,33 +2950,58 @@ function renderWarehouseMovements(movements) {
   const movesTbody = document.getElementById('movements-tbody');
   if (!movesTbody) return;
   if (movements.length === 0) {
-    movesTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-light);">No hay movimientos con estos filtros.</td></tr>';
+    movesTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-light);">No hay movimientos registrados con estos filtros.</td></tr>';
     return;
   }
-  movesTbody.innerHTML = movements.map(movement => {
-    const dateOnly = movement.fecha_movimiento.slice(0, 16).replace('T', ' ');
-    const valEnt = movement.cantidad_entrante > 0 ? movement.cantidad_entrante.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
-    const valSal = movement.cantidad_saliente > 0 ? movement.cantidad_saliente.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
-    const movementIsEntry = movement.tipo_movimiento.startsWith('Entrada') || movement.tipo_movimiento.includes('Reversión');
+  movesTbody.innerHTML = movements.map(m => {
+    const dateOnly = (m.fecha_movimiento || '').slice(0, 10);
+    const valEnt = m.cantidad_entrante > 0 ? Number(m.cantidad_entrante).toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
+    const valSal = m.cantidad_saliente > 0 ? Number(m.cantidad_saliente).toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
+    const isEntry = m.cantidad_entrante > 0 || (m.tipo_movimiento || '').startsWith('Entrada');
+
+    let loteTamanoStr = '';
+    if (m.lote) loteTamanoStr += `<br><span style="font-size: 11px; color: var(--text-light);">Lote: <strong>${escapeHtml(m.lote)}</strong></span>`;
+    if (m.tamano) loteTamanoStr += `<span style="font-size: 11px; color: var(--text-light); margin-left: 6px;">Tamaño: <strong>${escapeHtml(m.tamano)}</strong></span>`;
+
+    let contactDetails = '';
+    if (isEntry) {
+      if (m.proveedor_cliente) contactDetails += `<span>Prov/Cli: ${escapeHtml(m.proveedor_cliente)}</span>`;
+      if (m.numero_movimiento) contactDetails += `${contactDetails ? '<br>' : ''}<span style="font-size: 11px; color: var(--text-light);">N° Ent: ${escapeHtml(m.numero_movimiento)}</span>`;
+    } else {
+      if (m.cliente_nombre) contactDetails += `<span>Cliente: ${escapeHtml(m.cliente_nombre)}</span>`;
+      if (m.asesor_nombre) contactDetails += `${contactDetails ? '<br>' : ''}<span style="font-size: 11px; color: var(--text-light);">Asesor: ${escapeHtml(m.asesor_nombre)}</span>`;
+      if (m.numero_remision) contactDetails += `${contactDetails ? '<br>' : ''}<span style="font-size: 11px; color: var(--primary);">Remisión: ${escapeHtml(m.numero_remision)}</span>`;
+      if (m.opcion_operacion) contactDetails += `<span style="font-size: 11px; color: var(--text-light); margin-left: 4px;">(${escapeHtml(m.opcion_operacion)})</span>`;
+      if (m.precio_venta > 0) contactDetails += `${contactDetails ? '<br>' : ''}<span style="font-size: 11px; font-weight: 600;">$${Number(m.precio_venta).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>`;
+    }
+
+    const catBadge = m.categoria === 'Semilla' ? '🌽 Semilla' : '🌱 Agroquímico';
+
     return `
       <tr>
-        <td style="font-size: 12px; color: var(--text-light);">${dateOnly}</td>
-        <td><span class="badge ${movementIsEntry ? 'badge-success' : 'badge-warning'}">${escapeHtml(movement.tipo_movimiento)}</span></td>
-        <td><strong>${escapeHtml(movement.producto_nombre)}</strong></td>
-        <td style="text-align: right; color: var(--success); font-weight: 500;">${valEnt}</td>
-        <td style="text-align: right; color: var(--danger); font-weight: 500;">${valSal}</td>
-        <td style="text-align: right; font-weight: 600;">${movement.existencias_resultantes.toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
+        <td style="font-size: 12px; white-space: nowrap;">${dateOnly}</td>
+        <td><span style="font-size: 11px; font-weight: 600;">${catBadge}</span></td>
+        <td><span class="badge ${isEntry ? 'badge-success' : 'badge-warning'}">${escapeHtml(m.tipo_movimiento || (isEntry ? 'Entrada' : 'Salida'))}</span></td>
+        <td><strong>${escapeHtml(m.producto_nombre)}</strong>${loteTamanoStr}</td>
+        <td style="font-size: 12px;">${contactDetails || '-'}</td>
+        <td style="text-align: right; color: var(--success); font-weight: 600;">${valEnt}</td>
+        <td style="text-align: right; color: var(--danger); font-weight: 600;">${valSal}</td>
+        <td style="text-align: right; font-weight: 700;">${Number(m.existencias_resultantes || 0).toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
       </tr>
     `;
   }).join('');
 }
 
 async function loadWarehouseMovements() {
+  const category = document.getElementById('movement-filter-category')?.value || '';
   const type = document.getElementById('movement-filter-type')?.value || '';
   const productId = document.getElementById('movement-filter-product')?.value || '';
+
   const params = new URLSearchParams();
+  if (category) params.set('categoria', category);
   if (type) params.set('tipo_movimiento', type);
   if (productId) params.set('producto_id', productId);
+
   const query = params.toString();
   const res = await fetch(`${API_URL}/api/almacen/movimientos${query ? `?${query}` : ''}`, { headers: getHeaders() });
   if (!res.ok) throw new Error('No fue posible cargar el historial de movimientos.');
@@ -2872,6 +3011,9 @@ async function loadWarehouseMovements() {
 
 async function loadAlmacenData() {
   try {
+    setupWarehouseFormHandlers();
+    await populateWarehouseAuxiliaryControls();
+
     if (allProducts.length === 0) {
       const pRes = await fetch(`${API_URL}/api/productos`, { headers: getHeaders() });
       allProducts = await pRes.json();
@@ -2954,26 +3096,71 @@ document.getElementById('btn-toggle-movement-form').addEventListener('click', ()
   updateWarehouseMovementLayout();
 });
 
-document.getElementById('movement-filter-type').addEventListener('change', () => {
+document.getElementById('movement-filter-category')?.addEventListener('change', () => {
   loadWarehouseMovements().catch(err => alert(err.message));
 });
-document.getElementById('movement-filter-product').addEventListener('change', () => {
+document.getElementById('movement-filter-type')?.addEventListener('change', () => {
+  loadWarehouseMovements().catch(err => alert(err.message));
+});
+document.getElementById('movement-filter-product')?.addEventListener('change', () => {
   loadWarehouseMovements().catch(err => alert(err.message));
 });
 
-// Manual movement submission handler
+// Manual movement submission handler (Entradas y Salidas)
 document.getElementById('add-movement-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   
+  const categoria = document.getElementById('move-categoria').value;
+  const tipoOp = document.getElementById('move-tipo-operacion').value; // 'Salida' o 'Entrada'
+  const productoId = Number(document.getElementById('move-prod').value);
+  const lote = document.getElementById('move-lote').value.trim();
+  const tamano = document.getElementById('move-tamano')?.value.trim() || '';
+  const fecha = document.getElementById('move-fecha').value;
+  const cantidad = Number(document.getElementById('move-cantidad').value) || 0;
+  const notas = document.getElementById('move-notas').value.trim();
+
+  if (!productoId) {
+    alert('Por favor selecciona un producto.');
+    return;
+  }
+  if (!lote) {
+    alert('El número de Lote es obligatorio.');
+    return;
+  }
+  if (categoria === 'Semilla' && !tamano) {
+    alert('El campo Tamaño es obligatorio para la categoría Semilla.');
+    return;
+  }
+  if (cantidad <= 0) {
+    alert('Ingresa una cantidad válida mayor a cero.');
+    return;
+  }
+
   const payload = {
-    producto_id: Number(document.getElementById('move-prod').value),
-    tipo_movimiento: document.getElementById('move-tipo').value,
-    cantidad_entrante: Number(document.getElementById('move-entrante').value) || 0.0,
-    cantidad_saliente: Number(document.getElementById('move-saliente').value) || 0.0,
-    referencia_factura: document.getElementById('move-referencia').value.trim(),
-    notas: document.getElementById('move-notas').value.trim()
+    categoria,
+    tipo: tipoOp,
+    producto_id: productoId,
+    lote,
+    tamano,
+    fecha_movimiento: fecha ? new Date(fecha).toISOString() : new Date().toISOString(),
+    cantidad,
+    notas
   };
-  
+
+  if (tipoOp === 'Salida') {
+    payload.opcion_operacion = document.getElementById('move-opcion').value;
+    payload.numero_remision = document.getElementById('move-remision').value.trim();
+    payload.numero_movimiento = document.getElementById('move-num-salida').value.trim();
+    payload.asesor_id = Number(document.getElementById('move-asesor').value) || null;
+    payload.cliente_id = Number(document.getElementById('move-cliente').value) || null;
+    payload.precio_venta = Number(document.getElementById('move-precio').value) || 0;
+    payload.tipo_movimiento = `Salida (${payload.opcion_operacion})`;
+  } else {
+    payload.proveedor_cliente = document.getElementById('move-proveedor').value.trim();
+    payload.numero_movimiento = document.getElementById('move-num-entrada').value.trim();
+    payload.tipo_movimiento = 'Entrada';
+  }
+
   try {
     const res = await fetch(`${API_URL}/api/almacen/movimientos`, {
       method: 'POST',
@@ -2981,14 +3168,18 @@ document.getElementById('add-movement-form').addEventListener('submit', async (e
       body: JSON.stringify(payload)
     });
     
+    const data = await res.json();
     if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Failed to submit movement');
+      throw new Error(data.error || 'No fue posible registrar el movimiento.');
     }
     
     document.getElementById('add-movement-form').reset();
+    document.getElementById('move-fecha').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('cat-btn-agroquimicos').click();
+    document.getElementById('op-btn-salida').click();
+
     await loadAlmacenData();
-    alert('Movimiento registrado e inventario actualizado.');
+    alert(data.message || 'Movimiento registrado exitosamente.');
   } catch (err) {
     alert(err.message);
   }

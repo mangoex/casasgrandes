@@ -780,42 +780,117 @@
             <!-- Register Movement -->
             <div id="movement-entry-container" style="position: relative; min-width: 0;">
               <button id="btn-toggle-movement-form" type="button" class="btn btn-secondary" title="Contraer registro de movimientos" aria-label="Contraer registro de movimientos" style="position: absolute; top: 12px; right: -15px; z-index: 1; width: 30px; height: 30px; padding: 0; border-radius: 50%;">‹</button>
-            <div id="movement-entry-card" class="card" style="height: fit-content;">
-              <h3 style="margin-bottom: 16px;">Registrar Entrada / Salida</h3>
-              <form id="add-movement-form">
-                <div class="form-group">
-                  <label for="move-prod">Producto</label>
-                  <select id="move-prod" class="form-input" required></select>
-                </div>
-                <div class="form-group">
-                  <label for="move-tipo">Tipo de Movimiento</label>
-                  <select id="move-tipo" class="form-input" required>
-                    <option value="Entrada de Compra">Entrada (Compra de Proveedor)</option>
-                    <option value="Salida por Contado">Salida (Entrega Contado)</option>
-                    <option value="Salida por Crédito">Salida (Entrega Crédito)</option>
-                  </select>
-                </div>
-                <div class="input-grid">
+              <div id="movement-entry-card" class="card" style="height: fit-content;">
+                <h3 style="margin-bottom: 16px;">Registrar Entradas / Salidas</h3>
+                <form id="add-movement-form">
+                  <!-- Categoría selector -->
+                  <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-weight: 600; font-size: 13px;">Categoría</label>
+                    <div style="display: flex; gap: 8px;">
+                      <button type="button" id="cat-btn-agroquimicos" class="btn btn-secondary active" style="flex: 1; padding: 6px 10px; font-size: 12px;">🌱 Agroquímicos</button>
+                      <button type="button" id="cat-btn-semilla" class="btn btn-secondary" style="flex: 1; padding: 6px 10px; font-size: 12px;">🌽 Semilla</button>
+                    </div>
+                    <input type="hidden" id="move-categoria" value="Agroquímicos">
+                  </div>
+
+                  <!-- Operación selector (Salida / Entrada) -->
+                  <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-weight: 600; font-size: 13px;">Tipo de Movimiento</label>
+                    <div style="display: flex; gap: 8px;">
+                      <button type="button" id="op-btn-salida" class="btn btn-secondary active" style="flex: 1; padding: 6px 10px; font-size: 12px; border-color: var(--danger, #ef4444);">📤 Salida</button>
+                      <button type="button" id="op-btn-entrada" class="btn btn-secondary" style="flex: 1; padding: 6px 10px; font-size: 12px; border-color: var(--success, #10b981);">📥 Entrada</button>
+                    </div>
+                    <input type="hidden" id="move-tipo-operacion" value="Salida">
+                  </div>
+
+                  <!-- Fecha -->
                   <div class="form-group">
-                    <label for="move-entrante">Entrada (Cantidad)</label>
-                    <input type="number" step="0.001" id="move-entrante" class="form-input" placeholder="0.0" value="0">
+                    <label for="move-fecha">Fecha</label>
+                    <input type="date" id="move-fecha" class="form-input" required>
+                  </div>
+
+                  <!-- Producto -->
+                  <div class="form-group">
+                    <label for="move-prod">Producto</label>
+                    <select id="move-prod" class="form-input" required></select>
+                  </div>
+
+                  <!-- Lote & Tamaño (Grid) -->
+                  <div class="input-grid">
+                    <div class="form-group">
+                      <label for="move-lote">Lote</label>
+                      <input type="text" id="move-lote" class="form-input" placeholder="Ej. L-2026A" required>
+                    </div>
+                    <div id="group-move-tamano" class="form-group" style="display: none;">
+                      <label for="move-tamano">Tamaño <span style="color: var(--danger);">*</span></label>
+                      <input type="text" id="move-tamano" class="form-input" placeholder="Ej. M, L, XL, Calibre">
+                    </div>
+                  </div>
+
+                  <!-- CAMPOS DE SALIDA -->
+                  <div id="fields-salida-container">
+                    <div class="form-group">
+                      <label for="move-asesor">Asesor</label>
+                      <select id="move-asesor" class="form-input"></select>
+                    </div>
+                    <div class="input-grid">
+                      <div class="form-group">
+                        <label for="move-remision">N° Remisión</label>
+                        <input type="text" id="move-remision" class="form-input" placeholder="Ej. R-17762">
+                      </div>
+                      <div class="form-group">
+                        <label for="move-num-salida">N° Salida</label>
+                        <input type="text" id="move-num-salida" class="form-input" placeholder="Ej. S-102">
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="move-cliente">Cliente</label>
+                      <select id="move-cliente" class="form-input"></select>
+                    </div>
+                    <div class="input-grid">
+                      <div class="form-group">
+                        <label for="move-opcion">Opción (Tipo Op.)</label>
+                        <select id="move-opcion" class="form-input">
+                          <option value="Crédito">Crédito</option>
+                          <option value="Contado">Contado</option>
+                          <option value="Ajuste">Ajuste</option>
+                          <option value="Cupón NUCLE">Cupón NUCLE</option>
+                          <option value="Obsequio">Obsequio</option>
+                          <option value="Devolución">Devolución</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label for="move-precio">Precio de Venta ($)</label>
+                        <input type="number" step="0.01" id="move-precio" class="form-input" placeholder="0.00">
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- CAMPOS DE ENTRADA -->
+                  <div id="fields-entrada-container" style="display: none;">
+                    <div class="form-group">
+                      <label for="move-proveedor" id="label-move-proveedor">Proveedor o Cliente</label>
+                      <input type="text" id="move-proveedor" class="form-input" placeholder="Nombre de proveedor / cliente">
+                    </div>
+                    <div class="form-group">
+                      <label for="move-num-entrada">N° Entrada</label>
+                      <input type="text" id="move-num-entrada" class="form-input" placeholder="Ej. E-5468">
+                    </div>
+                  </div>
+
+                  <!-- Cantidad y Notas -->
+                  <div class="form-group">
+                    <label for="move-cantidad">Cantidad</label>
+                    <input type="number" step="0.001" id="move-cantidad" class="form-input" placeholder="0.000" required>
                   </div>
                   <div class="form-group">
-                    <label for="move-saliente">Salida (Cantidad)</label>
-                    <input type="number" step="0.001" id="move-saliente" class="form-input" placeholder="0.0" value="0">
+                    <label for="move-notas">Notas</label>
+                    <textarea id="move-notas" class="form-input" rows="2" placeholder="Detalle adicional..."></textarea>
                   </div>
-                </div>
-                <div class="form-group">
-                  <label for="move-referencia">Factura / Folio de Referencia</label>
-                  <input type="text" id="move-referencia" class="form-input" placeholder="Ej. Factura 1848">
-                </div>
-                <div class="form-group">
-                  <label for="move-notas">Notas</label>
-                  <textarea id="move-notas" class="form-input" rows="2" placeholder="Detalle adicional..."></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary">Registrar Movimiento</button>
-              </form>
-            </div>
+
+                  <button type="submit" id="btn-submit-movement" class="btn btn-primary" style="width: 100%;">Registrar Salida</button>
+                </form>
+              </div>
             </div>
             
             <!-- History Table -->
@@ -828,28 +903,37 @@
                 </div>
               </div>
               <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
-                <select id="movement-filter-type" class="form-input" aria-label="Filtrar por movimiento" style="width: min(220px, 100%); margin: 0; padding: 8px 12px;">
-                  <option value="">Todos los movimientos</option>
+                <select id="movement-filter-category" class="form-input" aria-label="Filtrar por categoría" style="width: min(180px, 100%); margin: 0; padding: 8px 12px;">
+                  <option value="">Todas las Categorías</option>
+                  <option value="Agroquímicos">Agroquímicos</option>
+                  <option value="Semilla">Semilla</option>
                 </select>
-                <select id="movement-filter-product" class="form-input" aria-label="Filtrar por producto" style="width: min(240px, 100%); margin: 0; padding: 8px 12px;">
+                <select id="movement-filter-type" class="form-input" aria-label="Filtrar por movimiento" style="width: min(180px, 100%); margin: 0; padding: 8px 12px;">
+                  <option value="">Todos los movimientos</option>
+                  <option value="Salida">Salidas</option>
+                  <option value="Entrada">Entradas</option>
+                </select>
+                <select id="movement-filter-product" class="form-input" aria-label="Filtrar por producto" style="width: min(220px, 100%); margin: 0; padding: 8px 12px;">
                   <option value="">Todos los productos</option>
                 </select>
               </div>
-              <div class="table-container" style="max-height: 500px; overflow-y: auto;">
+              <div class="table-container" style="max-height: 550px; overflow-y: auto;">
                 <table>
                   <thead>
                     <tr>
                       <th>Fecha</th>
+                      <th>Cat.</th>
                       <th>Movimiento</th>
-                      <th>Producto</th>
-                      <th style="text-align: right;">Entradas</th>
-                      <th style="text-align: right;">Salidas</th>
+                      <th>Producto / Lote</th>
+                      <th>Detalles / Contacto</th>
+                      <th style="text-align: right;">Entrada</th>
+                      <th style="text-align: right;">Salida</th>
                       <th style="text-align: right;">Saldo</th>
                     </tr>
                   </thead>
                   <tbody id="movements-tbody">
                     <tr>
-                      <td colspan="6" style="text-align: center; color: var(--text-light);">Cargando...</td>
+                      <td colspan="8" style="text-align: center; color: var(--text-light);">Cargando...</td>
                     </tr>
                   </tbody>
                 </table>

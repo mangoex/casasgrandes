@@ -1273,7 +1273,7 @@ app.get('/api/almacen/existencias', authenticateToken, async (req, res) => {
         id: p.id,
         producto: p.producto,
         tipo_categoria: p.tipo_categoria,
-        existencias: last_move ? last_move.existencias_resultantes : 0.0
+        existencias: last_move ? Number(last_move.existencias_resultantes || 0) : 0.0
       });
     }
     res.json(existencias);
@@ -1289,23 +1289,36 @@ app.get('/api/almacen/movimientos', authenticateToken, async (req, res) => {
     const params = [];
     const productId = Number(req.query.producto_id);
     const movementType = String(req.query.tipo_movimiento || '').trim();
+    const categoria = String(req.query.categoria || '').trim();
+    
     if (Number.isInteger(productId) && productId > 0) {
       conditions.push('m.producto_id = ?');
       params.push(productId);
     }
     if (movementType) {
-      conditions.push('m.tipo_movimiento = ?');
-      params.push(movementType);
+      conditions.push('m.tipo_movimiento LIKE ?');
+      params.push(`%${movementType}%`);
     }
+    if (categoria) {
+      conditions.push('m.categoria = ?');
+      params.push(categoria);
+    }
+    
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = await db.all(`
-      SELECT m.*, p.producto as producto_nombre, a.nombre as asesor_nombre, c.folio_cotizacion
+      SELECT m.*, 
+             p.producto as producto_nombre, 
+             p.tipo_categoria as producto_categoria_orig,
+             a.nombre as asesor_nombre, 
+             cli.nombre as cliente_nombre,
+             c.folio_cotizacion
       FROM almacen_movimientos m
       JOIN productos p ON m.producto_id = p.id
       LEFT JOIN asesores a ON m.asesor_id = a.id
+      LEFT JOIN clientes cli ON m.cliente_id = cli.id
       LEFT JOIN cotizaciones c ON m.cotizacion_id = c.id
       ${whereClause}
-      ORDER BY m.id DESC LIMIT 300
+      ORDER BY m.id DESC LIMIT 500
     `, params);
     res.json(rows);
   } catch (err) {
@@ -1316,7 +1329,7 @@ app.get('/api/almacen/movimientos', authenticateToken, async (req, res) => {
 
 app.get('/api/almacen/movimientos/tipos', authenticateToken, async (req, res) => {
   try {
-    const rows = await db.all('SELECT DISTINCT tipo_movimiento FROM almacen_movimientos ORDER BY tipo_movimiento ASC');
+    const rows = await db.all('SELECT DISTINCT tipo_movimiento FROM almacen_movimientos WHERE tipo_movimiento IS NOT NULL AND tipo_movimiento <> \'\' ORDER BY tipo_movimiento ASC');
     res.json(rows.map(row => row.tipo_movimiento));
   } catch (err) {
     console.error(err);
@@ -1337,7 +1350,7 @@ app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async
   }
 
   try {
-    const product = await db.get('SELECT id, producto FROM productos WHERE id = ?', [productId]);
+    const product = await db.get('SELECT id, producto, tipo_categoria FROM productos WHERE id = ?', [productId]);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado.' });
 
     const lastMove = await db.get(
@@ -1348,12 +1361,15 @@ app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async
     const difference = targetStock - currentStock;
     if (difference === 0) return res.json({ existencias: currentStock, message: 'Las existencias ya tienen ese valor.' });
 
+    const cat = product.tipo_categoria === 'Híbrido' || product.tipo_categoria === 'Semilla' ? 'Semilla' : 'Agroquímicos';
+
     await db.run(`
       INSERT INTO almacen_movimientos
-        (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, referencia_factura, asesor_id, notas)
-      VALUES (?, 'Ajuste de Inventario', ?, ?, ?, ?, 'Ajuste manual', ?, ?)
+        (fecha_movimiento, tipo_movimiento, categoria, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, referencia_factura, asesor_id, notas)
+      VALUES (?, 'Ajuste de Inventario', ?, ?, ?, ?, ?, 'Ajuste manual', ?, ?)
     `, [
       new Date().toISOString(),
+      cat,
       productId,
       difference > 0 ? difference : 0,
       difference < 0 ? Math.abs(difference) : 0,
@@ -1369,41 +1385,110 @@ app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async
 });
 
 app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
-  const { producto_id, tipo_movimiento, cantidad_entrante, cantidad_saliente, referencia_factura, notas } = req.body;
-  if (!producto_id || !tipo_movimiento) {
-    return res.status(400).json({ error: 'producto_id and tipo_movimiento are required' });
-  }
-  
   if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Almacen' && req.user.nivel_rol !== 'Acopio') {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  
+
+  const {
+    categoria,
+    tipo, // 'Entrada' o 'Salida' (o tipo_movimiento completo)
+    tipo_movimiento,
+    producto_id,
+    lote,
+    tamano,
+    opcion_operacion,
+    numero_remision,
+    numero_movimiento,
+    fecha_movimiento,
+    asesor_id,
+    cliente_id,
+    proveedor_cliente,
+    precio_venta,
+    cantidad,
+    cantidad_entrante,
+    cantidad_saliente,
+    referencia_factura,
+    notas
+  } = req.body;
+
+  const prodId = Number(producto_id);
+  if (!prodId) {
+    return res.status(400).json({ error: 'El producto es requerido' });
+  }
+
+  const catStr = String(categoria || 'Agroquímicos').trim();
+  const isSalida = String(tipo || tipo_movimiento || '').toLowerCase().includes('salida');
+  const fullTipoMovimiento = tipo_movimiento || (isSalida ? `Salida (${opcion_operacion || 'Venta'})` : 'Entrada');
+  const qty = Number(cantidad || (isSalida ? cantidad_saliente : cantidad_entrante)) || 0.0;
+
+  if (qty <= 0) {
+    return res.status(400).json({ error: 'La cantidad debe ser mayor a cero' });
+  }
+
   try {
-    const prod = await db.get('SELECT * FROM productos WHERE id = ?', [producto_id]);
-    if (!prod) return res.status(404).json({ error: 'Product not found' });
-    
-    const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [producto_id]);
-    const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
-    
-    const ent = Number(cantidad_entrante) || 0.0;
-    const sal = Number(cantidad_saliente) || 0.0;
-    
-    if (tipo_movimiento.startsWith('Salida') && current_stock < sal) {
-      return res.status(400).json({ error: 'Insufficient stock in warehouse' });
+    const prod = await db.get('SELECT * FROM productos WHERE id = ?', [prodId]);
+    if (!prod) return res.status(404).json({ error: 'Producto no encontrado' });
+
+    const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [prodId]);
+    const current_stock = last_move ? Number(last_move.existencias_resultantes || 0) : 0.0;
+
+    const ent = isSalida ? 0.0 : qty;
+    const sal = isSalida ? qty : 0.0;
+
+    if (isSalida && current_stock < sal) {
+      return res.status(400).json({ error: `Existencias insuficientes en almacén. Disponibles: ${current_stock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}` });
     }
-    
+
     const new_stock = current_stock + ent - sal;
-    const now = new Date().toISOString();
-    
+    const dateVal = fecha_movimiento || new Date().toISOString();
+
     await db.run(`
-      INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, referencia_factura, asesor_id, notas)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [now, tipo_movimiento, producto_id, ent, sal, new_stock, referencia_factura || null, req.user.id, notas]);
-    
-    res.status(201).json({ existencias: new_stock, message: 'Stock movement logged successfully' });
+      INSERT INTO almacen_movimientos (
+        fecha_movimiento, 
+        tipo_movimiento, 
+        categoria,
+        producto_id, 
+        lote,
+        tamano,
+        opcion_operacion,
+        numero_remision,
+        numero_movimiento,
+        precio_venta,
+        proveedor_cliente,
+        cantidad_entrante, 
+        cantidad_saliente, 
+        existencias_resultantes, 
+        referencia_factura, 
+        asesor_id,
+        cliente_id,
+        notas
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      dateVal,
+      fullTipoMovimiento,
+      catStr,
+      prodId,
+      lote || null,
+      tamano || null,
+      opcion_operacion || null,
+      numero_remision || null,
+      numero_movimiento || referencia_factura || null,
+      Number(precio_venta) || 0.0,
+      proveedor_cliente || null,
+      ent,
+      sal,
+      new_stock,
+      referencia_factura || numero_movimiento || null,
+      asesor_id || req.user.id,
+      cliente_id || null,
+      notas || null
+    ]);
+
+    res.status(201).json({ existencias: new_stock, message: 'Movimiento de almacén registrado correctamente' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to record movement' });
+    console.error('Error registrando movimiento de almacén:', err);
+    res.status(500).json({ error: 'No se pudo registrar el movimiento de almacén' });
   }
 });
 

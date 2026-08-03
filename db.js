@@ -36,6 +36,15 @@ async function initSchema() {
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cosecha REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS clave TEXT');
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS descripcion TEXT');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS categoria TEXT DEFAULT \'Agroquímicos\'');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS lote TEXT');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS tamano TEXT');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS opcion_operacion TEXT');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_remision TEXT');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_movimiento TEXT');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS precio_venta REAL DEFAULT 0.0');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS proveedor_cliente TEXT');
+    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id)');
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS prospecto_id INTEGER');
     await pool.query('ALTER TABLE cuentas_clave ADD COLUMN IF NOT EXISTS descripcion TEXT');
     // The original import stored this hash while documenting password123 as the default,
