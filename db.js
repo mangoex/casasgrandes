@@ -335,6 +335,20 @@ async function initSchema() {
           console.log(`Auto-restored ${planItems.length} planning records from operational backup.`);
         }
       }
+
+      // Auto-sync missing crm_visitas into planificacion_semanal
+      try {
+        await pool.query(`
+          INSERT INTO planificacion_semanal (asesor_id, cliente_id, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, realizada, visita_id)
+          SELECT v.asesor_id, v.cliente_id, v.fecha_visita, COALESCE(v.comentarios_bitacora, 'Visita CRM Registrada'), 0, 0.0, 1, v.id
+          FROM crm_visitas v
+          WHERE NOT EXISTS (
+            SELECT 1 FROM planificacion_semanal p WHERE p.visita_id = v.id OR (p.asesor_id = v.asesor_id AND p.cliente_id = v.cliente_id AND p.fecha_programada = v.fecha_visita)
+          )
+        `);
+      } catch (syncErr) {
+        console.warn('Auto-sync of crm_visitas to planificacion_semanal skipped:', syncErr.message);
+      }
     } catch (restoreErr) {
       console.warn('Auto-restore check for planificacion_semanal skipped:', restoreErr.message);
     }
