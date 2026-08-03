@@ -2904,17 +2904,17 @@ async function populateWarehouseAuxiliaryControls() {
       const res = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
       if (res.ok) {
         const asesores = await res.json();
-        moveAsesor.innerHTML = '<option value="">-- Seleccionar Asesor --</option>';
-        asesores.forEach(a => {
-          moveAsesor.innerHTML += `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`;
-        });
+        const optionsHtml = (Array.isArray(asesores) ? asesores : []).map(a => 
+          `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`
+        ).join('');
+        moveAsesor.innerHTML = '<option value="">-- Seleccionar Asesor --</option>' + optionsHtml;
       }
     } catch (e) {
       console.warn('Failed to load advisors for warehouse form:', e);
     }
   }
 
-  // Load all active clients for selection
+  // Load all active clients for selection (high performance rendering for 3,500+ records)
   if (moveCliente && (moveCliente.children.length <= 1 || moveCliente.getAttribute('data-loaded') !== 'true')) {
     try {
       const res = await fetch(`${API_URL}/api/clientes?all=true`, { headers: getHeaders() });
@@ -2922,12 +2922,13 @@ async function populateWarehouseAuxiliaryControls() {
         const data = await res.json();
         const clientes = Array.isArray(data) ? data : (data.clientes || []);
         window.allWarehouseClientsMap = {};
-        moveCliente.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
-        clientes.forEach(c => {
+        const optionsHtml = clientes.map(c => {
           window.allWarehouseClientsMap[c.id] = c;
           const asesorText = c.asesor_nombre ? ` (${escapeHtml(c.asesor_nombre)})` : '';
-          moveCliente.innerHTML += `<option value="${c.id}" data-asesor-id="${c.asesor_id || ''}">${escapeHtml(c.nombre)}${asesorText}</option>`;
-        });
+          return `<option value="${c.id}" data-asesor-id="${c.asesor_id || ''}">${escapeHtml(c.nombre)}${asesorText}</option>`;
+        }).join('');
+
+        moveCliente.innerHTML = '<option value="">-- Seleccionar Cliente --</option>' + optionsHtml;
         moveCliente.setAttribute('data-loaded', 'true');
 
         // Auto-select advisor when client is chosen
@@ -2953,7 +2954,6 @@ function populateWarehouseProductControls() {
   const selectedFilterProduct = filterSelect?.value || '';
 
   if (moveProdSelect) {
-    moveProdSelect.innerHTML = '<option value="">-- Selecciona un Producto --</option>';
     const filtered = allProducts.filter(p => p.activo === 1).filter(p => {
       if (activeCategory === 'Semilla') {
         return p.tipo_categoria === 'Híbrido' || p.tipo_categoria === 'Semilla';
@@ -2963,16 +2963,17 @@ function populateWarehouseProductControls() {
     });
     // Fallback: if category filter leaves no products, show all active
     const listToRender = filtered.length > 0 ? filtered : allProducts.filter(p => p.activo === 1);
-    listToRender.forEach(product => {
-      moveProdSelect.innerHTML += `<option value="${product.id}">${escapeHtml(product.producto)} (${escapeHtml(product.tipo_categoria)})</option>`;
-    });
+    const optionsHtml = listToRender.map(product => 
+      `<option value="${product.id}">${escapeHtml(product.producto)} (${escapeHtml(product.tipo_categoria)})</option>`
+    ).join('');
+    moveProdSelect.innerHTML = '<option value="">-- Selecciona un Producto --</option>' + optionsHtml;
     moveProdSelect.value = selectedMovementProduct;
   }
   if (filterSelect) {
-    filterSelect.innerHTML = '<option value="">Todos los productos</option>';
-    allProducts.forEach(product => {
-      filterSelect.innerHTML += `<option value="${product.id}">${escapeHtml(product.producto)}</option>`;
-    });
+    const optionsHtml = allProducts.map(product => 
+      `<option value="${product.id}">${escapeHtml(product.producto)}</option>`
+    ).join('');
+    filterSelect.innerHTML = '<option value="">Todos los productos</option>' + optionsHtml;
     filterSelect.value = selectedFilterProduct;
   }
 }
