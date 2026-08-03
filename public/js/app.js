@@ -2968,6 +2968,7 @@ function populateWarehouseProductControls() {
     ).join('');
     moveProdSelect.innerHTML = '<option value="">-- Selecciona un Producto --</option>' + optionsHtml;
     moveProdSelect.value = selectedMovementProduct;
+    updateWarehouseTamanoOptions();
   }
   if (filterSelect) {
     const optionsHtml = allProducts.map(product => 
@@ -2975,6 +2976,54 @@ function populateWarehouseProductControls() {
     ).join('');
     filterSelect.innerHTML = '<option value="">Todos los productos</option>' + optionsHtml;
     filterSelect.value = selectedFilterProduct;
+  }
+}
+
+function getSizesForProduct(productName) {
+  const norm = String(productName || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  // Rule 1: A7573-Poncho -> PW1, PW2
+  if ((norm.includes('A-7573') || norm.includes('A7573')) && norm.includes('PONCHO')) {
+    return ['PW1', 'PW2'];
+  }
+  
+  // Rule 2: A7573-Aceleron -> BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3
+  if ((norm.includes('A-7573') || norm.includes('A7573')) && (norm.includes('ACCELERON') || norm.includes('ACELERON'))) {
+    return ['BT1', 'BT2', 'BT3', 'BW1', 'BW2', 'PT1', 'PT2', 'PT3'];
+  }
+
+  // Rule 3: Hipopotamo Aceleron and Calamar Aceleron -> BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3, PW1, PW2
+  if (norm.includes('HIPOPOTAMO') || norm.includes('CALAMAR')) {
+    return ['BT1', 'BT2', 'BT3', 'BW1', 'BW2', 'PT1', 'PT2', 'PT3', 'PW1', 'PW2'];
+  }
+
+  // Default sizes list for other seed/hybrid products
+  return ['BT1', 'BT2', 'BT3', 'BW1', 'BW2', 'PT1', 'PT2', 'PT3', 'PW1', 'PW2'];
+}
+
+function updateWarehouseTamanoOptions() {
+  const selectTamano = document.getElementById('move-tamano');
+  const inputCustom = document.getElementById('move-tamano-custom');
+  const selectProd = document.getElementById('move-prod');
+  if (!selectTamano) return;
+
+  const selectedProdId = Number(selectProd?.value);
+  const selectedProd = allProducts.find(p => p.id === selectedProdId);
+  const prodName = selectedProd?.producto || (selectProd?.selectedIndex > 0 ? selectProd.options[selectProd.selectedIndex].text : '');
+  
+  const sizes = getSizesForProduct(prodName);
+  const currentVal = selectTamano.value;
+
+  const optionsHtml = sizes.map(s => `<option value="${s}">${s}</option>`).join('');
+  selectTamano.innerHTML = '<option value="">-- Seleccionar Tamaño --</option>' + optionsHtml + '<option value="Otro">Otro (Especificar)</option>';
+
+  if (sizes.includes(currentVal) || currentVal === 'Otro') {
+    selectTamano.value = currentVal;
+  }
+
+  if (inputCustom) {
+    inputCustom.style.display = selectTamano.value === 'Otro' ? 'block' : 'none';
+    if (selectTamano.value !== 'Otro') inputCustom.value = '';
   }
 }
 
@@ -3162,11 +3211,31 @@ document.getElementById('stock-adjustment-form').addEventListener('submit', asyn
   }
 });
 
-document.getElementById('btn-toggle-movement-form').addEventListener('click', () => {
-  warehouseMovementFormCollapsed = !warehouseMovementFormCollapsed;
-  updateWarehouseMovementLayout();
-});
+function setupWarehouseFormHandlers() {
+  const moveProdSelect = document.getElementById('move-prod');
+  if (moveProdSelect) {
+    moveProdSelect.onchange = updateWarehouseTamanoOptions;
+  }
 
+  const selectTamano = document.getElementById('move-tamano');
+  const inputTamanoCustom = document.getElementById('move-tamano-custom');
+  if (selectTamano) {
+    selectTamano.onchange = function() {
+      if (inputTamanoCustom) {
+        inputTamanoCustom.style.display = this.value === 'Otro' ? 'block' : 'none';
+        if (this.value !== 'Otro') inputTamanoCustom.value = '';
+      }
+    };
+  }
+
+  // Default date to today
+  const moveFecha = document.getElementById('move-fecha');
+  if (moveFecha && !moveFecha.value) {
+    moveFecha.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+// Filter handlers for movement history
 document.getElementById('movement-filter-category')?.addEventListener('change', () => {
   loadWarehouseMovements().catch(err => alert(err.message));
 });
@@ -3185,7 +3254,14 @@ document.getElementById('add-movement-form').addEventListener('submit', async (e
   const tipoOp = document.getElementById('move-tipo-operacion').value; // 'Salida' o 'Entrada'
   const productoId = Number(document.getElementById('move-prod').value);
   const lote = document.getElementById('move-lote').value.trim();
-  const tamano = document.getElementById('move-tamano')?.value.trim() || '';
+  
+  const selectTamano = document.getElementById('move-tamano');
+  const inputTamanoCustom = document.getElementById('move-tamano-custom');
+  let tamano = selectTamano ? selectTamano.value.trim() : '';
+  if (tamano === 'Otro' && inputTamanoCustom) {
+    tamano = inputTamanoCustom.value.trim();
+  }
+  
   const fecha = document.getElementById('move-fecha').value;
   const cantidad = Number(document.getElementById('move-cantidad').value) || 0;
   const notas = document.getElementById('move-notas').value.trim();
