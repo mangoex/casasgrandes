@@ -3053,46 +3053,73 @@ async function loadWarehouseMovements() {
 }
 
 async function loadAlmacenData() {
-  try {
-    setupWarehouseFormHandlers();
-    await populateWarehouseAuxiliaryControls();
+  setupWarehouseFormHandlers();
 
-    if (allProducts.length === 0) {
+  // 1. Fetch Products if needed
+  try {
+    if (!allProducts || allProducts.length === 0) {
       const pRes = await fetch(`${API_URL}/api/productos`, { headers: getHeaders() });
-      allProducts = await pRes.json();
+      if (pRes.ok) {
+        allProducts = await pRes.json();
+      }
     }
-    
-    // 1. Load Current Stocks
+  } catch (err) {
+    console.warn('Could not fetch products for warehouse:', err);
+  }
+
+  // 2. Fetch and render Current Stocks
+  try {
     const stockRes = await fetch(`${API_URL}/api/almacen/existencias`, { headers: getHeaders() });
+    if (!stockRes.ok) throw new Error('Error al consultar existencias');
     const stocks = await stockRes.json();
-    allWarehouseStocks = stocks;
+    allWarehouseStocks = Array.isArray(stocks) ? stocks : [];
     
     const stockTbody = document.getElementById('stock-tbody');
-    stockTbody.innerHTML = '';
-    
-    const canAdjustStock = user?.nivel_rol === 'Administrador';
-    stocks.forEach(s => {
-      const isLow = s.existencias <= 0;
-      const statusBadge = isLow ? `<span class="badge badge-danger">Sin Stock</span>` : `<span class="badge badge-success">Disponible</span>`;
-      const qtyFormatted = s.existencias.toLocaleString('es-MX', { minimumFractionDigits: 3 });
-      
-      stockTbody.innerHTML += `
-        <tr ${canAdjustStock ? `onclick="openStockAdjustmentModal(${s.id})" title="Editar existencias físicas de ${escapeHtml(s.producto)}"` : ''} style="${isLow ? 'background-color: #fff5f5;' : ''}${canAdjustStock ? ' cursor: pointer;' : ''}">
-          <td><strong>${s.producto}</strong></td>
-          <td>${s.tipo_categoria}</td>
-          <td style="text-align: right; font-weight: 600; ${isLow ? 'color: var(--danger);' : ''}">${qtyFormatted}</td>
-          <td>${statusBadge}</td>
-        </tr>
-      `;
-    });
-    
+    if (stockTbody) {
+      if (allWarehouseStocks.length === 0) {
+        stockTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-light);">No hay productos registrados en el inventario.</td></tr>';
+      } else {
+        const canAdjustStock = user?.nivel_rol === 'Administrador';
+        stockTbody.innerHTML = allWarehouseStocks.map(s => {
+          const qty = Number(s.existencias || 0);
+          const isLow = qty <= 0;
+          const statusBadge = isLow ? `<span class="badge badge-danger">Sin Stock</span>` : `<span class="badge badge-success">Disponible</span>`;
+          const qtyFormatted = qty.toLocaleString('es-MX', { minimumFractionDigits: 3 });
+          const prodName = escapeHtml(s.producto || 'Sin Nombre');
+          const catName = escapeHtml(s.tipo_categoria || '-');
+          
+          return `
+            <tr ${canAdjustStock ? `onclick="openStockAdjustmentModal(${s.id})" title="Editar existencias físicas de ${prodName}"` : ''} style="${isLow ? 'background-color: #fff5f5;' : ''}${canAdjustStock ? ' cursor: pointer;' : ''}">
+              <td><strong>${prodName}</strong></td>
+              <td>${catName}</td>
+              <td style="text-align: right; font-weight: 600; ${isLow ? 'color: var(--danger);' : ''}">${qtyFormatted}</td>
+              <td>${statusBadge}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load Almacen stock existencias:', err);
+    const stockTbody = document.getElementById('stock-tbody');
+    if (stockTbody) {
+      stockTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Error al cargar las existencias físicas.</td></tr>';
+    }
+  }
+
+  // 3. Populate form dropdowns and load movements in background
+  try {
     populateWarehouseProductControls();
     await loadWarehouseMovementTypes();
     await loadWarehouseMovements();
-    
   } catch (err) {
-    console.error('Failed to load Almacen inventory log:', err);
+    console.warn('Failed to load warehouse movements history:', err);
   }
+
+  // 4. Load auxiliary controls (Advisors and Clients) asynchronously
+  populateWarehouseAuxiliaryControls().catch(err => {
+    console.warn('Failed to load auxiliary controls:', err);
+  });
 }
 
 window.openStockAdjustmentModal = function(productId) {
