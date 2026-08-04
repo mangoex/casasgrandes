@@ -2821,7 +2821,8 @@ function setupWarehouseFormHandlers() {
   const btnSemilla = document.getElementById('cat-btn-semilla');
   const inputCat = document.getElementById('move-categoria');
   const groupTamano = document.getElementById('group-move-tamano');
-  const inputTamano = document.getElementById('move-tamano');
+  const selectTamano = document.getElementById('move-tamano');
+  const inputTamanoCustom = document.getElementById('move-tamano-custom');
 
   const btnSalida = document.getElementById('op-btn-salida');
   const btnEntrada = document.getElementById('op-btn-entrada');
@@ -2830,6 +2831,7 @@ function setupWarehouseFormHandlers() {
   const containerEntrada = document.getElementById('fields-entrada-container');
   const btnSubmit = document.getElementById('btn-submit-movement');
   const labelProveedor = document.getElementById('label-move-proveedor');
+  const moveProdSelect = document.getElementById('move-prod');
 
   if (!btnAgroquimicos || !btnSemilla) return;
 
@@ -2838,15 +2840,19 @@ function setupWarehouseFormHandlers() {
     if (cat === 'Semilla') {
       btnSemilla.classList.add('active');
       btnAgroquimicos.classList.remove('active');
-      groupTamano.style.display = 'block';
-      if (inputTamano) inputTamano.required = true;
+      if (groupTamano) groupTamano.style.display = 'block';
+      if (selectTamano) selectTamano.required = true;
     } else {
       btnAgroquimicos.classList.add('active');
       btnSemilla.classList.remove('active');
-      groupTamano.style.display = 'none';
-      if (inputTamano) {
-        inputTamano.required = false;
-        inputTamano.value = '';
+      if (groupTamano) groupTamano.style.display = 'none';
+      if (selectTamano) {
+        selectTamano.required = false;
+        selectTamano.value = '';
+      }
+      if (inputTamanoCustom) {
+        inputTamanoCustom.value = '';
+        inputTamanoCustom.style.display = 'none';
       }
     }
     populateWarehouseProductControls();
@@ -2876,6 +2882,19 @@ function setupWarehouseFormHandlers() {
   btnSemilla.onclick = () => updateCategoryUI('Semilla');
   btnSalida.onclick = () => updateOperationUI('Salida');
   btnEntrada.onclick = () => updateOperationUI('Entrada');
+
+  if (moveProdSelect) {
+    moveProdSelect.onchange = updateWarehouseTamanoOptions;
+  }
+
+  if (selectTamano) {
+    selectTamano.onchange = function() {
+      if (inputTamanoCustom) {
+        inputTamanoCustom.style.display = this.value === 'Otro' ? 'block' : 'none';
+        if (this.value !== 'Otro') inputTamanoCustom.value = '';
+      }
+    };
+  }
 
   const btnTopEntrada = document.getElementById('btn-top-registrar-entrada');
   const btnTopSalida = document.getElementById('btn-top-registrar-salida');
@@ -3211,29 +3230,7 @@ document.getElementById('stock-adjustment-form').addEventListener('submit', asyn
   }
 });
 
-function setupWarehouseFormHandlers() {
-  const moveProdSelect = document.getElementById('move-prod');
-  if (moveProdSelect) {
-    moveProdSelect.onchange = updateWarehouseTamanoOptions;
-  }
 
-  const selectTamano = document.getElementById('move-tamano');
-  const inputTamanoCustom = document.getElementById('move-tamano-custom');
-  if (selectTamano) {
-    selectTamano.onchange = function() {
-      if (inputTamanoCustom) {
-        inputTamanoCustom.style.display = this.value === 'Otro' ? 'block' : 'none';
-        if (this.value !== 'Otro') inputTamanoCustom.value = '';
-      }
-    };
-  }
-
-  // Default date to today
-  const moveFecha = document.getElementById('move-fecha');
-  if (moveFecha && !moveFecha.value) {
-    moveFecha.value = new Date().toISOString().slice(0, 10);
-  }
-}
 
 // Filter handlers for movement history
 document.getElementById('movement-filter-category')?.addEventListener('change', () => {
