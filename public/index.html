@@ -858,9 +858,17 @@
                         <input type="text" id="move-num-salida" class="form-input" placeholder="Ej. S-102">
                       </div>
                     </div>
-                    <div class="form-group">
-                      <label for="move-cliente">Cliente</label>
-                      <select id="move-cliente" class="form-input"></select>
+                    <div class="form-group" style="position: relative;">
+                      <label for="move-cliente-search">Cliente</label>
+                      <div style="position: relative;">
+                        <input type="text" id="move-cliente-search" class="form-input" placeholder="🔍 Escribe para buscar cliente (de más de 3,500)..." autocomplete="off" style="padding-right: 30px;">
+                        <input type="hidden" id="move-cliente" name="cliente_id">
+                        <button type="button" id="btn-clear-cliente" title="Limpiar cliente seleccionado" style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-light, #9ca3af);">&times;</button>
+                        <div id="move-cliente-dropdown" class="card" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; z-index: 1000; padding: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.18); background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px;">
+                          <!-- Search results -->
+                        </div>
+                      </div>
+                      <small id="move-cliente-selected-info" style="display: none; color: var(--success, #10b981); font-size: 11px; font-weight: 600; margin-top: 4px;"></small>
                     </div>
                     <div class="input-grid">
                       <div class="form-group">

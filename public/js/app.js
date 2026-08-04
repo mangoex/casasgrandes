@@ -2915,7 +2915,6 @@ function setupWarehouseFormHandlers() {
 
 async function populateWarehouseAuxiliaryControls() {
   const moveAsesor = document.getElementById('move-asesor');
-  const moveCliente = document.getElementById('move-cliente');
 
   // Load advisors if needed
   if (moveAsesor && moveAsesor.children.length <= 1) {
@@ -2933,36 +2932,120 @@ async function populateWarehouseAuxiliaryControls() {
     }
   }
 
-  // Load all active clients for selection (high performance rendering for 3,500+ records)
-  if (moveCliente && (moveCliente.children.length <= 1 || moveCliente.getAttribute('data-loaded') !== 'true')) {
+  // Load all active clients for interactive search box (high performance for 3,500+ records)
+  if (!window.allWarehouseClients || window.allWarehouseClients.length === 0) {
     try {
       const res = await fetch(`${API_URL}/api/clientes?all=true`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
-        const clientes = Array.isArray(data) ? data : (data.clientes || []);
-        window.allWarehouseClientsMap = {};
-        const optionsHtml = clientes.map(c => {
-          window.allWarehouseClientsMap[c.id] = c;
-          const asesorText = c.asesor_nombre ? ` (${escapeHtml(c.asesor_nombre)})` : '';
-          return `<option value="${c.id}" data-asesor-id="${c.asesor_id || ''}">${escapeHtml(c.nombre)}${asesorText}</option>`;
-        }).join('');
-
-        moveCliente.innerHTML = '<option value="">-- Seleccionar Cliente --</option>' + optionsHtml;
-        moveCliente.setAttribute('data-loaded', 'true');
-
-        // Auto-select advisor when client is chosen
-        moveCliente.onchange = function() {
-          const clientId = Number(this.value);
-          const clientData = window.allWarehouseClientsMap[clientId];
-          if (clientData && clientData.asesor_id && moveAsesor) {
-            moveAsesor.value = clientData.asesor_id;
-          }
-        };
+        window.allWarehouseClients = Array.isArray(data) ? data : (data.clientes || []);
+        setupWarehouseClientSearch();
       }
     } catch (e) {
       console.warn('Failed to load clients for warehouse form:', e);
     }
+  } else {
+    setupWarehouseClientSearch();
   }
+}
+
+function setupWarehouseClientSearch() {
+  const searchInput = document.getElementById('move-cliente-search');
+  const hiddenInput = document.getElementById('move-cliente');
+  const dropdown = document.getElementById('move-cliente-dropdown');
+  const clearBtn = document.getElementById('btn-clear-cliente');
+  const infoBadge = document.getElementById('move-cliente-selected-info');
+  const moveAsesor = document.getElementById('move-asesor');
+
+  if (!searchInput || !dropdown) return;
+  if (searchInput.getAttribute('data-bound') === 'true') return;
+  searchInput.setAttribute('data-bound', 'true');
+
+  const renderDropdownItems = (filterText = '') => {
+    const clients = window.allWarehouseClients || [];
+    const query = filterText.trim().toLowerCase();
+    
+    let filtered = clients;
+    if (query) {
+      filtered = clients.filter(c => 
+        (c.nombre && c.nombre.toLowerCase().includes(query)) ||
+        (c.asesor_nombre && c.asesor_nombre.toLowerCase().includes(query))
+      );
+    }
+
+    if (filtered.length === 0) {
+      dropdown.innerHTML = '<div style="padding: 10px; text-align: center; color: var(--text-light, #9ca3af); font-size: 12px;">No se encontraron clientes con esa búsqueda</div>';
+      dropdown.style.display = 'block';
+      return;
+    }
+
+    const matchesToShow = filtered.slice(0, 60);
+    dropdown.innerHTML = matchesToShow.map(c => {
+      const asesorText = c.asesor_nombre ? `<span style="font-size: 11px; color: var(--text-light, #6b7280); font-weight: normal;">Asesor: ${escapeHtml(c.asesor_nombre)}</span>` : '';
+      return `
+        <div class="client-search-item" data-id="${c.id}" data-asesor-id="${c.asesor_id || ''}" data-name="${escapeHtml(c.nombre)}" style="padding: 8px 12px; cursor: pointer; border-radius: 6px; font-size: 13px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light, #f3f4f6);" onmouseover="this.style.background='var(--bg-hover, #f3f4f6)'" onmouseout="this.style.background='transparent'">
+          <span>${escapeHtml(c.nombre)}</span>
+          ${asesorText}
+        </div>
+      `;
+    }).join('');
+
+    dropdown.style.display = 'block';
+
+    dropdown.querySelectorAll('.client-search-item').forEach(item => {
+      item.onclick = function() {
+        const id = this.getAttribute('data-id');
+        const name = this.getAttribute('data-name');
+        const asesorId = this.getAttribute('data-asesor-id');
+
+        hiddenInput.value = id;
+        searchInput.value = name;
+        dropdown.style.display = 'none';
+
+        if (clearBtn) clearBtn.style.display = 'block';
+
+        if (asesorId && moveAsesor) {
+          moveAsesor.value = asesorId;
+        }
+
+        const clientObj = (window.allWarehouseClients || []).find(c => String(c.id) === String(id));
+        if (infoBadge && clientObj) {
+          infoBadge.style.display = 'block';
+          infoBadge.innerHTML = `✓ Seleccionado: <strong>${escapeHtml(clientObj.nombre)}</strong>${clientObj.asesor_nombre ? ` — Asesor: ${escapeHtml(clientObj.asesor_nombre)}` : ''}`;
+        }
+      };
+    });
+  };
+
+  searchInput.onfocus = function() {
+    renderDropdownItems(this.value);
+  };
+
+  searchInput.oninput = function() {
+    if (!this.value) {
+      hiddenInput.value = '';
+      if (infoBadge) infoBadge.style.display = 'none';
+      if (clearBtn) clearBtn.style.display = 'none';
+    }
+    renderDropdownItems(this.value);
+  };
+
+  if (clearBtn) {
+    clearBtn.onclick = function() {
+      searchInput.value = '';
+      hiddenInput.value = '';
+      clearBtn.style.display = 'none';
+      if (infoBadge) infoBadge.style.display = 'none';
+      dropdown.style.display = 'none';
+      searchInput.focus();
+    };
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target) && clearBtn && !clearBtn.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
 }
 
 function populateWarehouseProductControls() {
