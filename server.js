@@ -1488,6 +1488,37 @@ app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
   }
 });
 
+app.delete('/api/almacen/movimientos/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Solo un administrador puede eliminar movimientos.' });
+  }
+
+  const moveId = Number(req.params.id);
+  if (!moveId) return res.status(400).json({ error: 'ID de movimiento inválido.' });
+
+  try {
+    const move = await db.get('SELECT * FROM almacen_movimientos WHERE id = ?', [moveId]);
+    if (!move) return res.status(404).json({ error: 'Movimiento no encontrado.' });
+
+    await db.run('DELETE FROM almacen_movimientos WHERE id = ?', [moveId]);
+
+    const subsequentMoves = await db.all('SELECT * FROM almacen_movimientos WHERE producto_id = ? AND id > ? ORDER BY id ASC', [move.producto_id, moveId]);
+    const previousMove = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? AND id < ? ORDER BY id DESC LIMIT 1', [move.producto_id, moveId]);
+    
+    let runningStock = previousMove ? Number(previousMove.existencias_resultantes || 0) : 0;
+    
+    for (const m of subsequentMoves) {
+      runningStock = runningStock + Number(m.cantidad_entrante || 0) - Number(m.cantidad_saliente || 0);
+      await db.run('UPDATE almacen_movimientos SET existencias_resultantes = ? WHERE id = ?', [runningStock, m.id]);
+    }
+
+    res.json({ message: 'Movimiento eliminado correctamente.' });
+  } catch (err) {
+    console.error('Error eliminando movimiento:', err);
+    res.status(500).json({ error: 'No se pudo eliminar el movimiento.' });
+  }
+});
+
 // INTERNAL UAN-32 PRODUCTION
 app.post('/api/almacen/produccion-uan32', authenticateToken, async (req, res) => {
   const { cantidad_solub_toneladas } = req.body;

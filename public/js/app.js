@@ -3145,7 +3145,7 @@ function renderWarehouseMovements(movements) {
   const movesTbody = document.getElementById('movements-tbody');
   if (!movesTbody) return;
   if (movements.length === 0) {
-    movesTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-light);">No hay movimientos registrados con estos filtros.</td></tr>';
+    movesTbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">No hay movimientos registrados con estos filtros.</td></tr>';
     return;
   }
   movesTbody.innerHTML = movements.map(m => {
@@ -3172,6 +3172,8 @@ function renderWarehouseMovements(movements) {
 
     const catBadge = m.categoria === 'Semilla' ? '🌽 Semilla' : '🌱 Agroquímico';
 
+    const canDelete = user?.nivel_rol === 'Administrador';
+
     return `
       <tr>
         <td style="font-size: 12px; white-space: nowrap;">${dateOnly}</td>
@@ -3182,9 +3184,36 @@ function renderWarehouseMovements(movements) {
         <td style="text-align: right; color: var(--success); font-weight: 600;">${valEnt}</td>
         <td style="text-align: right; color: var(--danger); font-weight: 600;">${valSal}</td>
         <td style="text-align: right; font-weight: 700;">${Number(m.existencias_resultantes || 0).toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
+        <td style="text-align: center;">
+          ${canDelete ? `<button class="btn-icon" style="color: var(--danger); font-size: 16px; padding: 4px;" onclick="deleteWarehouseMovement(${m.id})" title="Eliminar registro">🗑️</button>` : ''}
+        </td>
       </tr>
     `;
   }).join('');
+}
+
+async function deleteWarehouseMovement(id) {
+  if (!confirm('¿Estás seguro de que deseas eliminar este movimiento? Esta acción recalculará las existencias posteriores.')) {
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_URL}/api/almacen/movimientos/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'No fue posible eliminar el movimiento.');
+    }
+    
+    alert('Movimiento eliminado correctamente.');
+    loadAlmacenData();
+  } catch (err) {
+    console.error(err);
+    alert('Error: ' + err.message);
+  }
 }
 
 async function loadWarehouseMovements() {
