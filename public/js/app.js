@@ -2839,12 +2839,20 @@ function setupWarehouseFormHandlers() {
     inputCat.value = cat;
     if (cat === 'Semilla') {
       btnSemilla.classList.add('active');
+      btnSemilla.style.backgroundColor = 'var(--primary, #047857)';
+      btnSemilla.style.color = '#ffffff';
       btnAgroquimicos.classList.remove('active');
+      btnAgroquimicos.style.backgroundColor = '';
+      btnAgroquimicos.style.color = '';
       if (groupTamano) groupTamano.style.display = 'block';
       if (selectTamano) selectTamano.required = true;
     } else {
       btnAgroquimicos.classList.add('active');
+      btnAgroquimicos.style.backgroundColor = 'var(--primary, #047857)';
+      btnAgroquimicos.style.color = '#ffffff';
       btnSemilla.classList.remove('active');
+      btnSemilla.style.backgroundColor = '';
+      btnSemilla.style.color = '';
       if (groupTamano) groupTamano.style.display = 'none';
       if (selectTamano) {
         selectTamano.required = false;
@@ -2862,13 +2870,21 @@ function setupWarehouseFormHandlers() {
     inputTipoOp.value = op;
     if (op === 'Salida') {
       btnSalida.classList.add('active');
+      btnSalida.style.backgroundColor = 'var(--danger, #ef4444)';
+      btnSalida.style.color = '#ffffff';
       btnEntrada.classList.remove('active');
+      btnEntrada.style.backgroundColor = '';
+      btnEntrada.style.color = '';
       containerSalida.style.display = 'block';
       containerEntrada.style.display = 'none';
       if (btnSubmit) btnSubmit.textContent = 'Registrar Salida';
     } else {
       btnEntrada.classList.add('active');
+      btnEntrada.style.backgroundColor = 'var(--success, #10b981)';
+      btnEntrada.style.color = '#ffffff';
       btnSalida.classList.remove('active');
+      btnSalida.style.backgroundColor = '';
+      btnSalida.style.color = '';
       containerSalida.style.display = 'none';
       containerEntrada.style.display = 'block';
       if (btnSubmit) btnSubmit.textContent = 'Registrar Entrada';
@@ -2882,6 +2898,10 @@ function setupWarehouseFormHandlers() {
   btnSemilla.onclick = () => updateCategoryUI('Semilla');
   btnSalida.onclick = () => updateOperationUI('Salida');
   btnEntrada.onclick = () => updateOperationUI('Entrada');
+
+  // Initialize UI based on current hidden input values (or defaults)
+  updateCategoryUI(inputCat.value || 'Agroquímicos');
+  updateOperationUI(inputTipoOp.value || 'Salida');
 
   if (moveProdSelect) {
     moveProdSelect.onchange = updateWarehouseTamanoOptions;
