@@ -5808,6 +5808,8 @@ function updateCatalogSelectionControls(visibleClients = getFilteredCatalogClien
   const isAdmin = user?.nivel_rol === 'Administrador';
   const selectAll = document.getElementById('catalog-select-all-clients');
   const bulkDeleteBtn = document.getElementById('btn-delete-selected-clients');
+  const bulkBiddableBtn = document.getElementById('btn-catalog-bulk-biddable');
+  const selectedBiddableCount = document.getElementById('selected-biddable-count');
   const selectedCount = document.getElementById('selected-clients-count');
   const associationCount = document.getElementById('selected-association-count');
   const associateButton = document.getElementById('btn-asociar-agricultores');
@@ -5826,6 +5828,14 @@ function updateCatalogSelectionControls(visibleClients = getFilteredCatalogClien
     bulkDeleteBtn.disabled = selectedCatalogClientIds.size === 0;
   }
 
+  if (bulkBiddableBtn) {
+    bulkBiddableBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    bulkBiddableBtn.disabled = selectedCatalogClientIds.size === 0;
+  }
+
+  if (selectedBiddableCount) {
+    selectedBiddableCount.textContent = selectedCatalogClientIds.size;
+  }
   if (selectedCount) {
     selectedCount.textContent = selectedCatalogClientIds.size;
   }
@@ -5836,6 +5846,36 @@ function updateCatalogSelectionControls(visibleClients = getFilteredCatalogClien
     associateButton.disabled = selectedCatalogClientIds.size < 2;
   }
 }
+
+window.makeSelectedCatalogClientsBiddable = async function(isBiddable = true) {
+  const selectedIds = Array.from(selectedCatalogClientIds);
+  if (selectedIds.length === 0) {
+    alert('Por favor selecciona uno o más agricultores usando las casillas de verificación.');
+    return;
+  }
+
+  const actionText = isBiddable ? 'poner en subasta (pool de pujas)' : 'retirar de subasta';
+  if (!confirm(`¿Estás seguro de ${actionText} a los ${selectedIds.length} agricultores seleccionados?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/api/clientes/bulk-puja-status`, {
+      method: 'POST',
+      headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: selectedIds, disponible_para_puja: isBiddable })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar estado de subasta');
+
+    alert(`¡${data.count || selectedIds.length} agricultor(es) ${isBiddable ? 'agregados a subasta' : 'retirados de subasta'} con éxito!`);
+    selectedCatalogClientIds.clear();
+    await loadClientesCatalog();
+  } catch (err) {
+    console.error('Error al subastar clientes:', err);
+    alert(`Error: ${err.message}`);
+  }
+};
 
 window.toggleCatalogClientSelection = function(clientId, checked) {
   if (checked) {
@@ -6172,6 +6212,9 @@ window.renderCatalogClientes = function() {
     const belongsToGroupBadge = c.cliente_principal_id && !clientMap.has(c.cliente_principal_id)
       ? `<span class="badge badge-info" style="font-size: 11px; margin-left: 6px;">🔗 Asociado de ${escapeHtml(c.principal_nombre || `#${c.cliente_principal_id}`)}</span>`
       : '';
+    const biddableBadge = c.disponible_para_puja === 1
+      ? `<span class="badge badge-warning" style="font-size: 11px; margin-left: 6px;" title="Disponible en pool de subasta / pujas">🔔 En Subasta</span>`
+      : '';
 
     let badgeClass = c.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
     const selectionControl = `<input type="checkbox" class="catalog-row-checkbox" ${isSelected ? 'checked' : ''} title="Seleccionar agricultor" aria-label="Seleccionar agricultor" onchange="toggleCatalogClientSelection(${c.id}, this.checked)">`;
@@ -6188,6 +6231,7 @@ window.renderCatalogClientes = function() {
             <strong>${escapeHtml(c.nombre)}</strong>
             ${asociadosBadge}
             ${belongsToGroupBadge}
+            ${biddableBadge}
             ${selectionControl}
           </div>
         </td>
@@ -6213,6 +6257,9 @@ window.renderCatalogClientes = function() {
         const secIsSelected = selectedCatalogClientIds.has(sec.id);
         const secSelectionControl = `<input type="checkbox" class="catalog-row-checkbox" ${secIsSelected ? 'checked' : ''} title="Seleccionar agricultor" aria-label="Seleccionar agricultor" onchange="toggleCatalogClientSelection(${sec.id}, this.checked)">`;
         const secBadgeClass = sec.estado_status === 'Cliente' ? 'badge-success' : 'badge-warning';
+        const secBiddableBadge = sec.disponible_para_puja === 1
+          ? `<span class="badge badge-warning" style="font-size: 11px; margin-left: 6px;" title="Disponible en pool de subasta / pujas">🔔 En Subasta</span>`
+          : '';
 
         catalogHtml += `
           <tr class="associated-secondary-row" style="background-color: rgba(96, 165, 250, 0.05);">
@@ -6220,6 +6267,7 @@ window.renderCatalogClientes = function() {
               <div class="catalog-name-cell">
                 <span style="color: var(--text-light); font-size: 13px; margin-right: 4px;">↳ 🔗</span>
                 <span style="font-weight: 500;">${escapeHtml(sec.nombre)}</span>
+                ${secBiddableBadge}
                 ${secSelectionControl}
               </div>
             </td>
@@ -6760,10 +6808,17 @@ window.renderAsignacionBoard = function(advisors) {
         }
       });
       
+      const advisorKeyBadge = `<span class="badge badge-secondary" style="font-size: 10px; padding: 2px 6px; font-family: monospace; font-weight: 600;">Clave: #${a.id}</span>`;
+      const advisorUserRow = (a.usuario && a.usuario !== a.nombre)
+        ? `<div style="font-size: 11px; color: var(--text-light); margin-top: 1px;">Usuario: ${escapeHtml(a.usuario)}</div>`
+        : '';
+
       card.innerHTML = `
-        <div style="font-weight: bold; font-size: 13px; color: var(--text-dark); display: flex; justify-content: space-between;">
-          <span>👤 ${a.nombre}</span>
+        <div style="font-weight: bold; font-size: 13px; color: var(--text-dark); display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+          <span>👤 ${escapeHtml(a.nombre)}</span>
+          ${advisorKeyBadge}
         </div>
+        ${advisorUserRow}
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; color: var(--text-light); margin-top: 6px;">
           <div>Ventas: <strong>$${(salesVol / 1000000).toFixed(1)}M</strong></div>
           <div>Visitas: <strong>${complRate}% (${complVisits}/${totalVisits})</strong></div>

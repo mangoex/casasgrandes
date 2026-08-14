@@ -648,6 +648,9 @@
               <button id="btn-delete-selected-clients" class="btn btn-danger catalog-bulk-delete admin-only" title="Borrar agricultores seleccionados" aria-label="Borrar agricultores seleccionados" style="display: none;">
                 🗑️ <span id="selected-clients-count">0</span>
               </button>
+              <button id="btn-catalog-bulk-biddable" class="btn btn-primary admin-only" title="Agregar agricultores seleccionados a subasta (pujas)" aria-label="Agregar agricultores seleccionados a subasta" style="display: none; width: auto; padding: 8px 16px; margin: 0; background: var(--warning); border-color: var(--warning);" onclick="makeSelectedCatalogClientsBiddable(true)">
+                🔔 Subastar (<span id="selected-biddable-count">0</span>)
+              </button>
               <button id="btn-catalog-open-client-modal" class="btn btn-primary" style="width: auto; padding: 8px 16px; margin: 0;">👤 Registrar Cliente</button>
             </div>
           </div>

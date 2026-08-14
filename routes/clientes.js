@@ -37,7 +37,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     let query = `
       SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
-             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
+             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text, c.disponible_para_puja,
              a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
              principal.nombre as principal_nombre,
              (SELECT COUNT(*)::int FROM clientes sub WHERE sub.cliente_principal_id = c.id AND sub.activo = 1) as asociados_count
@@ -88,7 +88,7 @@ router.get('/seleccionados', authenticateToken, async (req, res) => {
   try {
     let query = `
       SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
-             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
+             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text, c.disponible_para_puja,
              a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
              principal.nombre as principal_nombre
       FROM clientes c
@@ -112,13 +112,52 @@ router.get('/seleccionados', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/clientes/bulk-puja-status (Admin only)
+router.post('/bulk-puja-status', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Se requieren permisos de Administrador' });
+  }
+  const { ids, disponible_para_puja } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Se requiere un arreglo de IDs válido.' });
+  }
+  const uniqueIds = [...new Set(ids.map(Number).filter(id => Number.isInteger(id) && id > 0))];
+  if (uniqueIds.length === 0) {
+    return res.status(400).json({ error: 'No se enviaron IDs válidos.' });
+  }
+
+  try {
+    const statusVal = disponible_para_puja ? 1 : 0;
+    await db.pool.query(
+      'UPDATE clientes SET disponible_para_puja = $1 WHERE id = ANY($2::int[]) AND activo = 1',
+      [statusVal, uniqueIds]
+    );
+
+    if (!disponible_para_puja) {
+      await db.pool.query(
+        "UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ANY($1::int[]) AND estatus = 'Pendiente'",
+        [uniqueIds]
+      );
+    }
+
+    res.json({
+      message: `Se actualizaron ${uniqueIds.length} agricultor(es) para subasta exitosamente.`,
+      count: uniqueIds.length,
+      disponible_para_puja: statusVal
+    });
+  } catch (err) {
+    console.error('Error in bulk-puja-status:', err);
+    res.status(500).json({ error: 'Error al actualizar el estado de subasta masivo.' });
+  }
+});
+
 // GET /api/clientes/:id
 router.get('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
     const client = await db.get(`
       SELECT c.id, c.nombre, c.asesor_id, c.cuenta_clave_id, c.cliente_principal_id, c.contacto, c.telefono,
-             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text,
+             c.correo, c.cumpleanos, c.estado_status, c.ubicacion, c.superficie_text, c.disponible_para_puja,
              a.nombre as asesor_nombre, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn,
              principal.nombre as principal_nombre,
              (SELECT COUNT(*)::int FROM clientes sub WHERE sub.cliente_principal_id = c.id AND sub.activo = 1) as asociados_count
