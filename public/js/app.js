@@ -7237,18 +7237,29 @@ function exportKardexToCSV() {
   }
   
   let csvContent = "\uFEFF"; // UTF-8 BOM
-  csvContent += "Fecha,Tipo de Movimiento,Producto,Entradas,Salidas,Saldo Resultante,Referencia,Notas\n";
-  
+csvContent += "Fecha,Tipo de Movimiento,Producto,Lote,Tamaño,Categoría,Entradas,Salidas,Saldo Resultante,Referencia,Notas,Op. Operación,No. Remisión,No. Movimiento,Precio Venta,Proveedor/Cliente,Cliente,Asesor,Folio Cotización\n";
+
   allMovements.forEach(m => {
     const date = m.fecha_movimiento.slice(0, 16).replace('T', ' ');
-    const type = `"${m.tipo_movimiento.replace(/"/g, '""')}"`;
-    const prod = `"${m.producto_nombre.replace(/"/g, '""')}"`;
+    const type = `"${(m.tipo_movimiento || '').replace(/"/g, '""')}"`;
+    const prod = `"${(m.producto_nombre || '').replace(/"/g, '""')}"`;
+    const lote = `"${(m.lote || '').replace(/"/g, '""')}"`;
+    const tamano = `"${(m.tamano || '').replace(/"/g, '""')}"`;
+    const categoria = `"${(m.categoria || '').replace(/"/g, '""')}"`;
     const ent = m.cantidad_entrante || 0;
     const sal = m.cantidad_saliente || 0;
     const balance = m.existencias_resultantes || 0;
     const ref = `"${(m.referencia_factura || '').replace(/"/g, '""')}"`;
     const notes = `"${(m.notas || '').replace(/"/g, '""')}"`;
-    csvContent += `${date},${type},${prod},${ent},${sal},${balance},${ref},${notes}\n`;
+    const opcionOp = `"${(m.opcion_operacion || '').replace(/"/g, '""')}"`;
+    const numRem = `"${(m.numero_remision || '').replace(/"/g, '""')}"`;
+    const numMov = `"${(m.numero_movimiento || '').replace(/"/g, '""')}"`;
+    const precioVenta = m.precio_venta ? m.precio_venta.toLocaleString('es-MX', { minimumFractionDigits: 2 }) : 0;
+    const provCli = `"${(m.proveedor_cliente || '').replace(/"/g, '""')}"`;
+    const cliente = `"${(m.cliente_nombre || '').replace(/"/g, '""')}"`;
+    const asesor = `"${(m.asesor_nombre || '').replace(/"/g, '""')}"`;
+    const folioCot = `"${(m.folio_cotizacion || '').replace(/"/g, '""')}"`;
+    csvContent += `${date},${type},${prod},${lote},${tamano},${categoria},${ent},${sal},${balance},${ref},${notes},${opcionOp},${numRem},${numMov},${precioVenta},${provCli},${cliente},${asesor},${folioCot}\n`;
   });
   
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -7279,14 +7290,28 @@ function exportKardexToPDF() {
     const date = m.fecha_movimiento.slice(0, 16).replace('T', ' ');
     const ent = m.cantidad_entrante > 0 ? m.cantidad_entrante.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
     const sal = m.cantidad_saliente > 0 ? m.cantidad_saliente.toLocaleString('es-MX', { minimumFractionDigits: 3 }) : '-';
+    const pv = m.precio_venta > 0 ? '$ ' + m.precio_venta.toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '-';
     rowsHtml += `
       <tr>
         <td>${date}</td>
-        <td>${m.tipo_movimiento}</td>
-        <td><strong>${m.producto_nombre}</strong></td>
+        <td>${m.tipo_movimiento || '-'}</td>
+        <td><strong>${m.producto_nombre || '-'}</strong></td>
+        <td>${m.lote || '-'}</td>
+        <td>${m.tamano || '-'}</td>
+        <td>${m.categoria || '-'}</td>
         <td style="text-align: right;">${ent}</td>
         <td style="text-align: right;">${sal}</td>
-        <td style="text-align: right;">${m.existencias_resultantes.toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
+        <td style="text-align: right;">${(m.existencias_resultantes || 0).toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
+        <td>${m.referencia_factura || '-'}</td>
+        <td>${m.notas || '-'}</td>
+        <td>${m.opcion_operacion || '-'}</td>
+        <td>${m.numero_remision || '-'}</td>
+        <td>${m.numero_movimiento || '-'}</td>
+        <td style="text-align: right;">${pv}</td>
+        <td>${m.proveedor_cliente || '-'}</td>
+        <td>${m.cliente_nombre || '-'}</td>
+        <td>${m.asesor_nombre || '-'}</td>
+        <td>${m.folio_cotizacion || '-'}</td>
       </tr>
     `;
   });
@@ -7297,12 +7322,14 @@ function exportKardexToPDF() {
         <title>Kardex de Movimientos - AgriSales Pro</title>
         <style>
           body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; padding: 20px; }
+          @page { size: landscape; margin: 15px; }
           .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #10b981; padding-bottom: 15px; margin-bottom: 25px; }
           .title { font-size: 24px; font-weight: bold; color: #10b981; }
           .subtitle { font-size: 14px; color: #666; }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-          th { background-color: #f3f4f6; color: #374151; font-weight: 600; text-align: left; padding: 10px; border-bottom: 1px solid #d1d5db; font-size: 12px; }
-          td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
+          .table-wrap { overflow-x: auto; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 10px; min-width: 2200px; }
+          th { background-color: #f3f4f6; color: #374151; font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid #d1d5db; white-space: nowrap; }
+          td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; }
           tr:nth-child(even) { background-color: #fafafa; }
           .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
         </style>
@@ -7318,21 +7345,36 @@ function exportKardexToPDF() {
             <div style="font-size: 12px; color: #666;">${new Date().toLocaleString()}</div>
           </div>
         </div>
+        <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Fecha</th>
               <th>Movimiento</th>
               <th>Producto</th>
+              <th>Lote</th>
+              <th>Tamaño</th>
+              <th>Categoría</th>
               <th style="text-align: right;">Entradas</th>
               <th style="text-align: right;">Salidas</th>
               <th style="text-align: right;">Saldo</th>
+              <th>Referencia</th>
+              <th>Notas</th>
+              <th>Op. Operación</th>
+              <th>No. Remisión</th>
+              <th>No. Movimiento</th>
+              <th style="text-align: right;">Precio Venta</th>
+              <th>Proveedor/Cliente</th>
+              <th>Cliente</th>
+              <th>Asesor</th>
+              <th>Folio Cotización</th>
             </tr>
           </thead>
           <tbody>
             ${rowsHtml}
           </tbody>
         </table>
+        </div>
         <div class="footer">
           AgriSales Pro &copy; 2026 - Distribuidora Casas Grandes. Todos los derechos reservados.
         </div>
