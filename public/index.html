@@ -830,19 +830,21 @@
                     <select id="move-prod" class="form-input" required></select>
                   </div>
 
-                  <!-- Lote & Tamaño (Grid) -->
-                  <div class="input-grid">
-                    <div class="form-group">
-                      <label for="move-lote">Lote</label>
-                      <input type="text" id="move-lote" class="form-input" placeholder="Ej. L-2026A" required>
-                    </div>
-                    <div id="group-move-tamano" class="form-group" style="display: none;">
-                      <label for="move-tamano">Tamaño <span style="color: var(--danger);">*</span></label>
-                      <select id="move-tamano" class="form-input">
-                        <option value="">-- Seleccionar Tamaño --</option>
-                      </select>
-                      <input type="text" id="move-tamano-custom" class="form-input" style="display: none; margin-top: 6px;" placeholder="Escribe el tamaño personalizado">
-                    </div>
+                  <!-- Tamaño -->
+                  <div id="group-move-tamano" class="form-group" style="display: none;">
+                    <label for="move-tamano">Tamaño <span style="color: var(--danger);">*</span></label>
+                    <select id="move-tamano" class="form-input">
+                      <option value="">-- Seleccionar Tamaño --</option>
+                    </select>
+                    <input type="text" id="move-tamano-custom" class="form-input" style="display: none; margin-top: 6px;" placeholder="Escribe el tamaño personalizado">
+                  </div>
+
+                  <!-- Lote -->
+                  <div id="group-move-lote" class="form-group">
+                    <label for="move-lote">Lote <span style="color: var(--danger);">*</span></label>
+                    <select id="move-lote-select" class="form-input"></select>
+                    <input type="text" id="move-lote" class="form-input" list="move-lote-datalist" placeholder="Ej. L-2026A" style="display: none;">
+                    <datalist id="move-lote-datalist"></datalist>
                   </div>
 
                   <!-- CAMPOS DE SALIDA -->

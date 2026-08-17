@@ -2864,6 +2864,7 @@ function setupWarehouseFormHandlers() {
       }
     }
     populateWarehouseProductControls();
+    updateWarehouseLoteOptions();
   };
 
   const updateOperationUI = (op) => {
@@ -2892,6 +2893,7 @@ function setupWarehouseFormHandlers() {
     if (labelProveedor) {
       labelProveedor.textContent = inputCat.value === 'Semilla' ? 'Proveedor' : 'Proveedor o Cliente';
     }
+    updateWarehouseLoteOptions();
   };
 
   btnAgroquimicos.onclick = () => updateCategoryUI('Agroquímicos');
@@ -2904,7 +2906,10 @@ function setupWarehouseFormHandlers() {
   updateOperationUI(inputTipoOp.value || 'Salida');
 
   if (moveProdSelect) {
-    moveProdSelect.onchange = updateWarehouseTamanoOptions;
+    moveProdSelect.onchange = () => {
+      updateWarehouseTamanoOptions();
+      updateWarehouseLoteOptions();
+    };
   }
 
   if (selectTamano) {
@@ -2913,6 +2918,13 @@ function setupWarehouseFormHandlers() {
         inputTamanoCustom.style.display = this.value === 'Otro' ? 'block' : 'none';
         if (this.value !== 'Otro') inputTamanoCustom.value = '';
       }
+      updateWarehouseLoteOptions();
+    };
+  }
+
+  if (inputTamanoCustom) {
+    inputTamanoCustom.oninput = function() {
+      updateWarehouseLoteOptions();
     };
   }
 
@@ -3091,6 +3103,7 @@ function populateWarehouseProductControls() {
     moveProdSelect.innerHTML = '<option value="">-- Selecciona un Producto --</option>' + optionsHtml;
     moveProdSelect.value = selectedMovementProduct;
     updateWarehouseTamanoOptions();
+    updateWarehouseLoteOptions();
   }
   if (filterSelect) {
     const optionsHtml = allProducts.map(product => 
@@ -3146,6 +3159,93 @@ function updateWarehouseTamanoOptions() {
   if (inputCustom) {
     inputCustom.style.display = selectTamano.value === 'Otro' ? 'block' : 'none';
     if (selectTamano.value !== 'Otro') inputCustom.value = '';
+  }
+}
+
+let currentWarehouseAvailableLots = [];
+
+async function updateWarehouseLoteOptions() {
+  const tipoOp = document.getElementById('move-tipo-operacion')?.value || 'Salida';
+  const prodSelect = document.getElementById('move-prod');
+  const prodId = Number(prodSelect?.value);
+  const selectTamano = document.getElementById('move-tamano');
+  const inputTamanoCustom = document.getElementById('move-tamano-custom');
+  let tamano = selectTamano ? selectTamano.value.trim() : '';
+  if (tamano === 'Otro' && inputTamanoCustom) {
+    tamano = inputTamanoCustom.value.trim();
+  }
+
+  const loteSelect = document.getElementById('move-lote-select');
+  const loteInput = document.getElementById('move-lote');
+  const loteDatalist = document.getElementById('move-lote-datalist');
+
+  if (tipoOp === 'Salida') {
+    if (loteSelect) loteSelect.style.display = 'block';
+    if (loteInput) loteInput.style.display = 'none';
+
+    if (!prodId) {
+      if (loteSelect) {
+        loteSelect.innerHTML = '<option value="">-- Selecciona un Producto primero --</option>';
+      }
+      currentWarehouseAvailableLots = [];
+      return;
+    }
+
+    try {
+      let url = `${API_URL}/api/almacen/lotes-disponibles?producto_id=${prodId}`;
+      if (tamano) {
+        url += `&tamano=${encodeURIComponent(tamano)}`;
+      }
+      const res = await fetch(url, { headers: getHeaders() });
+      if (!res.ok) throw new Error('Error al consultar lotes disponibles');
+      const lots = await res.json();
+      currentWarehouseAvailableLots = Array.isArray(lots) ? lots : [];
+
+      if (loteSelect) {
+        if (currentWarehouseAvailableLots.length === 0) {
+          loteSelect.innerHTML = '<option value="">-- Sin lotes con existencia disponible --</option>';
+        } else {
+          const optionsHtml = currentWarehouseAvailableLots.map(l => {
+            return `<option value="${escapeHtml(l.lote)}" data-existencias="${l.existencias}">${escapeHtml(l.lote)} (Disponible: ${l.existencias})</option>`;
+          }).join('');
+          loteSelect.innerHTML = '<option value="">-- Seleccionar Lote --</option>' + optionsHtml;
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching lotes disponibles:', err);
+      if (loteSelect) {
+        loteSelect.innerHTML = '<option value="">Error al cargar lotes</option>';
+      }
+    }
+  } else {
+    // Entrada
+    if (loteSelect) loteSelect.style.display = 'none';
+    if (loteInput) loteInput.style.display = 'block';
+
+    if (!prodId) {
+      if (loteDatalist) loteDatalist.innerHTML = '';
+      return;
+    }
+
+    try {
+      let url = `${API_URL}/api/almacen/lotes-historial?producto_id=${prodId}`;
+      if (tamano) {
+        url += `&tamano=${encodeURIComponent(tamano)}`;
+      }
+      const res = await fetch(url, { headers: getHeaders() });
+      if (!res.ok) throw new Error('Error al consultar historial de lotes');
+      const lots = await res.json();
+      const lotList = Array.isArray(lots) ? lots : [];
+      if (loteDatalist) {
+        loteDatalist.innerHTML = lotList.map(l => {
+          const val = typeof l === 'object' && l !== null ? (l.lote || '') : String(l);
+          return `<option value="${escapeHtml(val)}"></option>`;
+        }).join('');
+      }
+    } catch (err) {
+      console.warn('Error fetching lotes historial:', err);
+      if (loteDatalist) loteDatalist.innerHTML = '';
+    }
   }
 }
 
@@ -3382,7 +3482,10 @@ document.getElementById('add-movement-form').addEventListener('submit', async (e
   const categoria = document.getElementById('move-categoria').value;
   const tipoOp = document.getElementById('move-tipo-operacion').value; // 'Salida' o 'Entrada'
   const productoId = Number(document.getElementById('move-prod').value);
-  const lote = document.getElementById('move-lote').value.trim();
+  const isSalida = tipoOp === 'Salida';
+  const lote = isSalida
+    ? (document.getElementById('move-lote-select')?.value || '').trim()
+    : (document.getElementById('move-lote')?.value || '').trim();
   
   const selectTamano = document.getElementById('move-tamano');
   const inputTamanoCustom = document.getElementById('move-tamano-custom');
@@ -3410,6 +3513,17 @@ document.getElementById('add-movement-form').addEventListener('submit', async (e
   if (cantidad <= 0) {
     alert('Ingresa una cantidad válida mayor a cero.');
     return;
+  }
+
+  if (isSalida) {
+    const selectedLot = currentWarehouseAvailableLots.find(l => String(l.lote).trim().toUpperCase() === lote.toUpperCase());
+    if (selectedLot) {
+      const disp = Number(selectedLot.existencias || 0);
+      if (cantidad > disp) {
+        alert(`Existencias insuficientes para el lote "${lote}". Disponibles: ${disp.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`);
+        return;
+      }
+    }
   }
 
   const payload = {

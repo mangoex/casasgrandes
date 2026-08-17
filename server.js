@@ -1337,6 +1337,77 @@ app.get('/api/almacen/movimientos/tipos', authenticateToken, async (req, res) =>
   }
 });
 
+app.get('/api/almacen/lotes-disponibles', authenticateToken, async (req, res) => {
+  const prodId = Number(req.query.producto_id);
+  const tamano = req.query.tamano ? String(req.query.tamano).trim() : null;
+
+  if (!prodId) {
+    return res.status(400).json({ error: 'El producto_id es requerido' });
+  }
+
+  try {
+    let sql = `
+      SELECT lote, tamano, (SUM(COALESCE(cantidad_entrante, 0)) - SUM(COALESCE(cantidad_saliente, 0))) AS existencias
+      FROM almacen_movimientos
+      WHERE producto_id = ? AND lote IS NOT NULL AND TRIM(lote) <> ''
+    `;
+    const params = [prodId];
+
+    if (tamano) {
+      sql += ' AND tamano = ?';
+      params.push(tamano);
+    }
+
+    sql += `
+      GROUP BY lote, tamano
+      HAVING (SUM(COALESCE(cantidad_entrante, 0)) - SUM(COALESCE(cantidad_saliente, 0))) > 0
+      ORDER BY lote ASC
+    `;
+
+    const rows = await db.all(sql, params);
+    const result = rows.map(r => ({
+      lote: r.lote,
+      tamano: r.tamano,
+      existencias: Math.round((Number(r.existencias) || 0) * 1000) / 1000
+    }));
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching available lots:', err);
+    res.status(500).json({ error: 'Failed to fetch available lots' });
+  }
+});
+
+app.get('/api/almacen/lotes-historial', authenticateToken, async (req, res) => {
+  const prodId = Number(req.query.producto_id);
+  const tamano = req.query.tamano ? String(req.query.tamano).trim() : null;
+
+  if (!prodId) {
+    return res.status(400).json({ error: 'El producto_id es requerido' });
+  }
+
+  try {
+    let sql = `
+      SELECT DISTINCT lote
+      FROM almacen_movimientos
+      WHERE producto_id = ? AND lote IS NOT NULL AND TRIM(lote) <> ''
+    `;
+    const params = [prodId];
+
+    if (tamano) {
+      sql += ' AND tamano = ?';
+      params.push(tamano);
+    }
+
+    sql += ' ORDER BY lote ASC';
+
+    const rows = await db.all(sql, params);
+    res.json(rows.map(r => r.lote));
+  } catch (err) {
+    console.error('Error fetching lot history:', err);
+    res.status(500).json({ error: 'Failed to fetch lot history' });
+  }
+});
+
 app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async (req, res) => {
   if (req.user.nivel_rol !== 'Administrador') {
     return res.status(403).json({ error: 'Solo un administrador puede ajustar existencias físicas.' });
@@ -1433,6 +1504,29 @@ app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
 
     if (isSalida && current_stock < sal) {
       return res.status(400).json({ error: `Existencias insuficientes en almacén. Disponibles: ${current_stock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}` });
+    }
+
+    if (isSalida && lote) {
+      const loteTrim = String(lote).trim();
+      if (loteTrim) {
+        let lotQuery = `
+          SELECT (SUM(COALESCE(cantidad_entrante, 0)) - SUM(COALESCE(cantidad_saliente, 0))) AS existencias
+          FROM almacen_movimientos
+          WHERE producto_id = ? AND lote = ?
+        `;
+        const lotParams = [prodId, loteTrim];
+        if (tamano) {
+          lotQuery += ' AND tamano = ?';
+          lotParams.push(String(tamano).trim());
+        }
+        const lotRes = await db.get(lotQuery, lotParams);
+        const disp = lotRes ? (Number(lotRes.existencias) || 0.0) : 0.0;
+        if (sal > disp) {
+          return res.status(400).json({
+            error: `Existencias insuficientes para el lote "${lote}". Disponibles: ${disp.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
+          });
+        }
+      }
     }
 
     const new_stock = current_stock + ent - sal;
