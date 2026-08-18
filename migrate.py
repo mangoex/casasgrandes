@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS productos (
     descuento_fijo_quimicos REAL DEFAULT 0.0,
     objetivo_anual INTEGER DEFAULT 0,
     descontar INTEGER DEFAULT 0, -- boolean
-    activo INTEGER DEFAULT 1
+    activo INTEGER DEFAULT 1,
+    tamanos TEXT
 )
 """)
 
@@ -111,6 +112,7 @@ CREATE TABLE IF NOT EXISTS cotizacion_detalles (
     precio_lista_unitario REAL NOT NULL,
     precio_neto_unitario REAL NOT NULL,
     subtotal_mxn REAL NOT NULL,
+    tamano TEXT,
     FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE,
     FOREIGN KEY (producto_id) REFERENCES productos(id),
     FOREIGN KEY (temporada_id) REFERENCES temporadas(id)

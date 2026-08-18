@@ -7,6 +7,7 @@ const { execFile } = require('child_process');
 const db = require('./db');
 const agentsService = require('./agentsService');
 const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
+const { normalizeProductSizes } = require('./utils/productos');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
 const { authenticateToken, requireProgramacionManager } = require('./middleware/auth');
 
@@ -114,11 +115,12 @@ app.post('/api/productos', authenticateToken, async (req, res) => {
   if (req.user.nivel_rol !== 'Administrador') {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
-  const { producto, clave, descripcion, tipo_categoria, list_price_mxn, base_usd, descuento_fijo_quimicos, objetivo_anual, descontar, stock_inicial } = req.body;
+  const { producto, clave, descripcion, tipo_categoria, list_price_mxn, base_usd, descuento_fijo_quimicos, objetivo_anual, descontar, stock_inicial, tamanos } = req.body;
   if (!producto || !tipo_categoria || !Number.isFinite(Number(list_price_mxn)) || Number(list_price_mxn) < 0) {
     return res.status(400).json({ error: 'Missing required product fields' });
   }
   const productCode = normalizeProductCode(clave);
+  const normalizedSizes = normalizeProductSizes(tamanos);
   let client;
   try {
     client = await db.pool.connect();
@@ -136,8 +138,8 @@ app.post('/api/productos', authenticateToken, async (req, res) => {
       }
     }
     const result = await client.query(`
-      INSERT INTO productos (producto, clave, descripcion, tipo_categoria, list_price_mxn, base_usd, descuento_fijo_quimicos, objetivo_anual, descontar, activo)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1) RETURNING id
+      INSERT INTO productos (producto, clave, descripcion, tipo_categoria, list_price_mxn, base_usd, descuento_fijo_quimicos, objetivo_anual, descontar, activo, tamanos)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, $10) RETURNING id
     `, [
       producto.trim(),
       productCode || null,
@@ -147,7 +149,8 @@ app.post('/api/productos', authenticateToken, async (req, res) => {
       Number(base_usd) || 0.0,
       Number(descuento_fijo_quimicos) || 0.0,
       Number(objetivo_anual) || 0,
-      descontar ? 1 : 0
+      descontar ? 1 : 0,
+      normalizedSizes
     ]);
     
     const newProdId = result.rows[0].id;
@@ -178,7 +181,7 @@ app.put('/api/productos/:id', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
   const { id } = req.params;
-  const { producto, clave, descripcion, tipo_categoria, list_price_mxn, base_usd, descuento_fijo_quimicos, objetivo_anual, descontar, activo } = req.body;
+  const { producto, clave, descripcion, tipo_categoria, list_price_mxn, base_usd, descuento_fijo_quimicos, objetivo_anual, descontar, activo, tamanos } = req.body;
   if (!producto || !tipo_categoria || !Number.isFinite(Number(list_price_mxn)) || Number(list_price_mxn) < 0) {
     return res.status(400).json({ error: 'Missing required product fields' });
   }
@@ -200,6 +203,7 @@ app.put('/api/productos/:id', authenticateToken, async (req, res) => {
     }
     const nextProductCode = clave === undefined ? (prod.clave || '') : productCode;
     const nextDescription = descripcion === undefined ? prod.descripcion : (String(descripcion || '').trim() || null);
+    const nextSizes = tamanos === undefined ? (prod.tamanos || null) : normalizeProductSizes(tamanos);
     if (nextProductCode) {
       const duplicateCode = await client.query('SELECT id FROM productos WHERE clave = $1 AND id != $2', [nextProductCode, id]);
       if (duplicateCode.rows[0]) {
@@ -212,8 +216,8 @@ app.put('/api/productos/:id', authenticateToken, async (req, res) => {
     
     await client.query(`
       UPDATE productos
-      SET producto = $1, clave = $2, descripcion = $3, tipo_categoria = $4, list_price_mxn = $5, base_usd = $6, descuento_fijo_quimicos = $7, objetivo_anual = $8, descontar = $9, activo = $10
-      WHERE id = $11
+      SET producto = $1, clave = $2, descripcion = $3, tipo_categoria = $4, list_price_mxn = $5, base_usd = $6, descuento_fijo_quimicos = $7, objetivo_anual = $8, descontar = $9, activo = $10, tamanos = $11
+      WHERE id = $12
     `, [
       producto.trim(),
       nextProductCode || null,
@@ -225,6 +229,7 @@ app.put('/api/productos/:id', authenticateToken, async (req, res) => {
       Number(objetivo_anual) || 0,
       descontar ? 1 : 0,
       activeVal,
+      nextSizes,
       id
     ]);
     if (Number(prod.list_price_mxn) !== Number(list_price_mxn)) {
@@ -659,6 +664,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
         producto_id: prod.id,
         producto_nombre: prod.producto,
         tipo_categoria: prod.tipo_categoria,
+        tamano: item.tamano ? String(item.tamano).trim() : null,
         cantidad: item.cantidad,
         precio_lista: monthlyPricing.listPrice,
         precio_temporada: getSeasonPrice(prod.list_price_mxn, prod.tipo_categoria, activeSeason),
@@ -810,9 +816,9 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     
     for (const row of calculatedItems) {
       await db.run(`
-        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
-        VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-      `, [cotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
+        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn, tamano)
+        VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
+      `, [cotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal, row.item.tamano ? String(row.item.tamano).trim() : null]);
     }
 
     if (directSalePlan) {
@@ -1219,9 +1225,9 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
     // Step 4: Insert new details
     for (const row of calculatedRows) {
       await db.run(`
-        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
-        VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-      `, [id, row.item.producto_id, temporada_id || (activeSeason ? activeSeason.id : 1), row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
+        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn, tamano)
+        VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
+      `, [id, row.item.producto_id, temporada_id || (activeSeason ? activeSeason.id : 1), row.item.cantidad, row.listPrice, row.netPrice, row.subtotal, row.item.tamano ? String(row.item.tamano).trim() : null]);
     }
     
     // Update header

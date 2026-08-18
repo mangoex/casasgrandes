@@ -1440,6 +1440,7 @@
                   <tr>
                     <th>Nombre del Producto</th>
                     <th>Categoría</th>
+                    <th>Tamaños / Calibres</th>
                     <th style="text-align: right;">Precio Lista (MXN)</th>
                     <th style="text-align: right;">Base USD</th>
                     <th style="text-align: right;">Dcto Químico</th>
@@ -1450,7 +1451,7 @@
                 </thead>
                 <tbody id="admin-productos-tbody">
                   <tr>
-                    <td colspan="8" style="text-align: center; color: var(--text-light);">Cargando...</td>
+                    <td colspan="9" style="text-align: center; color: var(--text-light);">Cargando...</td>
                   </tr>
                 </tbody>
               </table>
@@ -2521,6 +2522,10 @@
                 <option value="Agroquímico">Agroquímico</option>
                 <option value="Fertilizante">Fertilizante</option>
               </select>
+            </div>
+            <div class="form-group" id="group-prod-sizes">
+              <label for="prod-sizes">Tamaños / Calibres (separados por comas)</label>
+              <input type="text" id="prod-sizes" class="form-input" placeholder="ej. BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3">
             </div>
           </div>
           <div class="input-grid">

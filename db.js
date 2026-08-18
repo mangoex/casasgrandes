@@ -36,9 +36,28 @@ async function initSchema() {
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cosecha REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS clave TEXT');
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS descripcion TEXT');
+    await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS tamanos TEXT');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS tamano TEXT');
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS categoria TEXT DEFAULT \'Agroquímicos\'');
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS lote TEXT');
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS tamano TEXT');
+
+    // Seed default known sizes for existing products if not configured yet
+    await pool.query(`
+      UPDATE productos 
+      SET tamanos = 'PW1, PW2' 
+      WHERE tamanos IS NULL AND (UPPER(producto) LIKE '%A-7573%PONCHO%' OR UPPER(producto) LIKE '%A7573%PONCHO%')
+    `);
+    await pool.query(`
+      UPDATE productos 
+      SET tamanos = 'BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3' 
+      WHERE tamanos IS NULL AND (UPPER(producto) LIKE '%A-7573%ACCELERON%' OR UPPER(producto) LIKE '%A-7573%ACELERON%' OR UPPER(producto) LIKE '%A7573%ACCELERON%')
+    `);
+    await pool.query(`
+      UPDATE productos 
+      SET tamanos = 'BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3, PW1, PW2' 
+      WHERE tamanos IS NULL AND (UPPER(producto) LIKE '%HIPOP%ACCELERON%' OR UPPER(producto) LIKE '%CALAMAR%')
+    `);
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS opcion_operacion TEXT');
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_remision TEXT');
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_movimiento TEXT');

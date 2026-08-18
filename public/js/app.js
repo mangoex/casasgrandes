@@ -1500,9 +1500,10 @@ window.showQuoteDetails = async function(quoteId) {
       quote.items.forEach(item => {
         const qty = item.cantidad_ordenada || item.cantidad || 0;
         const subtotal = qty * item.precio_neto_unitario;
+        const tamanoBadge = item.tamano ? `<br><span style="font-size: 11px; color: #0284c7; font-weight: 600;">Tamaño: ${escapeHtml(item.tamano)}</span>` : '';
         productsBody.innerHTML += `
           <tr>
-            <td style="padding: 8px; border-bottom: 1px solid var(--border);">${item.producto_nombre}</td>
+            <td style="padding: 8px; border-bottom: 1px solid var(--border);">${escapeHtml(item.producto_nombre || '')}${tamanoBadge}</td>
             <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: center;">${qty}</td>
             <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: right;">$${parseFloat(item.precio_lista_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
             <td style="padding: 8px; border-bottom: 1px solid var(--border); text-align: right;">$${parseFloat(item.precio_neto_unitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
@@ -1613,7 +1614,7 @@ window.toggleQuoteEditMode = async function(isEdit) {
     
     if (activeQuote.items && activeQuote.items.length > 0) {
       activeQuote.items.forEach(item => {
-        addEditQuoteItemRow(item.producto_id, item.cantidad_ordenada || item.cantidad || 0);
+        addEditQuoteItemRow(item.producto_id, item.cantidad_ordenada || item.cantidad || 0, item.tamano || '');
       });
     } else {
       addEditQuoteItemRow();
@@ -1629,7 +1630,7 @@ window.toggleQuoteEditMode = async function(isEdit) {
   }
 };
 
-window.addEditQuoteItemRow = function(prodId = '', qty = 1) {
+window.addEditQuoteItemRow = function(prodId = '', qty = 1, tamano = '') {
   editQuoteItemsCount++;
   const container = document.getElementById('edit-quote-items-container');
   
@@ -1645,10 +1646,21 @@ window.addEditQuoteItemRow = function(prodId = '', qty = 1) {
   allProducts.forEach(p => {
     options += `<option value="${p.id}" ${p.id === Number(prodId) ? 'selected' : ''}>${p.producto} ($${p.list_price_mxn.toLocaleString('es-MX')} MXN)</option>`;
   });
+
+  const selectedProd = (allProducts || []).find(p => p.id === Number(prodId));
+  const sizes = getSizesForProduct(selectedProd);
+  const showTamano = sizes.length > 0;
+  let tamanoOptions = '<option value="">-- Tamaño --</option>';
+  sizes.forEach(s => {
+    tamanoOptions += `<option value="${escapeAttribute(s)}" ${s === tamano ? 'selected' : ''}>${escapeHtml(s)}</option>`;
+  });
   
   div.innerHTML = `
     <div style="flex: 2;">
-      <select class="form-input edit-item-product-select" style="margin-bottom:0;" required onchange="recalculateEditQuoteTotal()">${options}</select>
+      <select class="form-input edit-item-product-select" style="margin-bottom:0;" required>${options}</select>
+    </div>
+    <div class="edit-item-tamano-group" style="flex: 1; ${showTamano ? '' : 'display: none;'}">
+      <select class="form-input edit-item-tamano-select" style="margin-bottom:0;">${tamanoOptions}</select>
     </div>
     <div style="width: 100px;">
       <input type="number" class="form-input edit-item-qty-input" style="margin-bottom:0;" min="1" value="${qty}" required oninput="recalculateEditQuoteTotal()">
@@ -1658,6 +1670,25 @@ window.addEditQuoteItemRow = function(prodId = '', qty = 1) {
     </div>
   `;
   container.appendChild(div);
+
+  const prodSelect = div.querySelector('.edit-item-product-select');
+  const tamanoGroup = div.querySelector('.edit-item-tamano-group');
+  const tamanoSelect = div.querySelector('.edit-item-tamano-select');
+
+  prodSelect.addEventListener('change', () => {
+    const pId = Number(prodSelect.value);
+    const pObj = (allProducts || []).find(p => p.id === pId);
+    const pSizes = getSizesForProduct(pObj);
+    if (pSizes.length > 0) {
+      tamanoGroup.style.display = '';
+      tamanoSelect.innerHTML = '<option value="">-- Tamaño --</option>' + pSizes.map(s => `<option value="${escapeAttribute(s)}">${escapeHtml(s)}</option>`).join('');
+    } else {
+      tamanoGroup.style.display = 'none';
+      tamanoSelect.innerHTML = '<option value="">-- Tamaño --</option>';
+      tamanoSelect.value = '';
+    }
+    recalculateEditQuoteTotal();
+  });
 };
 
 window.removeEditQuoteItemRow = function(rowIndex) {
@@ -1676,12 +1707,14 @@ window.recalculateEditQuoteTotal = async function() {
   
   rows.forEach(r => {
     const prodSelect = r.querySelector('.edit-item-product-select');
+    const tamanoSelect = r.querySelector('.edit-item-tamano-select');
     const qtyInput = r.querySelector('.edit-item-qty-input');
     
     if (prodSelect && prodSelect.value) {
       items.push({
         producto_id: Number(prodSelect.value),
-        cantidad: Number(qtyInput.value) || 1
+        cantidad: Number(qtyInput.value) || 1,
+        tamano: (tamanoSelect && tamanoSelect.value) ? tamanoSelect.value.trim() : null
       });
     }
   });
@@ -1727,12 +1760,14 @@ window.saveEditQuote = async function() {
   
   rows.forEach(r => {
     const prodSelect = r.querySelector('.edit-item-product-select');
+    const tamanoSelect = r.querySelector('.edit-item-tamano-select');
     const qtyInput = r.querySelector('.edit-item-qty-input');
     
     if (prodSelect && prodSelect.value) {
       items.push({
         producto_id: Number(prodSelect.value),
-        cantidad: Number(qtyInput.value) || 1
+        cantidad: Number(qtyInput.value) || 1,
+        tamano: (tamanoSelect && tamanoSelect.value) ? tamanoSelect.value.trim() : null
       });
     }
   });
@@ -2065,6 +2100,12 @@ function addQuoteItemRow() {
         <select class="form-input item-product-select" required>${options}</select>
         <span class="mobile-item-package">Presentación agrícola</span>
       </div>
+      <div class="form-group item-tamano-group" style="display: none; min-width: 120px;">
+        <label>Tamaño</label>
+        <select class="form-input item-tamano-select">
+          <option value="">-- Tamaño --</option>
+        </select>
+      </div>
       <div class="form-group item-qty-group">
         <label>Cantidad</label>
         <span class="mobile-quantity-label">Cantidad</span>
@@ -2114,6 +2155,25 @@ function addQuoteItemRow() {
   `;
 
   container.appendChild(wrapper);
+
+  const prodSelect = wrapper.querySelector('.item-product-select');
+  const tamanoGroup = wrapper.querySelector('.item-tamano-group');
+  const tamanoSelect = wrapper.querySelector('.item-tamano-select');
+
+  prodSelect.addEventListener('change', () => {
+    const prodId = Number(prodSelect.value);
+    const prod = (allProducts || []).find(p => p.id === prodId);
+    const sizes = getSizesForProduct(prod);
+    if (sizes.length > 0) {
+      tamanoGroup.style.display = 'block';
+      tamanoSelect.innerHTML = '<option value="">-- Tamaño --</option>' + sizes.map(s => `<option value="${escapeAttribute(s)}">${escapeHtml(s)}</option>`).join('');
+    } else {
+      tamanoGroup.style.display = 'none';
+      tamanoSelect.innerHTML = '<option value="">-- Tamaño --</option>';
+      tamanoSelect.value = '';
+    }
+  });
+
   wrapper.querySelectorAll('[data-quantity-delta]').forEach(button => {
     button.addEventListener('click', () => {
       changeQuoteQuantity(button, Number(button.dataset.quantityDelta || 0));
@@ -2145,6 +2205,7 @@ function getQuotePayload() {
   const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
   wrappers.forEach(w => {
     const select = w.querySelector('.item-product-select');
+    const tamanoSelect = w.querySelector('.item-tamano-select');
     const qtyInput = w.querySelector('.item-qty-input');
     const slider = w.querySelector('.item-discount-slider');
     
@@ -2152,6 +2213,7 @@ function getQuotePayload() {
       items.push({
         producto_id: Number(select.value),
         cantidad: Number(qtyInput.value),
+        tamano: (tamanoSelect && tamanoSelect.value) ? tamanoSelect.value.trim() : null,
         descuento_aplicado: slider ? (parseFloat(slider.value) || 0.0) : 0.0
       });
     }
@@ -3114,26 +3176,28 @@ function populateWarehouseProductControls() {
   }
 }
 
-function getSizesForProduct(productName) {
-  const norm = String(productName || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function getSizesForProduct(productOrName) {
+  if (!productOrName) return [];
   
-  // Rule 1: A7573-Poncho -> PW1, PW2
-  if ((norm.includes('A-7573') || norm.includes('A7573')) && norm.includes('PONCHO')) {
-    return ['PW1', 'PW2'];
-  }
-  
-  // Rule 2: A7573-Aceleron -> BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3
-  if ((norm.includes('A-7573') || norm.includes('A7573')) && (norm.includes('ACCELERON') || norm.includes('ACELERON'))) {
-    return ['BT1', 'BT2', 'BT3', 'BW1', 'BW2', 'PT1', 'PT2', 'PT3'];
+  let prodObj = null;
+  if (typeof productOrName === 'object') {
+    prodObj = productOrName;
+  } else if (typeof productOrName === 'number') {
+    prodObj = (allProducts || []).find(p => p.id === productOrName) || (allAdminProductos || []).find(p => p.id === productOrName);
+  } else if (typeof productOrName === 'string') {
+    const searchName = productOrName.trim().toUpperCase();
+    prodObj = (allProducts || []).find(p => p.producto && p.producto.trim().toUpperCase() === searchName) ||
+              (allAdminProductos || []).find(p => p.producto && p.producto.trim().toUpperCase() === searchName);
   }
 
-  // Rule 3: Hipopotamo Aceleron and Calamar Aceleron -> BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3, PW1, PW2
-  if (norm.includes('HIPOPOTAMO') || norm.includes('CALAMAR')) {
-    return ['BT1', 'BT2', 'BT3', 'BW1', 'BW2', 'PT1', 'PT2', 'PT3', 'PW1', 'PW2'];
+  if (prodObj && prodObj.tamanos) {
+    return String(prodObj.tamanos)
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
   }
 
-  // Default sizes list for other seed/hybrid products
-  return ['BT1', 'BT2', 'BT3', 'BW1', 'BW2', 'PT1', 'PT2', 'PT3', 'PW1', 'PW2'];
+  return [];
 }
 
 function updateWarehouseTamanoOptions() {
@@ -3143,13 +3207,13 @@ function updateWarehouseTamanoOptions() {
   if (!selectTamano) return;
 
   const selectedProdId = Number(selectProd?.value);
-  const selectedProd = allProducts.find(p => p.id === selectedProdId);
+  const selectedProd = (allProducts || []).find(p => p.id === selectedProdId) || (allAdminProductos || []).find(p => p.id === selectedProdId);
   const prodName = selectedProd?.producto || (selectProd?.selectedIndex > 0 ? selectProd.options[selectProd.selectedIndex].text : '');
   
-  const sizes = getSizesForProduct(prodName);
+  const sizes = getSizesForProduct(selectedProd || prodName);
   const currentVal = selectTamano.value;
 
-  const optionsHtml = sizes.map(s => `<option value="${s}">${s}</option>`).join('');
+  const optionsHtml = sizes.map(s => `<option value="${escapeAttribute(s)}">${escapeHtml(s)}</option>`).join('');
   selectTamano.innerHTML = '<option value="">-- Seleccionar Tamaño --</option>' + optionsHtml + '<option value="Otro">Otro (Especificar)</option>';
 
   if (sizes.includes(currentVal) || currentVal === 'Otro') {
@@ -3877,7 +3941,7 @@ async function loadAdminAsesores() {
 async function loadAdminProductos() {
   const tbody = document.getElementById('admin-productos-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-light);">Cargando...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-light);">Cargando...</td></tr>';
   
   try {
     const res = await fetch(`${API_URL}/api/productos?include_inactive=1`, { headers: getHeaders() });
@@ -3885,7 +3949,7 @@ async function loadAdminProductos() {
     
     tbody.innerHTML = '';
     if (allAdminProductos.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No hay productos registrados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">No hay productos registrados.</td></tr>';
       return;
     }
     
@@ -3896,11 +3960,13 @@ async function loadAdminProductos() {
       const fixedDisc = p.descuento_fijo_quimicos > 0 ? `$${p.descuento_fijo_quimicos.toFixed(2)}` : '-';
       const scaleText = p.descontar === 1 ? 'Sí' : 'No';
       const scaleBadge = p.descontar === 1 ? 'badge-success' : 'badge-warning';
+      const tamanosStr = p.tamanos ? `<span style="font-size: 11px; font-weight: 600; color: #0284c7; background: #e0f2fe; padding: 2px 6px; border-radius: 4px;">${escapeHtml(p.tamanos)}</span>` : '<span style="color: var(--text-light); font-size: 11px;">-</span>';
       
       tbody.innerHTML += `
         <tr style="${p.activo === 0 ? 'background-color: #f8fafc; opacity: 0.75;' : ''}">
           <td><strong>${p.producto}</strong></td>
           <td>${p.tipo_categoria}</td>
+          <td>${tamanosStr}</td>
           <td style="text-align: right; font-weight: 600;">$${p.list_price_mxn.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
           <td style="text-align: right;">${baseUsd}</td>
           <td style="text-align: right; color: var(--danger);">${fixedDisc}</td>
@@ -3920,7 +3986,7 @@ async function loadAdminProductos() {
       `;
     });
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger);">Error al cargar productos: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--danger);">Error al cargar productos: ${err.message}</td></tr>`;
   }
 }
 
@@ -4061,6 +4127,7 @@ if (document.getElementById('btn-open-producto-modal')) {
     document.getElementById('producto-modal-title').textContent = 'Registrar Nuevo Producto';
     document.getElementById('producto-submit-btn').textContent = 'Registrar Producto';
     document.getElementById('prod-status').value = '1';
+    document.getElementById('prod-sizes').value = '';
     populateProductCategorySelect();
     
     // Show stock field for new entries
@@ -4078,6 +4145,7 @@ window.openEditProductoModal = function(id) {
   document.getElementById('prod-key').value = p.clave || '';
   document.getElementById('prod-name').value = p.producto;
   document.getElementById('prod-description').value = p.descripcion || '';
+  document.getElementById('prod-sizes').value = p.tamanos || '';
   populateProductCategorySelect(p.tipo_categoria);
   document.getElementById('prod-list-price').value = p.list_price_mxn;
   document.getElementById('prod-base-usd').value = p.base_usd;
@@ -4104,6 +4172,7 @@ document.getElementById('add-producto-form').addEventListener('submit', async (e
     producto: document.getElementById('prod-name').value.trim(),
     descripcion: document.getElementById('prod-description').value.trim(),
     tipo_categoria: document.getElementById('prod-category').value,
+    tamanos: document.getElementById('prod-sizes').value.trim(),
     list_price_mxn: Number(document.getElementById('prod-list-price').value),
     base_usd: Number(document.getElementById('prod-base-usd').value) || 0.0,
     descuento_fijo_quimicos: Number(document.getElementById('prod-fixed-discount').value) || 0.0,
