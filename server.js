@@ -4230,7 +4230,7 @@ app.post('/api/comisiones/cierre-ciclo', authenticateToken, async (req, res) => 
 // Start only after the schema is ready, avoiding requests against a partially migrated database.
 async function startServer() {
   await db.initSchema();
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Casas Grandes Sales Management Server running on port ${PORT}`);
     agentsService.startBackgroundScheduler();
   });

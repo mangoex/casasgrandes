@@ -459,11 +459,19 @@ function rewriteQuery(sql) {
   return rewritten;
 }
 
-const initSchemaPromise = initSchema();
+let initSchemaPromise = null;
+function ensureSchema() {
+  if (!initSchemaPromise) {
+    initSchemaPromise = initSchema();
+  }
+  return initSchemaPromise;
+}
+ensureSchema();
 
 module.exports = {
+  initSchema: ensureSchema,
   get: async (sql, params = []) => {
-    await initSchemaPromise;
+    await ensureSchema();
     const rewritten = rewriteQuery(sql);
     try {
       const result = await pool.query(rewritten, params);
@@ -475,7 +483,7 @@ module.exports = {
   },
   
   all: async (sql, params = []) => {
-    await initSchemaPromise;
+    await ensureSchema();
     const rewritten = rewriteQuery(sql);
     try {
       const result = await pool.query(rewritten, params);
@@ -487,7 +495,7 @@ module.exports = {
   },
   
   run: async (sql, params = []) => {
-    await initSchemaPromise;
+    await ensureSchema();
     const rewritten = rewriteQuery(sql);
     try {
       const result = await pool.query(rewritten, params);
@@ -500,7 +508,7 @@ module.exports = {
   },
   
   transaction: async (callback) => {
-    await initSchemaPromise;
+    await ensureSchema();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
