@@ -6812,15 +6812,23 @@ window.loadAsignacionView = async function() {
     const advisors = await advisorsRes.json();
     
     // 4. Fetch metrics for AI Suggestions
-    const metricsRes = await fetch(`${API_URL}/api/asignacion/metricas-AI`, { headers: getHeaders() });
-    allMatchingMetrics = await metricsRes.json();
+    try {
+      const metricsRes = await fetch(`${API_URL}/api/asignacion/metricas-AI`, { headers: getHeaders() });
+      if (metricsRes.ok) {
+        allMatchingMetrics = await metricsRes.json();
+      } else {
+        allMatchingMetrics = { advisors: [], clients: [] };
+      }
+    } catch (e) {
+      allMatchingMetrics = { advisors: [], clients: [] };
+    }
     
     // Bind search input filters
     const searchInput = document.getElementById('assign-search-client');
     const searchAdvisorInput = document.getElementById('assign-search-advisor');
     const onSearchInput = () => {
       if (allMatchingMetrics) {
-        const activeAdvisors = advisors.filter(a => a.activo === 1 && a.nivel_rol === 'Asesor');
+        const activeAdvisors = (Array.isArray(advisors) ? advisors : []).filter(a => a.activo === 1 && a.nivel_rol === 'Asesor');
         renderAsignacionBoard(activeAdvisors);
       }
     };
@@ -6860,7 +6868,7 @@ window.loadAsignacionView = async function() {
     }
     
     // Render
-    renderAsignacionBoard(advisors.filter(a => a.activo === 1 && a.nivel_rol === 'Asesor'));
+    renderAsignacionBoard((Array.isArray(advisors) ? advisors : []).filter(a => a.activo === 1 && a.nivel_rol === 'Asesor'));
   } catch (err) {
     console.error('Failed to load assignment view:', err);
     unassignedList.innerHTML = `<div style="color: var(--danger); padding: 20px;">Error: ${err.message}</div>`;
@@ -6880,29 +6888,29 @@ window.renderAsignacionBoard = function(advisors) {
   const advisorSearchTerm = searchAdvisorInput ? searchAdvisorInput.value.toLowerCase().trim() : '';
   
   // Filter unassigned clients
-  let filteredClients = allUnassignedClients;
+  let filteredClients = Array.isArray(allUnassignedClients) ? allUnassignedClients : [];
   if (searchTerm) {
     filteredClients = filteredClients.filter(c => 
-      c.nombre.toLowerCase().includes(searchTerm) ||
+      (c.nombre && c.nombre.toLowerCase().includes(searchTerm)) ||
       (c.contacto && c.contacto.toLowerCase().includes(searchTerm)) ||
       (c.ubicacion && c.ubicacion.toLowerCase().includes(searchTerm))
     );
   }
   
   // Filter advisors
-  window.filteredAdvisors = advisors;
+  window.filteredAdvisors = Array.isArray(advisors) ? advisors : [];
   if (advisorSearchTerm) {
-    window.filteredAdvisors = advisors.filter(a => a.nombre.toLowerCase().includes(advisorSearchTerm));
+    window.filteredAdvisors = window.filteredAdvisors.filter(a => a.nombre && a.nombre.toLowerCase().includes(advisorSearchTerm));
   }
   
   // Separate clients
-  const directAssignClients = filteredClients.filter(c => c.disponible_para_puja === 0);
-  const biddablePoolClients = allUnassignedClients.filter(c => c.disponible_para_puja === 1);
+  const directAssignClients = filteredClients.filter(c => Number(c.disponible_para_puja || 0) === 0);
+  const biddablePoolClients = (Array.isArray(allUnassignedClients) ? allUnassignedClients : []).filter(c => Number(c.disponible_para_puja || 0) === 1);
   
   // Update counts
-  document.getElementById('assign-unassigned-count').textContent = directAssignClients.length;
-  document.getElementById('assign-biddable-count').textContent = biddablePoolClients.length;
-  document.getElementById('assign-advisors-count').textContent = window.filteredAdvisors.length;
+  if (document.getElementById('assign-unassigned-count')) document.getElementById('assign-unassigned-count').textContent = directAssignClients.length;
+  if (document.getElementById('assign-biddable-count')) document.getElementById('assign-biddable-count').textContent = biddablePoolClients.length;
+  if (document.getElementById('assign-advisors-count')) document.getElementById('assign-advisors-count').textContent = window.filteredAdvisors.length;
   
   // Render column 1: Direct Assign
   unassignedList.innerHTML = '';
@@ -6911,8 +6919,8 @@ window.renderAsignacionBoard = function(advisors) {
   } else {
     directAssignClients.forEach(c => {
       // Find client purchase history
-      const cMetric = allMatchingMetrics?.clients.find(cm => cm.cliente_id === c.id);
-      const purchaseVol = cMetric ? cMetric.total_purchase_mxn : 0;
+      const cMetric = (allMatchingMetrics?.clients || []).find(cm => cm.cliente_id === c.id);
+      const purchaseVol = cMetric ? Number(cMetric.total_purchase_mxn || 0) : 0;
       
       const card = document.createElement('div');
       card.className = 'kanban-card';
@@ -6928,11 +6936,11 @@ window.renderAsignacionBoard = function(advisors) {
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <input type="checkbox" class="assign-client-checkbox" value="${c.id}" onchange="updateAssignBulkAction()">
-            <strong style="font-size: 13px; color: var(--text-dark);">${c.nombre}</strong>
+            <strong style="font-size: 13px; color: var(--text-dark);">${escapeHtml(c.nombre)}</strong>
           </div>
-          <button class="btn btn-secondary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; line-height: 1;" onclick="showAISuggestion(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="Recomendación IA">🤖 IA</button>
+          <button class="btn btn-secondary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; line-height: 1;" onclick="showAISuggestion(${c.id}, '${escapeHtml(c.nombre).replace(/'/g, "\\'")}')" title="Recomendación IA">🤖 IA</button>
         </div>
-        <div style="font-size: 11px; color: var(--text-light); margin: 4px 0;">📍 ${c.ubicacion || 'Sin ubicación'} | 📐 ${c.superficie_text || '-'}</div>
+        <div style="font-size: 11px; color: var(--text-light); margin: 4px 0;">📍 ${escapeHtml(c.ubicacion || 'Sin ubicación')} | 📐 ${escapeHtml(c.superficie_text || '-')}</div>
         <div style="font-size: 11px; color: var(--text-light); font-weight: 500;">Historial: $${purchaseVol.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
         <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
           <button class="btn btn-primary" style="width: auto; padding: 4px 8px; font-size: 11px; margin: 0; background: var(--warning); border-color: var(--warning);" onclick="toggleClientBiddable(${c.id}, true)">🔔 Hacer Disponible</button>
@@ -6954,9 +6962,9 @@ window.renderAsignacionBoard = function(advisors) {
     biddableList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 30px; border: 1px dashed var(--border); border-radius: var(--radius);">El pool de pujas está vacío.</div>';
   } else {
     biddablePoolClients.forEach(c => {
-      const clientBids = allActiveBids.filter(b => b.cliente_id === c.id && b.estatus === 'Pendiente');
-      const cMetric = allMatchingMetrics?.clients.find(cm => cm.cliente_id === c.id);
-      const purchaseVol = cMetric ? cMetric.total_purchase_mxn : 0;
+      const clientBids = (Array.isArray(allActiveBids) ? allActiveBids : []).filter(b => b.cliente_id === c.id && b.estatus === 'Pendiente');
+      const cMetric = (allMatchingMetrics?.clients || []).find(cm => cm.cliente_id === c.id);
+      const purchaseVol = cMetric ? Number(cMetric.total_purchase_mxn || 0) : 0;
       
       const card = document.createElement('div');
       card.className = 'kanban-card';
@@ -6967,15 +6975,15 @@ window.renderAsignacionBoard = function(advisors) {
       const hasBids = clientBids.length > 0;
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
-          <strong style="font-size: 13px; color: var(--text-dark);">${c.nombre}</strong>
+          <strong style="font-size: 13px; color: var(--text-dark);">${escapeHtml(c.nombre)}</strong>
           <button class="btn btn-secondary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; line-height: 1;" onclick="toggleClientBiddable(${c.id}, false)" title="Quitar del pool">Quitar ✗</button>
         </div>
-        <div style="font-size: 11px; color: var(--text-light); margin-bottom: 8px;">📍 ${c.ubicacion || 'Sin ubicación'} | $${purchaseVol.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
+        <div style="font-size: 11px; color: var(--text-light); margin-bottom: 8px;">📍 ${escapeHtml(c.ubicacion || 'Sin ubicación')} | $${purchaseVol.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 8px;">
           <span class="badge ${hasBids ? 'badge-warning' : 'badge-secondary'}" style="font-size: 10px; padding: 4px 8px;">${clientBids.length} prop.</span>
           <button class="btn btn-primary" style="width: auto; padding: 4px 8px; font-size: 11px; margin: 0; ${hasBids ? '' : 'opacity: 0.5; pointer-events: none;'}" 
-            onclick="openAdminDecisionModal(${c.id}, '${c.nombre.replace(/'/g, "\\'")}', ${purchaseVol})">
+            onclick="openAdminDecisionModal(${c.id}, '${escapeHtml(c.nombre).replace(/'/g, "\\'")}', ${purchaseVol})">
             👁️ Propuestas
           </button>
         </div>
@@ -6990,11 +6998,11 @@ window.renderAsignacionBoard = function(advisors) {
     advisorsList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 30px;">No hay asesores comerciales que coincidan.</div>';
   } else {
     window.filteredAdvisors.forEach(a => {
-      const aMetric = allMatchingMetrics?.advisors.find(am => am.asesor_id === a.id);
-      const salesVol = aMetric ? Number(aMetric.total_sales_mxn) : 0;
-      const complVisits = aMetric ? Number(aMetric.completed_visits) : 0;
-      const totalVisits = aMetric ? Number(aMetric.total_visits) : 0;
-      const pendingVisits = aMetric ? Number(aMetric.pending_visits) : 0;
+      const aMetric = (allMatchingMetrics?.advisors || []).find(am => am.asesor_id === a.id);
+      const salesVol = aMetric ? Number(aMetric.total_sales_mxn || 0) : 0;
+      const complVisits = aMetric ? Number(aMetric.completed_visits || 0) : 0;
+      const totalVisits = aMetric ? Number(aMetric.total_visits || 0) : 0;
+      const pendingVisits = aMetric ? Number(aMetric.pending_visits || 0) : 0;
       
       const complRate = totalVisits > 0 ? Math.round((complVisits / totalVisits) * 100) : 0;
       

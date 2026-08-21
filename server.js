@@ -1290,22 +1290,45 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
 
 app.get('/api/almacen/existencias', authenticateToken, async (req, res) => {
   try {
-    const products = await db.all('SELECT id, producto, tipo_categoria, list_price_mxn FROM productos WHERE activo = 1');
-    const existencias = [];
-    
-    for (const p of products) {
-      const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [p.id]);
-      existencias.push({
-        id: p.id,
-        producto: p.producto,
-        tipo_categoria: p.tipo_categoria,
-        existencias: last_move ? Number(last_move.existencias_resultantes || 0) : 0.0
-      });
-    }
+    const existencias = await db.all(`
+      SELECT p.id, p.producto, p.tipo_categoria,
+             COALESCE(
+               (SELECT m.existencias_resultantes 
+                FROM almacen_movimientos m 
+                WHERE m.producto_id = p.id 
+                ORDER BY m.id DESC LIMIT 1), 
+               0.0
+             ) AS existencias
+      FROM productos p
+      WHERE p.activo = 1
+      ORDER BY p.producto ASC
+    `);
     res.json(existencias);
   } catch (err) {
-    console.error(err);
+    console.error('Error fetching stock existencias:', err);
     res.status(500).json({ error: 'Failed to fetch stock existencias' });
+  }
+});
+
+app.get('/api/almacen/clientes-movimientos', authenticateToken, async (req, res) => {
+  try {
+    const clients = await db.all(`
+      SELECT DISTINCT c.id, c.nombre
+      FROM clientes c
+      JOIN almacen_movimientos m ON (m.cliente_id = c.id)
+      WHERE c.activo = 1
+      UNION
+      SELECT DISTINCT c.id, c.nombre
+      FROM clientes c
+      JOIN cotizaciones q ON q.cliente_id = c.id
+      JOIN almacen_movimientos m ON m.cotizacion_id = q.id
+      WHERE c.activo = 1
+      ORDER BY nombre ASC
+    `);
+    res.json(clients);
+  } catch (err) {
+    console.error('Error fetching warehouse movement clients:', err);
+    res.status(500).json({ error: 'Failed to fetch warehouse clients' });
   }
 });
 
