@@ -290,9 +290,10 @@ async function showAppView() {
       // Map targets to titles
       const titles = {
         'dashboard-view': 'Tablero General',
-        'crm-view': 'Canal de Ventas',
-        'planeacion-view': 'Planificación',
+        'planeacion-view': 'Agenda de Visitas',
+        'clientes-view': 'Mis Agricultores',
         'cotizador-view': 'Cotizador',
+        'crm-view': 'Canal de Ventas',
         'comisiones-view': 'Módulo de Comisiones',
         'catalog-view': 'Catálogo de Productos'
       };

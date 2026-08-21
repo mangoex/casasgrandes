@@ -2851,22 +2851,97 @@ tr:hover td {
 /* =========================================================
    ASESOR MOBILE REDESIGN (Viewport <= 768px)
    ========================================================= */
+/* =========================================================
+   ASESOR MOBILE REDESIGN (Viewport <= 768px)
+   Ultra-modern Obsidian Dark & Electric Lime Web App Experience
+   ========================================================= */
 @media (max-width: 768px) {
-  /* Mobile Bottom Navigation Bar */
+  :root {
+    --mobile-bg: #0e1015;
+    --mobile-surface: #14171f;
+    --mobile-card-bg: #181b23;
+    --mobile-card-surface: #20242f;
+    --mobile-border: rgba(255, 255, 255, 0.08);
+    --mobile-border-hover: rgba(255, 255, 255, 0.15);
+    --mobile-border-focus: rgba(228, 255, 58, 0.45);
+    --mobile-accent-lime: #e4ff3a;
+    --mobile-accent-lime-hover: #d4f72c;
+    --mobile-accent-dark: #0e1015;
+    --mobile-text-white: #ffffff;
+    --mobile-text-secondary: #949dae;
+    --mobile-text-muted: #64748b;
+    --mobile-dock-bg: rgba(20, 23, 31, 0.94);
+  }
+
+  /* Base Mobile Application Styles for Advisor */
+  body.role-asesor {
+    background-color: var(--mobile-bg) !important;
+    color: var(--mobile-text-white);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  body.role-asesor #app-view {
+    background-color: var(--mobile-bg) !important;
+  }
+
+  body.role-asesor main {
+    background-color: var(--mobile-bg) !important;
+    padding: 0 16px 100px !important;
+    min-height: 100vh;
+  }
+
+  body.role-asesor .card {
+    background: var(--mobile-card-bg);
+    border: 1px solid var(--mobile-border);
+    border-radius: 22px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    color: var(--mobile-text-white);
+  }
+
+  body.role-asesor .card-title {
+    color: var(--mobile-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  body.role-asesor .form-input,
+  body.role-asesor select.form-input {
+    background: var(--mobile-card-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 14px;
+    color: var(--mobile-text-white);
+    font-size: 14px;
+    padding: 10px 14px;
+  }
+
+  body.role-asesor .form-input:focus,
+  body.role-asesor select.form-input:focus {
+    border-color: var(--mobile-border-focus);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(228, 255, 58, 0.2);
+  }
+
+  /* Floating Bottom Navigation Dock (Pill Shape) */
   .mobile-bottom-nav {
     display: none;
     position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: 380px;
     height: 64px;
-    background-color: #ffffff;
-    border-top: 1px solid var(--border, #e2e8f0);
+    background: var(--mobile-dock-bg);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 36px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
     z-index: 1000;
-    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.06);
-    justify-content: space-around;
+    justify-content: space-evenly;
     align-items: center;
-    padding: 4px 8px;
+    padding: 6px 10px;
   }
 
   body.role-asesor .mobile-bottom-nav {
@@ -2878,51 +2953,582 @@ tr:hover td {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: none;
+    gap: 2px;
+    background: transparent;
     border: none;
-    color: #64748b;
+    color: var(--mobile-text-secondary);
     font-size: 11px;
-    font-weight: 500;
-    padding: 6px 10px;
-    border-radius: 12px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 24px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    flex: 1;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 76px;
   }
 
   .mobile-nav-item .mobile-nav-icon {
-    font-size: 23px;
-    margin-bottom: 2px;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--mobile-text-secondary);
+    transition: transform 0.2s ease, color 0.2s ease;
   }
 
   .mobile-nav-item.active {
-    color: #10b981;
+    background: var(--mobile-accent-lime);
+    color: var(--mobile-accent-dark) !important;
+    font-weight: 800;
+    box-shadow: 0 4px 18px rgba(228, 255, 58, 0.35);
+  }
+
+  .mobile-nav-item.active .mobile-nav-icon {
+    color: var(--mobile-accent-dark) !important;
+    transform: translateY(-1px);
+  }
+
+  .mobile-nav-item.active .mobile-nav-label {
+    color: var(--mobile-accent-dark) !important;
+  }
+
+  /* Mobile Top Header */
+  body.role-asesor main > header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 4px 16px;
+    background: transparent;
+    border-bottom: 1px solid var(--mobile-border);
+    margin-bottom: 16px;
+  }
+
+  body.role-asesor #mobile-menu-btn {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  body.role-asesor #view-title {
+    font-size: 19px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+    margin: 0;
+  }
+
+  body.role-asesor #header-user-badge {
+    background: rgba(228, 255, 58, 0.15);
+    color: var(--mobile-accent-lime);
+    border: 1px solid rgba(228, 255, 58, 0.3);
+    border-radius: 20px;
     font-weight: 700;
-    background-color: transparent;
-    box-shadow: inset 0 -3px 0 #10b981;
+    font-size: 11px;
+    padding: 4px 10px;
   }
 
-  /* Main content padding adjustment for mobile asesor */
-  body.role-asesor main {
-    padding-bottom: 80px !important;
+  /* ---------------------------------------------------------
+     1. ASESOR MOBILE DASHBOARD
+     --------------------------------------------------------- */
+  .asesor-mobile-dashboard {
+    display: none;
   }
 
-  body.role-asesor.mobile-dashboard-active main {
-    padding: 0 0 80px !important;
-    background: #f8faf9;
+  body.role-asesor .asesor-mobile-dashboard {
+    display: flex !important;
+    flex-direction: column;
+    gap: 16px;
+    padding: 4px 0 20px;
   }
 
-  body.role-asesor.mobile-dashboard-active main > header {
+  body.role-asesor .desktop-dashboard-only {
     display: none !important;
   }
 
+  .mobile-dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: var(--mobile-card-bg);
+    border: 1px solid var(--mobile-border);
+    border-radius: 24px;
+  }
+
+  .mobile-user-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mobile-user-avatar {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 2px solid var(--mobile-accent-lime);
+    border-radius: 50%;
+    background: #1f232c;
+    color: var(--mobile-accent-lime);
+    font-size: 17px;
+    font-weight: 800;
+  }
+
+  .mobile-dashboard-header h2 {
+    margin: 0 0 2px;
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 750;
+    line-height: 1.2;
+  }
+
+  .mobile-dashboard-header .role-badge {
+    color: var(--mobile-accent-lime);
+    background: rgba(228, 255, 58, 0.12);
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .mobile-icon-button {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--mobile-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+    cursor: pointer;
+  }
+
+  .notification-dot {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    width: 8px;
+    height: 8px;
+    border: 2px solid #181b23;
+    border-radius: 50%;
+    background: var(--mobile-accent-lime);
+  }
+
+  .mobile-day-heading {
+    padding: 6px 4px 0;
+  }
+
+  .mobile-day-heading h2 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.6px;
+  }
+
+  .mobile-day-heading p {
+    margin: 3px 0 0;
+    color: var(--mobile-text-secondary);
+    font-size: 13px;
+  }
+
+  /* Next Visit Highlight Card (Vibrant Electric Lime Accent) */
+  .mobile-next-visit {
+    padding: 0;
+  }
+
+  .mobile-section-label {
+    margin-bottom: 8px;
+    color: var(--mobile-accent-lime);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .mobile-visit-card {
+    padding: 20px;
+    border-radius: 24px;
+    background: var(--mobile-accent-lime);
+    color: var(--mobile-accent-dark);
+    box-shadow: 0 12px 30px rgba(228, 255, 58, 0.22);
+  }
+
+  .mobile-visit-main {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mobile-visit-icon {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--mobile-accent-dark);
+    color: var(--mobile-accent-lime);
+  }
+
+  .mobile-visit-icon .material-symbols-rounded {
+    font-size: 26px;
+  }
+
+  .mobile-visit-copy h3 {
+    margin: 0 0 2px;
+    color: var(--mobile-accent-dark);
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-visit-copy p {
+    margin: 0;
+    color: rgba(14, 16, 21, 0.78);
+    font-size: 12px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-visit-date {
+    min-width: 50px;
+    padding-left: 10px;
+    border-left: 1px solid rgba(14, 16, 21, 0.15);
+    color: var(--mobile-accent-dark);
+    text-align: center;
+  }
+
+  .mobile-visit-date .material-symbols-rounded {
+    display: block;
+    margin: 0 auto 2px;
+    color: var(--mobile-accent-dark);
+    font-size: 20px;
+  }
+
+  .mobile-visit-date strong {
+    font-size: 11px;
+    font-weight: 750;
+  }
+
+  .mobile-primary-action {
+    width: 100%;
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 14px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--mobile-accent-dark);
+    color: var(--mobile-accent-lime);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .mobile-primary-action:active {
+    transform: scale(0.98);
+  }
+
+  /* Progress Metrics Card */
+  .mobile-progress-card {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    align-items: center;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 22px;
+    background: var(--mobile-card-bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .mobile-metric {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mobile-metric-icon {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: rgba(228, 255, 58, 0.12);
+    color: var(--mobile-accent-lime);
+  }
+
+  .mobile-metric-icon .material-symbols-rounded {
+    font-size: 20px;
+  }
+
+  .mobile-metric span {
+    overflow: hidden;
+    color: var(--mobile-text-secondary);
+    font-size: 11px;
+    line-height: 1.2;
+    display: block;
+  }
+
+  .mobile-metric strong {
+    margin: 1px 0;
+    color: var(--mobile-accent-lime);
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.1;
+    display: block;
+  }
+
+  .mobile-metric small {
+    color: var(--mobile-text-muted);
+    font-size: 10px;
+    display: block;
+  }
+
+  .mobile-metric-divider {
+    width: 1px;
+    height: 44px;
+    background: var(--mobile-border);
+  }
+
+  .mobile-actions-title {
+    margin: 6px 4px 2px;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 750;
+  }
+
+  .mobile-action-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--mobile-border);
+    border-radius: 20px;
+    background: var(--mobile-card-bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .mobile-action-card {
+    min-height: 88px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 4px;
+    border: 0;
+    border-right: 1px solid var(--mobile-border);
+    background: transparent;
+    color: var(--mobile-text-white);
+    font: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .mobile-action-card:last-child {
+    border-right: 0;
+  }
+
+  .mobile-action-card .material-symbols-rounded {
+    color: var(--mobile-accent-lime);
+    font-size: 26px;
+  }
+
+  .mobile-action-card strong {
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .mobile-action-card:active {
+    background: rgba(228, 255, 58, 0.08);
+  }
+
+  /* ---------------------------------------------------------
+     2. MOBILE AGENDA (PLANEACION VIEW)
+     --------------------------------------------------------- */
+  body.role-asesor #planeacion-view {
+    padding: 0;
+  }
+
+  body.role-asesor #planeacion-view .flex-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+    margin-bottom: 16px !important;
+  }
+
+  body.role-asesor #planeacion-view .weekly-board {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  body.role-asesor #planeacion-view .kanban-column {
+    background: var(--mobile-card-bg);
+    border: 1px solid var(--mobile-border);
+    border-radius: 20px;
+    padding: 14px;
+    min-height: auto !important;
+  }
+
+  body.role-asesor #planeacion-view .kanban-column-header {
+    border-bottom: 1px solid var(--mobile-border);
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+  }
+
+  body.role-asesor #planeacion-view .kanban-column-title {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 750;
+  }
+
+  body.role-asesor #planeacion-view .kanban-column-count {
+    background: rgba(228, 255, 58, 0.15);
+    color: var(--mobile-accent-lime);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  body.role-asesor #planeacion-view .kanban-card {
+    background: var(--mobile-card-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 10px;
+    color: var(--mobile-text-white);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  }
+
+  body.role-asesor #planeacion-view .kanban-card:hover {
+    border-color: var(--mobile-border-focus);
+  }
+
+  /* ---------------------------------------------------------
+     3. MOBILE CLIENTES / AGRICULTORES (CLIENTES VIEW)
+     --------------------------------------------------------- */
+  body.role-asesor #clientes-view {
+    padding: 0;
+  }
+
+  body.role-asesor #clientes-view .card {
+    padding: 16px;
+  }
+
+  body.role-asesor #catalog-client-search {
+    width: 100% !important;
+    background: var(--mobile-card-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 20px;
+    color: var(--mobile-text-white);
+    padding: 12px 18px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+
+  body.role-asesor .catalog-filters {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.role-asesor .catalog-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.role-asesor .catalog-filters .filter-pill {
+    white-space: nowrap;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--mobile-border);
+    background-color: var(--mobile-card-surface);
+    color: var(--mobile-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+  }
+
+  body.role-asesor .catalog-filters .filter-pill.active {
+    background-color: var(--mobile-accent-lime);
+    color: var(--mobile-accent-dark);
+    border-color: var(--mobile-accent-lime);
+    font-weight: 800;
+  }
+
+  /* Mobile Client Cards */
+  body.role-asesor .mobile-client-card {
+    background: var(--mobile-card-bg);
+    border-radius: 20px;
+    padding: 16px 18px;
+    border: 1px solid var(--mobile-border);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  body.role-asesor .mobile-client-card .client-info h3 {
+    font-size: 16px;
+    font-weight: 750;
+    margin: 0 0 3px 0;
+    color: #ffffff;
+  }
+
+  body.role-asesor .mobile-client-card .client-info p {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    margin: 0;
+  }
+
+  body.role-asesor .mobile-client-card .btn-pedido {
+    background-color: var(--mobile-accent-lime);
+    color: var(--mobile-accent-dark);
+    font-weight: 800;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* ---------------------------------------------------------
+     4. MOBILE COTIZADOR (COTIZADOR VIEW)
+     --------------------------------------------------------- */
   body.role-asesor.mobile-quote-active {
-    background: #f5f8f6;
+    background: var(--mobile-bg);
   }
 
   body.role-asesor.mobile-quote-active main {
-    padding: 0 0 86px !important;
-    background: #f5f8f6;
+    padding: 0 16px 100px !important;
+    background: var(--mobile-bg);
   }
 
   body.role-asesor.mobile-quote-active main > header {
@@ -2935,24 +3541,24 @@ tr:hover td {
 
   body.role-asesor.mobile-quote-active .mobile-quote-header {
     display: grid;
-    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
     align-items: center;
-    gap: 8px;
-    padding: 14px 12px;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    gap: 10px;
+    padding: 16px 4px;
     color: #ffffff;
-    border-bottom: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    margin-bottom: 16px;
   }
 
   .mobile-quote-header-button {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
     padding: 0;
-    border: 0;
-    border-radius: 11px;
-    background: transparent;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
     color: #ffffff;
     cursor: pointer;
   }
@@ -2961,7 +3567,7 @@ tr:hover td {
     margin: 0;
     color: #ffffff;
     font-size: 20px;
-    font-weight: 750;
+    font-weight: 800;
     line-height: 1.1;
   }
 
@@ -2969,10 +3575,10 @@ tr:hover td {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-top: 4px;
-    color: rgba(255, 255, 255, 0.88);
+    margin-top: 2px;
+    color: var(--mobile-accent-lime);
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 600;
   }
 
   .mobile-quote-status i {
@@ -2980,7 +3586,7 @@ tr:hover td {
     height: 6px;
     display: inline-block;
     border-radius: 50%;
-    background: #fbbf24;
+    background: var(--mobile-accent-lime);
   }
 
   body.role-asesor.mobile-quote-active .quote-builder-grid {
@@ -2993,10 +3599,10 @@ tr:hover td {
 
   body.role-asesor.mobile-quote-active .quote-form-column {
     margin: 0;
-    padding: 18px 16px 28px;
+    padding: 0;
     border: 0;
     border-radius: 0;
-    background: #f5f8f6;
+    background: transparent;
     box-shadow: none;
   }
 
@@ -3024,29 +3630,31 @@ tr:hover td {
   }
 
   body.role-asesor.mobile-quote-active .quote-client-field {
-    margin: 0 0 20px;
+    margin: 0 0 16px;
     padding: 16px;
-    border: 1px solid #e1ebe7;
-    border-radius: 18px;
-    background: #ffffff;
-    box-shadow: 0 8px 22px rgba(6, 61, 47, 0.05);
+    border: 1px solid var(--mobile-border);
+    border-radius: 20px;
+    background: var(--mobile-card-bg);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   }
 
   body.role-asesor.mobile-quote-active .quote-client-field label {
     margin-bottom: 8px;
-    color: #40574f;
+    color: var(--mobile-text-secondary);
     font-size: 12px;
-    font-weight: 650;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
   }
 
   body.role-asesor.mobile-quote-active #quote-client {
-    height: 50px;
-    border-color: #dce8e3;
-    border-radius: 13px;
-    background: #f9fbfa;
-    color: #0f2f26;
+    height: 48px;
+    border-color: var(--mobile-border);
+    border-radius: 14px;
+    background: var(--mobile-card-surface);
+    color: #ffffff;
     font-size: 15px;
-    font-weight: 650;
+    font-weight: 700;
   }
 
   body.role-asesor.mobile-quote-active .quote-items-section {
@@ -3055,14 +3663,14 @@ tr:hover td {
 
   body.role-asesor.mobile-quote-active .quote-items-section > .flex-header {
     align-items: center;
-    margin-bottom: 10px !important;
+    margin-bottom: 12px !important;
   }
 
   body.role-asesor.mobile-quote-active .quote-items-section h4 {
     margin: 0;
-    color: #0f2f26;
+    color: #ffffff;
     font-size: 17px;
-    font-weight: 750;
+    font-weight: 800;
   }
 
   body.role-asesor.mobile-quote-active #btn-add-item {
@@ -3070,37 +3678,23 @@ tr:hover td {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 7px 10px !important;
-    border-color: transparent;
-    background: transparent;
-    color: #059669;
+    padding: 6px 12px !important;
+    border: 1px solid rgba(228, 255, 58, 0.3);
+    border-radius: 12px;
+    background: rgba(228, 255, 58, 0.1);
+    color: var(--mobile-accent-lime);
     font-size: 12px !important;
-    font-weight: 700;
-  }
-
-  body.role-asesor.mobile-quote-active #btn-add-item .material-symbols-rounded {
-    font-size: 19px;
-  }
-
-  body.role-asesor.mobile-quote-active .desktop-add-item-label,
-  body.role-asesor.mobile-quote-active .desktop-remove-icon {
-    display: none;
-  }
-
-  body.role-asesor.mobile-quote-active .builder-box {
-    padding: 0;
-    border: 0;
-    background: transparent;
+    font-weight: 750;
   }
 
   body.role-asesor.mobile-quote-active .item-row-wrapper {
     position: relative;
-    margin-bottom: 10px;
-    padding: 14px;
-    border: 1px solid #e1ebe7;
-    border-radius: 18px;
-    background: #ffffff;
-    box-shadow: 0 8px 22px rgba(6, 61, 47, 0.055);
+    margin-bottom: 12px;
+    padding: 16px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 20px;
+    background: var(--mobile-card-bg);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   }
 
   body.role-asesor.mobile-quote-active .item-row {
@@ -3118,13 +3712,9 @@ tr:hover td {
     place-items: center;
     grid-column: 1;
     grid-row: 1;
-    border-radius: 13px;
-    background: #e9f8f2;
-    color: #059669;
-  }
-
-  body.role-asesor.mobile-quote-active .mobile-product-icon .material-symbols-rounded {
-    font-size: 23px;
+    border-radius: 14px;
+    background: rgba(228, 255, 58, 0.12);
+    color: var(--mobile-accent-lime);
   }
 
   body.role-asesor.mobile-quote-active .item-product-group {
@@ -3141,112 +3731,84 @@ tr:hover td {
   }
 
   body.role-asesor.mobile-quote-active .item-product-select {
-    height: 30px;
+    height: 32px;
     padding: 0 24px 0 0;
     overflow: hidden;
     border: 0;
     background-color: transparent;
-    color: #122d25;
+    color: #ffffff;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 750;
     text-overflow: ellipsis;
-  }
-
-  body.role-asesor.mobile-quote-active .mobile-item-package {
-    display: block;
-    margin-top: 1px;
-    color: #7b8c86;
-    font-size: 10px;
   }
 
   body.role-asesor.mobile-quote-active .btn-remove {
     position: absolute;
     top: 12px;
     right: 10px;
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     display: grid;
     place-items: center;
     padding: 0;
     border-radius: 10px;
-    background: #fff2f2;
-  }
-
-  body.role-asesor.mobile-quote-active .btn-remove .material-symbols-rounded {
-    display: block;
-    font-size: 19px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #ef4444;
   }
 
   body.role-asesor.mobile-quote-active .item-qty-group {
     position: relative;
     z-index: 2;
-    width: 148px;
+    width: 140px;
     grid-column: 1 / 3;
     grid-row: 2;
-    margin: 8px 0 0 52px;
+    margin: 10px 0 0 52px;
   }
 
   body.role-asesor.mobile-quote-active .mobile-quantity-label {
     display: block;
     margin-bottom: 4px;
-    color: #64748b;
+    color: var(--mobile-text-secondary);
     font-size: 9px;
-    font-weight: 650;
+    font-weight: 700;
   }
 
   body.role-asesor.mobile-quote-active .mobile-quantity-stepper {
-    width: 148px;
-    height: 42px;
+    width: 140px;
+    height: 40px;
     display: grid;
-    grid-template-columns: 42px 64px 42px;
+    grid-template-columns: 38px 64px 38px;
     overflow: hidden;
-    border: 1px solid #dce8e3;
+    border: 1px solid var(--mobile-border);
     border-radius: 12px;
-    background: #f9fbfa;
+    background: var(--mobile-card-surface);
   }
 
   body.role-asesor.mobile-quote-active .mobile-quantity-stepper button {
     display: block;
     border: 0;
     background: transparent;
-    color: #059669;
-    font-size: 23px;
+    color: var(--mobile-accent-lime);
+    font-size: 20px;
+    font-weight: 800;
     cursor: pointer;
     touch-action: manipulation;
   }
 
   body.role-asesor.mobile-quote-active .mobile-quantity-stepper .item-qty-input {
     width: 64px;
-    height: 40px;
+    height: 38px;
     padding: 0;
     border: 0;
-    border-right: 1px solid #e3ece8;
-    border-left: 1px solid #e3ece8;
-    border-radius: 0;
-    background: #ffffff;
-    color: #12352b;
-    font-size: 16px;
+    border-right: 1px solid var(--mobile-border);
+    border-left: 1px solid var(--mobile-border);
+    background: transparent;
+    color: #ffffff;
+    font-size: 15px;
     font-weight: 800;
     text-align: center;
     appearance: textfield;
-  }
-
-  body.role-asesor.mobile-quote-active .mobile-quantity-stepper .item-qty-input:focus {
-    position: relative;
-    z-index: 1;
-    outline: 2px solid #10b981;
-    outline-offset: -2px;
-  }
-
-  body.role-asesor.mobile-quote-active .mobile-quantity-stepper .item-qty-input::-webkit-inner-spin-button {
-    appearance: none;
-  }
-
-  body.role-asesor.mobile-quote-active .mobile-quantity-hint {
-    display: block;
-    margin-top: 4px;
-    color: #7b8c86;
-    font-size: 8px;
   }
 
   body.role-asesor.mobile-quote-active .item-price-group {
@@ -3257,7 +3819,7 @@ tr:hover td {
     grid-column: 2;
     grid-row: 2;
     align-self: center;
-    margin: 9px 0 0;
+    margin: 10px 0 0;
     text-align: right;
   }
 
@@ -3267,30 +3829,24 @@ tr:hover td {
     padding: 0;
     border: 0;
     background: transparent !important;
-    color: #0f2f26;
-    font-size: 12px;
+    color: #ffffff;
+    font-size: 13px;
     font-weight: 750;
     text-align: right;
   }
 
   body.role-asesor.mobile-quote-active .mobile-item-subtotal {
     display: block;
-    margin-top: 3px;
-    color: #71827c;
+    margin-top: 2px;
+    color: var(--mobile-text-secondary);
     font-size: 9px;
   }
 
-  body.role-asesor.mobile-quote-active .item-discount-row {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid #edf2ef;
-    font-size: 11px;
-  }
-
+  /* Total Summary Card (Electric Lime Highlight) */
   body.role-asesor.mobile-quote-active .mobile-quote-summary {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 9px;
+    gap: 10px;
     margin-top: 16px;
   }
 
@@ -3299,518 +3855,133 @@ tr:hover td {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    padding: 17px 2px 8px;
-    color: #4c625a;
+    padding: 16px 20px;
+    border-radius: 20px;
+    background: var(--mobile-accent-lime);
+    color: var(--mobile-accent-dark);
+    box-shadow: 0 10px 26px rgba(228, 255, 58, 0.25);
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 700;
   }
 
   .mobile-quote-total-row strong {
-    color: #083e31;
-    font-size: 23px;
-    font-weight: 800;
-    letter-spacing: -0.4px;
+    color: var(--mobile-accent-dark);
+    font-size: 24px;
+    font-weight: 850;
+    letter-spacing: -0.5px;
   }
 
   .mobile-quote-benefit {
-    min-height: 84px;
+    min-height: 76px;
     display: grid;
-    grid-template-columns: 34px 1fr;
+    grid-template-columns: 32px 1fr;
     align-items: center;
     gap: 8px;
     padding: 12px;
-    border: 1px solid #f4dfae;
-    border-radius: 16px;
-    background: #fff9e9;
-    color: #a65f00;
+    border: 1px solid var(--mobile-border);
+    border-radius: 18px;
+    background: var(--mobile-card-bg);
+    color: #ffffff;
   }
 
   .mobile-quote-benefit.coupon {
-    border-color: #cfe8dd;
-    background: #edf9f4;
-    color: #047857;
-  }
-
-  .mobile-quote-benefit > .material-symbols-rounded {
-    font-size: 27px;
-  }
-
-  .mobile-quote-benefit span,
-  .mobile-quote-benefit strong,
-  .mobile-quote-benefit small {
-    display: block;
-  }
-
-  .mobile-quote-benefit div > span {
-    font-size: 11px;
-    font-weight: 650;
+    border-color: rgba(228, 255, 58, 0.25);
+    background: rgba(228, 255, 58, 0.08);
+    color: var(--mobile-accent-lime);
   }
 
   .mobile-quote-benefit strong {
-    margin: 1px 0;
-    font-size: 14px;
+    color: #ffffff;
+    font-size: 13px;
     font-weight: 800;
   }
 
+  .mobile-quote-benefit.coupon strong {
+    color: var(--mobile-accent-lime);
+  }
+
   .mobile-quote-benefit small {
-    color: #73817c;
+    color: var(--mobile-text-secondary);
     font-size: 9px;
-    line-height: 1.15;
   }
 
   body.role-asesor.mobile-quote-active .quote-submit-actions {
-    margin-top: 14px !important;
+    margin-top: 16px !important;
     padding-top: 0 !important;
     border-top: 0 !important;
   }
 
   body.role-asesor.mobile-quote-active .quote-submit-button {
     height: 52px !important;
-    border-radius: 15px;
-    background: #0f9f70;
-    box-shadow: 0 10px 20px rgba(15, 159, 112, 0.2);
-    font-size: 15px;
-    font-weight: 750;
-  }
-
-  body.role-asesor.mobile-quote-active .mobile-quote-review-hint {
-    display: block;
-    margin: 8px 0 0;
-    color: #74847e;
-    font-size: 10px;
-    text-align: center;
-  }
-
-  body.role-asesor.mobile-quote-active .mobile-save-draft {
-    width: 100%;
-    min-height: 44px;
-    display: block;
-    margin-top: 5px;
-    border: 0;
-    background: transparent;
-    color: #087c58;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  body.role-asesor.mobile-dashboard-active .mobile-report-section {
-    display: none !important;
-  }
-
-  /* Asesor Mobile Dashboard Container */
-  .asesor-mobile-dashboard {
-    display: none;
-  }
-
-  body.role-asesor .asesor-mobile-dashboard {
-    display: flex !important;
-    flex-direction: column;
-    gap: 0;
-    min-height: calc(100vh - 64px);
-    padding: 0 0 26px;
-  }
-
-  body.role-asesor .desktop-dashboard-only {
-    display: none !important;
-  }
-
-  .mobile-dashboard-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 22px 20px 18px;
-    color: #ffffff;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  }
-
-  .mobile-user-summary {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .mobile-user-avatar {
-    width: 48px;
-    height: 48px;
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-    border: 2px solid rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
-    background: #064e3b;
-    color: #ffffff;
-    font-size: 17px;
-    font-weight: 700;
-  }
-
-  .mobile-dashboard-header h2 {
-    margin: 0 0 1px;
-    color: #ffffff;
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-
-  .mobile-dashboard-header .role-badge {
-    color: rgba(255, 255, 255, 0.82);
-    font-size: 13px;
-    font-weight: 400;
-  }
-
-  .mobile-icon-button {
-    position: relative;
-    width: 46px;
-    height: 46px;
-    display: grid;
-    place-items: center;
-    border: 0;
-    border-radius: 14px;
-    background: rgba(6, 78, 59, 0.22);
-    color: #ffffff;
-    cursor: pointer;
-  }
-
-  .notification-dot {
-    position: absolute;
-    top: 9px;
-    right: 9px;
-    width: 8px;
-    height: 8px;
-    border: 2px solid #0aa674;
-    border-radius: 50%;
-    background: #f59e0b;
-  }
-
-  .mobile-day-heading {
-    padding: 26px 20px 18px;
-    background: linear-gradient(180deg, #ffffff 0%, #f8faf9 100%);
-  }
-
-  .mobile-day-heading h2 {
-    margin: 0;
-    color: #063d2f;
-    font-size: 30px;
-    font-weight: 800;
-    letter-spacing: -0.8px;
-    line-height: 1.1;
-  }
-
-  .mobile-day-heading p {
-    margin: 5px 0 0;
-    color: #64748b;
-    font-size: 14px;
-  }
-
-  .mobile-next-visit {
-    padding: 0 20px;
-  }
-
-  .mobile-section-label {
-    margin-bottom: 9px;
-    color: #087c58;
-    font-size: 14px;
-    font-weight: 650;
-  }
-
-  .mobile-visit-card {
-    padding: 18px;
-    border: 1px solid #e4ece8;
-    border-radius: 20px;
-    background: #ffffff;
-    box-shadow: 0 10px 24px rgba(6, 61, 47, 0.07);
-  }
-
-  .mobile-visit-main {
-    display: grid;
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .mobile-visit-icon {
-    width: 48px;
-    height: 48px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: #e8f7f1;
-    color: #059669;
-  }
-
-  .mobile-visit-icon .material-symbols-rounded {
-    font-size: 28px;
-  }
-
-  .mobile-visit-copy {
-    min-width: 0;
-  }
-
-  .mobile-visit-copy h3 {
-    overflow: hidden;
-    margin: 0 0 3px;
-    color: #0f172a;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.2;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-visit-copy p {
-    overflow: hidden;
-    margin: 0;
-    color: #64748b;
-    font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-visit-date {
-    min-width: 54px;
-    padding-left: 12px;
-    border-left: 1px solid #e2e8f0;
-    color: #64748b;
-    text-align: center;
-  }
-
-  .mobile-visit-date .material-symbols-rounded {
-    display: block;
-    margin: 0 auto 3px;
-    color: #059669;
-    font-size: 22px;
-  }
-
-  .mobile-visit-date strong {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .mobile-primary-action {
-    width: 100%;
-    min-height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 16px;
-    border: 0;
-    border-radius: 14px;
-    background: #10b981;
-    color: #ffffff;
-    font: inherit;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .mobile-primary-action:active {
-    background: #059669;
-    transform: scale(0.99);
-  }
-
-  .mobile-progress-card {
-    display: grid;
-    grid-template-columns: 1fr 1px 1fr;
-    align-items: center;
-    gap: 14px;
-    margin: 16px 20px 0;
-    padding: 16px;
-    border: 1px solid #e4ece8;
-    border-radius: 18px;
-    background: #ffffff;
-    box-shadow: 0 8px 20px rgba(6, 61, 47, 0.05);
-  }
-
-  .mobile-metric {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .mobile-metric-icon {
-    width: 40px;
-    height: 40px;
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-    border-radius: 50%;
-    background: #e8f7f1;
-    color: #059669;
-  }
-
-  .mobile-metric-icon .material-symbols-rounded {
-    font-size: 22px;
-  }
-
-  .mobile-metric span,
-  .mobile-metric small,
-  .mobile-metric strong {
-    display: block;
-  }
-
-  .mobile-metric span {
-    overflow: hidden;
-    color: #64748b;
-    font-size: 10px;
-    line-height: 1.2;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-metric strong {
-    margin: 1px 0;
-    color: #059669;
-    font-size: 22px;
-    line-height: 1.1;
-  }
-
-  .mobile-metric small {
-    color: #64748b;
-    font-size: 10px;
-    white-space: nowrap;
-  }
-
-  .mobile-metric-divider {
-    width: 1px;
-    height: 50px;
-    background: #e2e8f0;
-  }
-
-  .mobile-actions-title {
-    margin: 22px 20px 10px;
-    color: #063d2f;
-    font-size: 16px;
-    font-weight: 700;
-  }
-
-  .mobile-action-cards {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin: 0 20px;
-    overflow: hidden;
-    border: 1px solid #e4ece8;
-    border-radius: 18px;
-    background: #ffffff;
-    box-shadow: 0 8px 20px rgba(6, 61, 47, 0.05);
-  }
-
-  .mobile-action-card {
-    min-width: 0;
-    min-height: 96px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 6px;
-    border: 0;
-    border-right: 1px solid #e2e8f0;
-    background: transparent;
-    color: #0f172a;
-    font: inherit;
-    cursor: pointer;
-  }
-
-  .mobile-action-card:last-child {
-    border-right: 0;
-  }
-
-  .mobile-action-card .material-symbols-rounded {
-    color: #059669;
-    font-size: 29px;
-  }
-
-  .mobile-action-card strong {
-    max-width: 100%;
-    overflow: hidden;
-    font-size: 12px;
-    font-weight: 650;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-action-card.featured .material-symbols-rounded {
-    position: relative;
-    color: #059669;
-  }
-
-  .mobile-action-card:active {
-    background: #f0fdf7;
-  }
-
-  /* Horizontal Scrolling Category Filters */
-  .catalog-filters {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 8px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .catalog-filters::-webkit-scrollbar {
-    display: none;
-  }
-
-  .catalog-filters .filter-pill {
-    white-space: nowrap;
-    padding: 8px 16px;
-    border-radius: 999px;
-    border: 1px solid var(--border, #e2e8f0);
-    background-color: #ffffff;
-    color: #334155;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  .catalog-filters .filter-pill.active {
-    background-color: #10b981;
-    color: #ffffff;
-    border-color: #10b981;
-  }
-
-  /* Mobile Client Cards */
-  .mobile-client-card {
-    background: #ffffff;
     border-radius: 16px;
-    padding: 16px 20px;
-    border: 1px solid var(--border, #e2e8f0);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .mobile-client-card .client-info h3 {
-    font-size: 16px;
-    font-weight: 700;
-    margin: 0 0 4px 0;
-    color: #0f172a;
-  }
-
-  .mobile-client-card .client-info p {
-    font-size: 12px;
-    color: #64748b;
-    margin: 0;
-  }
-
-  .mobile-client-card .btn-pedido {
-    background-color: #10b981;
-    color: #ffffff;
-    font-weight: 600;
-    font-size: 12px;
-    padding: 8px 14px;
-    border-radius: 8px;
-    border: none;
+    background: var(--mobile-accent-lime);
+    color: var(--mobile-accent-dark) !important;
+    box-shadow: 0 10px 24px rgba(228, 255, 58, 0.3);
+    font-size: 15px;
+    font-weight: 800;
+    border: 0;
+    width: 100%;
     cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-submit-button:active {
+    transform: scale(0.98);
+  }
+
+  /* Mobile Tables & Modals Dark Enhancements */
+  body.role-asesor .table-container {
+    background: var(--mobile-card-bg);
+    border: 1px solid var(--mobile-border);
+    border-radius: 18px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  body.role-asesor th {
+    background-color: var(--mobile-surface);
+    color: var(--mobile-text-secondary);
+    border-bottom: 1px solid var(--mobile-border);
+    font-size: 11px;
+  }
+
+  body.role-asesor td {
+    border-bottom: 1px solid var(--mobile-border);
+    color: var(--mobile-text-white);
+  }
+
+  body.role-asesor tr:hover td {
+    background-color: rgba(228, 255, 58, 0.04);
+  }
+
+  body.role-asesor .modal-content {
+    background: var(--mobile-card-bg);
+    border: 1px solid var(--mobile-border);
+    border-radius: 24px;
+    color: var(--mobile-text-white);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  }
+
+  body.role-asesor .modal-header {
+    border-bottom: 1px solid var(--mobile-border);
+  }
+
+  body.role-asesor .modal-header h3 {
+    color: #ffffff;
+  }
+
+  body.role-asesor .btn-primary {
+    background-color: var(--mobile-accent-lime) !important;
+    color: var(--mobile-accent-dark) !important;
+    font-weight: 800 !important;
+    border: none !important;
+    border-radius: 14px !important;
+  }
+
+  body.role-asesor .btn-secondary {
+    background-color: var(--mobile-card-surface) !important;
+    color: var(--mobile-text-secondary) !important;
+    border: 1px solid var(--mobile-border) !important;
+    border-radius: 14px !important;
   }
 }
 
