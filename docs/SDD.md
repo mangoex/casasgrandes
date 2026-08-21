@@ -285,3 +285,27 @@ En caso de que dos asesores tengan el mismo $MatchScore_A$:
 ### 5.2 Estética e Indicadores Visuales
 * **Bandeja de Notificaciones (Asesor):** Cuenta flotante en la barra lateral con la cantidad de notificaciones sin leer. Diseño con fondo pastel rojizo difuminado y micro-animación CSS de pulso.
 * **Decisiones del Administrador:** El modal de propuestas de puja detalla de forma clara el historial de compras del agricultor en el pool, y renderiza tarjetas individuales para cada asesor postulado, desplegando su Match Score correspondiente, su justificación en cursiva y sus estadísticas de ventas y cumplimiento de visitas.
+
+---
+
+## 6. Seguridad, Control de Acceso (RBAC) e Integridad Transaccional
+
+### 6.1 Middlewares de Control de Acceso (RBAC)
+* `requireAdmin`: Restringe operaciones críticas (ej. consulta de reglas maestras de comisiones) exclusivamente al rol `Administrador`.
+* `requireAdminOrCoordinador`: Autoriza a usuarios de rol `Administrador` y `Coordinador` para parametrización de comisiones, bonos y movimientos directos de inventario.
+* `requireProgramacionManager`: Autoriza la configuración de etapas y semanas de programación agrícola a administradores y coordinadores.
+
+### 6.2 Aislamiento Estricto de Cartera (Prevención IDOR)
+* En `routes/clientes.js`, los endpoints `GET /:id`, `PUT /:id` y `GET /:id/visitas` aplican validación estricta de propiedad: si el usuario es `Asesor`, la solicitud es rechazada con `403 Forbidden` si el agricultor no pertenece a su `asesor_id`.
+* Se prohíbe cualquier bypass que permita a un asesor iterar o modificar carteras ajenas.
+
+### 6.3 Integridad Transaccional Atómica
+* Las operaciones compuestas de alta criticidad (creación de cotización con múltiples partidas `POST /api/cotizaciones` y edición con ajuste de existencias `PUT /api/cotizaciones/:id`) se ejecutan dentro del wrapper `db.transaction(async (tx) => { ... })`.
+* Ante cualquier falla durante el procesamiento de partidas o prospectos, se ejecuta un `ROLLBACK` automático que previene estados huérfanos o inconsistencias en inventario.
+
+### 6.4 Agregaciones SQL mediante CTEs (Sin Producto Cartesiano)
+* `GET /api/asignacion/metricas-AI` utiliza Common Table Expressions (CTEs) independientes (`sales_agg` y `visits_agg`) para evitar la multiplicación cruzada $N \times M$ entre ventas y visitas de cada asesor.
+
+### 6.5 Determinismo Matemático
+* Los cálculos de comisiones y balances de almacén se ejecutan bajo los motores deterministas centrales en Python (`comisiones.py` y `almacen_calc.py`), garantizando trazabilidad y cero divergencias aritméticas en base de datos.
+

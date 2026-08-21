@@ -15,7 +15,7 @@ router.get('/', authenticateToken, async (req, res) => {
     let whereSql = 'WHERE c.activo = 1';
     const params = [];
 
-    if (!isFetchAll && req.user.nivel_rol === 'Asesor') {
+    if (req.user.nivel_rol === 'Asesor') {
       whereSql += ' AND c.asesor_id = ?';
       params.push(req.user.id);
     } else if (asesor_id) {
@@ -169,6 +169,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
     `, [id]);
 
     if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (req.user.nivel_rol === 'Asesor' && Number(client.asesor_id) !== Number(req.user.id)) {
+      return res.status(403).json({ error: 'No tienes autorización para consultar este cliente.' });
+    }
     res.json(client);
   } catch (err) {
     console.error(err);
@@ -285,7 +288,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
     
-    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
+    if (req.user.nivel_rol === 'Asesor' && Number(client.asesor_id) !== Number(req.user.id)) {
       return res.status(403).json({ error: 'Unauthorized to edit this client' });
     }
     
@@ -375,7 +378,7 @@ router.get('/:id/visitas', authenticateToken, async (req, res) => {
   try {
     const client = await db.get('SELECT id, asesor_id FROM clientes WHERE id = ? AND activo = 1', [id]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
-    if (req.user.nivel_rol === 'Asesor' && client.asesor_id !== req.user.id) {
+    if (req.user.nivel_rol === 'Asesor' && Number(client.asesor_id) !== Number(req.user.id)) {
       return res.status(403).json({ error: 'Unauthorized to view this client history' });
     }
 

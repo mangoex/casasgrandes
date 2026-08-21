@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 
-const defaultPasswordHash = "$2b$10$Ly0wcxrAZmfzIOSLPRzwdO3YxJQ2dPT6osFpn0j0hlAT9uK7ojTKm"; // Default: password123
+const defaultPasswordHash = "$2b$10$fgcwgOeS3gyws4l95smgDOBhuagB/mIxKZmg5UgJLAfE5BFXBN0Vq"; // Default: password123
 
 function parseCsvFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8');

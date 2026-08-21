@@ -68,3 +68,19 @@ Esta funcionalidad resuelve el flujo de asignación de agricultores huérfanos (
   - *"Se te ha retirado del agricultor: [Nombre]."*
   - *"Tu propuesta para el agricultor [Nombre] fue Aprobada."*
   - *"Tu propuesta para el agricultor [Nombre] fue rechazada (asignado a otro asesor)."*
+
+---
+
+## 4. Políticas de Seguridad, Privacidad de Cartera e Integridad de Negocio
+
+### 4.1 Aislamiento de Cartera de Clientes
+* Cada asesor tiene visibilidad y acceso de modificación restringido estrictamente a sus agricultores asignados (`asesor_id = user.id`).
+* Se bloquea cualquier intento de consulta o edición de datos de agricultores pertenecientes a otros asesores (prevención de IDOR).
+
+### 4.2 Autorización Jerárquica y Reglas Financieras
+* La configuración de reglas de comisiones, bonos por metas y ajustes de inventario requiere privilegios de `Administrador` o `Coordinador`.
+* La visualización y exportación de reglas globales de comisiones está reservada en exclusiva para el rol `Administrador`.
+
+### 4.3 Integridad en Cotizaciones y Almacén
+* La creación y actualización de cotizaciones multilínea se ejecuta bajo transacciones atómicas de base de datos (`BEGIN`/`COMMIT`/`ROLLBACK`), asegurando que nunca queden registros parciales o descuadres en el inventario.
+

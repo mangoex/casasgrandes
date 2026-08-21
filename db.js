@@ -496,6 +496,42 @@ module.exports = {
     }
   },
   
+  transaction: async (callback) => {
+    await initSchemaPromise;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const tx = {
+        get: async (sql, params = []) => {
+          const rewritten = rewriteQuery(sql);
+          const result = await client.query(rewritten, params);
+          return result.rows[0];
+        },
+        all: async (sql, params = []) => {
+          const rewritten = rewriteQuery(sql);
+          const result = await client.query(rewritten, params);
+          return result.rows;
+        },
+        run: async (sql, params = []) => {
+          const rewritten = rewriteQuery(sql);
+          const result = await client.query(rewritten, params);
+          const id = result.rows[0]?.id || null;
+          return { id, changes: result.rowCount };
+        },
+        query: (text, params) => client.query(text, params)
+      };
+      const res = await callback(tx);
+      await client.query('COMMIT');
+      return res;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  rewriteQuery,
   initSchemaPromise,
   initSchema,
   pool // Expose raw pool in case direct operations are needed

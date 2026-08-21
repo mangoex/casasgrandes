@@ -16,16 +16,30 @@ function authenticateToken(req, res, next) {
   });
 }
 
-function requireProgramacionManager(req, res, next) {
-  if (!['Administrador', 'Coordinador'].includes(req.user.nivel_rol)) {
-    return res.status(403).json({ error: 'Programación requiere permisos de Administrador o Coordinador' });
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Permisos de Administrador requeridos' });
   }
   next();
 }
 
+function requireAdminOrCoordinador(req, res, next) {
+  if (!req.user || !['Administrador', 'Coordinador'].includes(req.user.nivel_rol)) {
+    return res.status(403).json({ error: 'Permisos de Administrador o Coordinador requeridos' });
+  }
+  next();
+}
+
+function requireProgramacionManager(req, res, next) {
+  return requireAdminOrCoordinador(req, res, next);
+}
+
 module.exports = {
   authenticateToken,
+  requireAdmin,
+  requireAdminOrCoordinador,
   requireProgramacionManager,
   JWT_SECRET,
   JWT_EXPIRES_IN
 };
+

@@ -9,7 +9,7 @@ const agentsService = require('./agentsService');
 const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
 const { normalizeProductSizes } = require('./utils/productos');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
-const { authenticateToken, requireProgramacionManager } = require('./middleware/auth');
+const { authenticateToken, requireAdmin, requireAdminOrCoordinador, requireProgramacionManager } = require('./middleware/auth');
 
 // Routers
 const authRouter = require('./routes/auth');
@@ -807,47 +807,51 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     // Status logic: quotations start as 'Pendiente' until authorized by Admin/Coordinator
     const defaultStatus = 'Pendiente';
     
-    const result = await db.run(`
-      INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera, prospecto_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [now, cliente_id, quoteAdvisorId, ciclo_agricola, condiciones_pago, prefix, mesShort, defaultStatus, grandTotal, anticipoApartado, notas, financiera || null, prospectId]);
-    
-    const cotId = result.id;
-    
-    for (const row of calculatedItems) {
-      await db.run(`
-        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn, tamano)
-        VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
-      `, [cotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal, row.item.tamano ? String(row.item.tamano).trim() : null]);
-    }
+    const cotId = await db.transaction(async (tx) => {
+      const result = await tx.run(`
+        INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera, prospecto_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [now, cliente_id, quoteAdvisorId, ciclo_agricola, condiciones_pago, prefix, mesShort, defaultStatus, grandTotal, anticipoApartado, notas, financiera || null, prospectId]);
+      
+      const newCotId = result.id;
+      
+      for (const row of calculatedItems) {
+        await tx.run(`
+          INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn, tamano)
+          VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
+        `, [newCotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal, row.item.tamano ? String(row.item.tamano).trim() : null]);
+      }
 
-    if (directSalePlan) {
-      const prospectResult = await db.run(`
-        INSERT INTO crm_prospectos (planificacion_id, cliente_id, asesor_id, estado, cotizacion_id)
-        VALUES (?, ?, ?, 'En cotización', ?)
-      `, [directSalePlan.id, directSalePlan.cliente_id, directSalePlan.asesor_id, cotId]);
-      prospectId = prospectResult.id;
-      await db.run('UPDATE cotizaciones SET prospecto_id = ? WHERE id = ?', [prospectId, cotId]);
-      await db.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [directSalePlan.id]);
-      await db.run(`
-        INSERT INTO crm_reportes_etapa (
-          planificacion_id, visita_id, cliente_id, asesor_id, etapa_clave, fecha_reporte, respuestas, creado_en, actualizado_en
-        ) VALUES (?, ?, ?, ?, 'V', ?, ?::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (planificacion_id, etapa_clave)
-        DO UPDATE SET respuestas = EXCLUDED.respuestas, actualizado_en = CURRENT_TIMESTAMP
-      `, [
-        directSalePlan.id,
-        directSalePlan.visita_id || null,
-        directSalePlan.cliente_id,
-        directSalePlan.asesor_id,
-        directSalePlan.fecha_programada,
-        JSON.stringify({ cotizacion_id: cotId, enviada_a_cotizador: true })
-      ]);
-    }
+      if (directSalePlan) {
+        const prospectResult = await tx.run(`
+          INSERT INTO crm_prospectos (planificacion_id, cliente_id, asesor_id, estado, cotizacion_id)
+          VALUES (?, ?, ?, 'En cotización', ?)
+        `, [directSalePlan.id, directSalePlan.cliente_id, directSalePlan.asesor_id, newCotId]);
+        prospectId = prospectResult.id;
+        await tx.run('UPDATE cotizaciones SET prospecto_id = ? WHERE id = ?', [prospectId, newCotId]);
+        await tx.run('UPDATE planificacion_semanal SET realizada = 1 WHERE id = ?', [directSalePlan.id]);
+        await tx.run(`
+          INSERT INTO crm_reportes_etapa (
+            planificacion_id, visita_id, cliente_id, asesor_id, etapa_clave, fecha_reporte, respuestas, creado_en, actualizado_en
+          ) VALUES (?, ?, ?, ?, 'V', ?, ?::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (planificacion_id, etapa_clave)
+          DO UPDATE SET respuestas = EXCLUDED.respuestas, actualizado_en = CURRENT_TIMESTAMP
+        `, [
+          directSalePlan.id,
+          directSalePlan.visita_id || null,
+          directSalePlan.cliente_id,
+          directSalePlan.asesor_id,
+          directSalePlan.fecha_programada,
+          JSON.stringify({ cotizacion_id: newCotId, enviada_a_cotizador: true })
+        ]);
+      }
 
-    if (prospectId && !directSalePlan) {
-      await db.run("UPDATE crm_prospectos SET estado = 'En cotización', cotizacion_id = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?", [cotId, prospectId]);
-    }
+      if (prospectId && !directSalePlan) {
+        await tx.run("UPDATE crm_prospectos SET estado = 'En cotización', cotizacion_id = ?, actualizado_en = CURRENT_TIMESTAMP WHERE id = ?", [newCotId, prospectId]);
+      }
+
+      return newCotId;
+    });
     
     res.status(201).json({ id: cotId, folio: prefix, total_mxn: grandTotal, status: defaultStatus, message: 'Quotation submitted successfully' });
     
@@ -1219,43 +1223,58 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       grandTotal += subtotal;
     }
     
-    // Step 3: Delete old details
-    await db.run('DELETE FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
-    
-    // Step 4: Insert new details
-    for (const row of calculatedRows) {
-      await db.run(`
-        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn, tamano)
-        VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
-      `, [id, row.item.producto_id, temporada_id || (activeSeason ? activeSeason.id : 1), row.item.cantidad, row.listPrice, row.netPrice, row.subtotal, row.item.tamano ? String(row.item.tamano).trim() : null]);
-    }
-    
-    // Update header
-    const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000.0 : 0.0;
-    
-    await db.run(`
-      UPDATE cotizaciones
-      SET ciclo_agricola = ?, condiciones_pago = ?, financiera = ?, notas = ?, total_mxn = ?, anticipo_apartado = ?
-      WHERE id = ?
-    `, [ciclo_agricola, condiciones_pago, financiera || null, notas || null, grandTotal, anticipoApartado, id]);
-    
-    // Step 5: Re-deduct stock only when the quotation was already delivered.
-    if (q.estatus === 'Entregado') {
+    await db.transaction(async (tx) => {
+      // Step 1: Revert old stock movements if delivered
+      if (stockDeducted) {
+        const oldItems = await tx.all('SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
+        for (const item of oldItems) {
+          const last_move = await tx.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [item.producto_id]);
+          const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
+          const new_stock = current_stock + item.cantidad_ordenada;
+          
+          await tx.run(`
+            INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
+            VALUES (?, 'Reversión por Edición', ?, ?, 0, ?, ?, ?, ?, ?)
+          `, [now, item.producto_id, item.cantidad_ordenada, new_stock, id, req.user.id, q.folio_cotizacion, `Reversión de stock por edición de cotización`]);
+        }
+      }
+
+      // Step 3: Delete old details
+      await tx.run('DELETE FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
+      
+      // Step 4: Insert new details
       for (const row of calculatedRows) {
-        const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [row.item.producto_id]);
-        const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
-        const new_stock = current_stock - row.item.cantidad;
-        
-        await db.run(`
-          INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
-          VALUES (?, 'Salida por Pedido (Editado)', ?, 0, ?, ?, ?, ?, ?, ?)
-        `, [now, row.item.producto_id, row.item.cantidad, new_stock, id, req.user.id, q.folio_cotizacion, `Salida registrada por cambio de detalles de cotización`]);
+        await tx.run(`
+          INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn, tamano)
+          VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
+        `, [id, row.item.producto_id, temporada_id || (activeSeason ? activeSeason.id : 1), row.item.cantidad, row.listPrice, row.netPrice, row.subtotal, row.item.tamano ? String(row.item.tamano).trim() : null]);
       }
       
+      // Update header
+      const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000.0 : 0.0;
+      
+      await tx.run(`
+        UPDATE cotizaciones
+        SET ciclo_agricola = ?, condiciones_pago = ?, financiera = ?, notas = ?, total_mxn = ?, anticipo_apartado = ?
+        WHERE id = ?
+      `, [ciclo_agricola, condiciones_pago, financiera || null, notas || null, grandTotal, anticipoApartado, id]);
+      
+      // Step 5: Re-deduct stock only when the quotation was already delivered.
       if (q.estatus === 'Entregado') {
-        await db.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
+        for (const row of calculatedRows) {
+          const last_move = await tx.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [row.item.producto_id]);
+          const current_stock = last_move ? last_move.existencias_resultantes : 0.0;
+          const new_stock = current_stock - row.item.cantidad;
+          
+          await tx.run(`
+            INSERT INTO almacen_movimientos (fecha_movimiento, tipo_movimiento, producto_id, cantidad_entrante, cantidad_saliente, existencias_resultantes, cotizacion_id, asesor_id, referencia_factura, notas)
+            VALUES (?, 'Salida por Pedido (Editado)', ?, 0, ?, ?, ?, ?, ?, ?)
+          `, [now, row.item.producto_id, row.item.cantidad, new_stock, id, req.user.id, q.folio_cotizacion, `Salida registrada por cambio de detalles de cotización`]);
+        }
+        
+        await tx.run('UPDATE cotizacion_detalles SET cantidad_entregada = cantidad_ordenada WHERE cotizacion_id = ?', [id]);
       }
-    }
+    });
     
     res.json({ message: 'Quotation updated successfully', total_mxn: grandTotal });
   } catch (err) {
@@ -1462,6 +1481,9 @@ app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async
 });
 
 app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Permisos insuficientes para registrar movimientos de almacén.' });
+  }
   const {
     categoria,
     tipo, // 'Entrada' o 'Salida' (o tipo_movimiento completo)
@@ -1626,8 +1648,8 @@ app.post('/api/almacen/produccion-uan32', authenticateToken, async (req, res) =>
     return res.status(400).json({ error: 'cantidad_solub_toneladas must be a positive number' });
   }
   
-  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Almacen') {
-    return res.status(403).json({ error: 'Forbidden' });
+  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+    return res.status(403).json({ error: 'Permisos insuficientes para producción interna de UAN-32.' });
   }
   
   try {
@@ -2105,18 +2127,32 @@ app.get('/api/asignacion/metricas-AI', authenticateToken, async (req, res) => {
   
   try {
     const advisorsQuery = `
+      WITH sales_agg AS (
+        SELECT asesor_id, COALESCE(SUM(total_mxn), 0.0) AS total_sales_mxn
+        FROM cotizaciones
+        WHERE estatus IN ('Vendido', 'Entregado')
+        GROUP BY asesor_id
+      ),
+      visits_agg AS (
+        SELECT asesor_id,
+               COUNT(id) AS total_visits,
+               COUNT(CASE WHEN realizada = 1 THEN 1 END) AS completed_visits,
+               COUNT(CASE WHEN realizada = 0 THEN 1 END) AS pending_visits
+        FROM planificacion_semanal
+        GROUP BY asesor_id
+      )
       SELECT 
-        a.id as asesor_id,
+        a.id AS asesor_id,
         a.nombre,
-        COALESCE(SUM(CASE WHEN q.estatus IN ('Vendido', 'Entregado') THEN q.total_mxn ELSE 0 END), 0) as total_sales_mxn,
-        COUNT(CASE WHEN p.realizada = 1 THEN 1 END) as completed_visits,
-        COUNT(p.id) as total_visits,
-        COUNT(CASE WHEN p.realizada = 0 THEN 1 END) as pending_visits
+        COALESCE(s.total_sales_mxn, 0.0) AS total_sales_mxn,
+        COALESCE(v.completed_visits, 0) AS completed_visits,
+        COALESCE(v.total_visits, 0) AS total_visits,
+        COALESCE(v.pending_visits, 0) AS pending_visits
       FROM asesores a
-      LEFT JOIN cotizaciones q ON q.asesor_id = a.id
-      LEFT JOIN planificacion_semanal p ON p.asesor_id = a.id
+      LEFT JOIN sales_agg s ON s.asesor_id = a.id
+      LEFT JOIN visits_agg v ON v.asesor_id = a.id
       WHERE a.activo = 1 AND a.nivel_rol = 'Asesor'
-      GROUP BY a.id, a.nombre
+      ORDER BY a.nombre ASC
     `;
     const advisorsMetrics = await db.all(advisorsQuery);
     
@@ -3644,7 +3680,7 @@ async function calcularComisionCotizacion(cotizacion_id) {
   if (!cotizacion) return;
 
   const detalles = await db.all(`
-    SELECT cd.*, p.tipo AS tipo_categoria 
+    SELECT cd.*, p.tipo_categoria 
     FROM cotizacion_detalles cd 
     LEFT JOIN productos p ON cd.producto_id = p.id 
     WHERE cd.cotizacion_id = ?
@@ -3731,8 +3767,6 @@ async function cancelarComisionCotizacion(cotizacion_id) {
     }
   }
 }
-
-// 1. GET /api/comisiones/reglas (Solo Administrador)
 app.get('/api/comisiones/reglas', authenticateToken, async (req, res) => {
   if (req.user.nivel_rol !== 'Administrador') {
     return res.status(403).json({ error: 'Admin privileges required' });
@@ -3759,9 +3793,8 @@ app.get('/api/comisiones/reglas', authenticateToken, async (req, res) => {
   }
 });
 
-// 2. POST /api/comisiones/reglas/base (Administrador o Gerente)
-app.post('/api/comisiones/reglas/base', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// 2. POST /api/comisiones/reglas/base (Administrador o Coordinador)
+app.post('/api/comisiones/reglas/base', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { producto_id, tipo_categoria, condicion_pago, tipo_valor, valor } = req.body;
   if ((!producto_id && !tipo_categoria) || !tipo_valor || valor === undefined) {
     return res.status(400).json({ error: 'Producto o Categoría, tipo_valor y valor son requeridos' });
@@ -3778,9 +3811,8 @@ app.post('/api/comisiones/reglas/base', authenticateToken, async (req, res) => {
   }
 });
 
-// 3. PUT /api/comisiones/reglas/base/:id (Administrador o Gerente)
-app.put('/api/comisiones/reglas/base/:id', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// 3. PUT /api/comisiones/reglas/base/:id (Administrador o Coordinador)
+app.put('/api/comisiones/reglas/base/:id', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { id } = req.params;
   const { producto_id, tipo_categoria, condicion_pago, tipo_valor, valor, activo } = req.body;
   try {
@@ -3806,9 +3838,8 @@ app.put('/api/comisiones/reglas/base/:id', authenticateToken, async (req, res) =
   }
 });
 
-// DELETE /api/comisiones/reglas/base/:id (Administrador o Gerente)
-app.delete('/api/comisiones/reglas/base/:id', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// DELETE /api/comisiones/reglas/base/:id (Administrador o Coordinador)
+app.delete('/api/comisiones/reglas/base/:id', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { id } = req.params;
   try {
     await db.run('DELETE FROM comision_reglas_base WHERE id = ?', [id]);
@@ -3819,9 +3850,8 @@ app.delete('/api/comisiones/reglas/base/:id', authenticateToken, async (req, res
   }
 });
 
-// 4. POST /api/comisiones/reglas/temporada (Administrador o Gerente)
-app.post('/api/comisiones/reglas/temporada', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// 4. POST /api/comisiones/reglas/temporada (Administrador o Coordinador)
+app.post('/api/comisiones/reglas/temporada', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { temporada_id, producto_id, tipo_valor, valor, comportamiento } = req.body;
   if (!temporada_id || !tipo_valor || valor === undefined || !comportamiento) {
     return res.status(400).json({ error: 'temporada_id, tipo_valor, valor y comportamiento son requeridos' });
@@ -3838,9 +3868,8 @@ app.post('/api/comisiones/reglas/temporada', authenticateToken, async (req, res)
   }
 });
 
-// PUT /api/comisiones/reglas/temporada/:id (Administrador o Gerente)
-app.put('/api/comisiones/reglas/temporada/:id', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// PUT /api/comisiones/reglas/temporada/:id (Administrador o Coordinador)
+app.put('/api/comisiones/reglas/temporada/:id', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { id } = req.params;
   const { temporada_id, producto_id, tipo_valor, valor, comportamiento, activo } = req.body;
   try {
@@ -3866,9 +3895,8 @@ app.put('/api/comisiones/reglas/temporada/:id', authenticateToken, async (req, r
   }
 });
 
-// DELETE /api/comisiones/reglas/temporada/:id (Administrador o Gerente)
-app.delete('/api/comisiones/reglas/temporada/:id', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// DELETE /api/comisiones/reglas/temporada/:id (Administrador o Coordinador)
+app.delete('/api/comisiones/reglas/temporada/:id', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { id } = req.params;
   try {
     await db.run('DELETE FROM comision_reglas_temporada WHERE id = ?', [id]);
@@ -3879,9 +3907,8 @@ app.delete('/api/comisiones/reglas/temporada/:id', authenticateToken, async (req
   }
 });
 
-// 5. POST /api/comisiones/bonos (Administrador o Gerente)
-app.post('/api/comisiones/bonos', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// 5. POST /api/comisiones/bonos (Administrador o Coordinador)
+app.post('/api/comisiones/bonos', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { ciclo_agricola, porcentaje_meta_requerido, bono_mxn } = req.body;
   if (!ciclo_agricola || porcentaje_meta_requerido === undefined || bono_mxn === undefined) {
     return res.status(400).json({ error: 'ciclo_agricola, porcentaje_meta_requerido y bono_mxn son requeridos' });
@@ -3898,9 +3925,8 @@ app.post('/api/comisiones/bonos', authenticateToken, async (req, res) => {
   }
 });
 
-// PUT /api/comisiones/bonos/:id (Administrador o Gerente)
-app.put('/api/comisiones/bonos/:id', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// PUT /api/comisiones/bonos/:id (Administrador o Coordinador)
+app.put('/api/comisiones/bonos/:id', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { id } = req.params;
   const { ciclo_agricola, porcentaje_meta_requerido, bono_mxn, activo } = req.body;
   try {
@@ -3924,9 +3950,8 @@ app.put('/api/comisiones/bonos/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// DELETE /api/comisiones/bonos/:id (Administrador o Gerente)
-app.delete('/api/comisiones/bonos/:id', authenticateToken, async (req, res) => {
-  if (!checkAdminOrGerente(req, res)) return;
+// DELETE /api/comisiones/bonos/:id (Administrador o Coordinador)
+app.delete('/api/comisiones/bonos/:id', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
   const { id } = req.params;
   try {
     await db.run('DELETE FROM comision_bonos_metas WHERE id = ?', [id]);
@@ -3968,7 +3993,7 @@ app.get('/api/comisiones/kpis', authenticateToken, async (req, res) => {
     const totalMes = rowMes ? parseFloat(rowMes.total_mes) : 0.0;
 
     let salesSql = `
-      SELECT COALESCE(SUM(c.costo_total_neto), 0.0) AS total_ventas
+      SELECT COALESCE(SUM(c.total_mxn), 0.0) AS total_ventas
       FROM cotizaciones c
       WHERE c.estatus IN ('Vendido', 'Entregado') AND c.ciclo_agricola = ?
     `;
@@ -3980,7 +4005,7 @@ app.get('/api/comisiones/kpis', authenticateToken, async (req, res) => {
     const salesRow = await db.get(salesSql, salesParams);
     const acumuladoVentas = salesRow ? parseFloat(salesRow.total_ventas) : 0.0;
 
-    let metaSql = `SELECT COALESCE(SUM(meta_monto_total), 0.0) AS meta_total FROM metas_ventas WHERE ciclo_agricola = ?`;
+    let metaSql = `SELECT COALESCE(SUM(monto_objetivo_mxn), 0.0) AS meta_total FROM metas_ventas WHERE ciclo_agricola = ?`;
     let metaParams = [ciclo];
     if (targetAsesorId) {
       metaSql += ' AND asesor_id = ?';
@@ -4104,7 +4129,7 @@ app.post('/api/comisiones/cierre-ciclo', authenticateToken, async (req, res) => 
 
     for (const a of asesores) {
       const salesRow = await db.get(`
-        SELECT COALESCE(SUM(costo_total_neto), 0.0) AS total_ventas 
+        SELECT COALESCE(SUM(total_mxn), 0.0) AS total_ventas 
         FROM cotizaciones 
         WHERE asesor_id = ? AND estatus IN ('Vendido', 'Entregado') AND ciclo_agricola = ?
       `, [a.id, ciclo]);
@@ -4112,7 +4137,7 @@ app.post('/api/comisiones/cierre-ciclo', authenticateToken, async (req, res) => 
       const totalVentas = salesRow ? parseFloat(salesRow.total_ventas) : 0.0;
 
       const metaRow = await db.get(`
-        SELECT COALESCE(SUM(meta_monto_total), 0.0) AS meta_total 
+        SELECT COALESCE(SUM(monto_objetivo_mxn), 0.0) AS meta_total 
         FROM metas_ventas 
         WHERE asesor_id = ? AND ciclo_agricola = ?
       `, [a.id, ciclo]);
