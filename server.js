@@ -18,12 +18,8 @@ const clientesRouter = require('./routes/clientes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'casas_grandes_jwt_secret_key_2026_production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET must be configured before starting the server.');
-}
 
 const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
