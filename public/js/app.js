@@ -7358,16 +7358,18 @@ window.loadAdvisorAssignmentView = async function() {
     
     // Fetch biddable clients
     const clientsRes = await fetch(`${API_URL}/api/asignacion/sin-asesor`, { headers: getHeaders() });
-    const allClients = await clientsRes.json();
-    const biddableClients = allClients.filter(c => c.disponible_para_puja === 1);
+    const allClients = clientsRes.ok ? await clientsRes.json() : [];
+    const biddableClients = (Array.isArray(allClients) ? allClients : []).filter(c => Number(c.disponible_para_puja || 0) === 1);
     
     // Fetch my bids
     const bidsRes = await fetch(`${API_URL}/api/asignacion/pujas`, { headers: getHeaders() });
-    const myBids = await bidsRes.json();
+    const myBids = bidsRes.ok ? await bidsRes.json() : [];
+    const bidsList = Array.isArray(myBids) ? myBids : [];
     
     // Fetch historical purchase metrics by querying cotizaciones
     const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
-    const quotes = await quotesRes.json();
+    const quotes = quotesRes.ok ? await quotesRes.json() : [];
+    const quotesList = Array.isArray(quotes) ? quotes : [];
     
     // Filter by search term
     let filtered = biddableClients;
@@ -7385,11 +7387,11 @@ window.loadAdvisorAssignmentView = async function() {
       grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-light); padding: 40px;">No hay agricultores disponibles en este momento.</div>';
     } else {
       filtered.forEach(c => {
-        const totalPurchases = quotes
+        const totalPurchases = quotesList
           .filter(q => q.cliente_id === c.id && (q.estatus === 'Vendido' || q.estatus === 'Entregado'))
-          .reduce((sum, q) => sum + q.total_mxn, 0);
+          .reduce((sum, q) => sum + Number(q.total_mxn || 0), 0);
           
-        const bid = myBids.find(b => b.cliente_id === c.id && b.asesor_id === user.id);
+        const bid = bidsList.find(b => b.cliente_id === c.id && b.asesor_id === user?.id);
         
         let badgeHtml = '<span class="badge badge-secondary">Disponible</span>';
         let actionBtn = `<button class="btn btn-primary" style="width: 100%; margin-top: 12px;" onclick="openBidForm(${c.id}, '${c.nombre.replace(/'/g, "\\'")}', '')">✏️ Postularse</button>`;
