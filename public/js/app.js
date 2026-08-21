@@ -6926,6 +6926,21 @@ window.renderAsignacionBoard = function(advisors) {
     window.filteredAdvisors = window.filteredAdvisors.filter(a => a.nombre && a.nombre.toLowerCase().includes(advisorSearchTerm));
   }
   
+  // Fast O(1) metrics map
+  const clientPurchasesMap = new Map();
+  if (Array.isArray(allMatchingMetrics?.clients)) {
+    allMatchingMetrics.clients.forEach(cm => {
+      clientPurchasesMap.set(cm.cliente_id, Number(cm.total_purchase_mxn || 0));
+    });
+  }
+
+  const advisorMetricsMap = new Map();
+  if (Array.isArray(allMatchingMetrics?.advisors)) {
+    allMatchingMetrics.advisors.forEach(am => {
+      advisorMetricsMap.set(am.asesor_id, am);
+    });
+  }
+
   // Separate clients
   const directAssignClients = filteredClients.filter(c => Number(c.disponible_para_puja || 0) === 0);
   const biddablePoolClients = (Array.isArray(allUnassignedClients) ? allUnassignedClients : []).filter(c => Number(c.disponible_para_puja || 0) === 1);
@@ -6935,15 +6950,14 @@ window.renderAsignacionBoard = function(advisors) {
   if (document.getElementById('assign-biddable-count')) document.getElementById('assign-biddable-count').textContent = biddablePoolClients.length;
   if (document.getElementById('assign-advisors-count')) document.getElementById('assign-advisors-count').textContent = window.filteredAdvisors.length;
   
-  // Render column 1: Direct Assign
+  // Render column 1: Direct Assign (first 100 for instant UI rendering)
   unassignedList.innerHTML = '';
   if (directAssignClients.length === 0) {
     unassignedList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 30px; border: 1px dashed var(--border); border-radius: var(--radius);">No hay clientes sin asesor para asignación directa.</div>';
   } else {
-    directAssignClients.forEach(c => {
-      // Find client purchase history
-      const cMetric = (allMatchingMetrics?.clients || []).find(cm => cm.cliente_id === c.id);
-      const purchaseVol = cMetric ? Number(cMetric.total_purchase_mxn || 0) : 0;
+    const clientsToRender = directAssignClients.slice(0, 100);
+    clientsToRender.forEach(c => {
+      const purchaseVol = clientPurchasesMap.get(c.id) || 0;
       
       const card = document.createElement('div');
       card.className = 'kanban-card';
@@ -6971,6 +6985,16 @@ window.renderAsignacionBoard = function(advisors) {
       `;
       unassignedList.appendChild(card);
     });
+
+    if (directAssignClients.length > 100) {
+      const moreNotice = document.createElement('div');
+      moreNotice.style.textAlign = 'center';
+      moreNotice.style.color = 'var(--text-light)';
+      moreNotice.style.fontSize = '12px';
+      moreNotice.style.padding = '10px';
+      moreNotice.innerHTML = `Mostrando los primeros 100 de ${directAssignClients.length.toLocaleString('es-MX')} agricultores. Usa el buscador superior para filtrar por nombre o ubicación.`;
+      unassignedList.appendChild(moreNotice);
+    }
   }
 
   // Reset bulk actions state when rendering
@@ -6986,8 +7010,7 @@ window.renderAsignacionBoard = function(advisors) {
   } else {
     biddablePoolClients.forEach(c => {
       const clientBids = (Array.isArray(allActiveBids) ? allActiveBids : []).filter(b => b.cliente_id === c.id && b.estatus === 'Pendiente');
-      const cMetric = (allMatchingMetrics?.clients || []).find(cm => cm.cliente_id === c.id);
-      const purchaseVol = cMetric ? Number(cMetric.total_purchase_mxn || 0) : 0;
+      const purchaseVol = clientPurchasesMap.get(c.id) || 0;
       
       const card = document.createElement('div');
       card.className = 'kanban-card';
@@ -7021,7 +7044,7 @@ window.renderAsignacionBoard = function(advisors) {
     advisorsList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 30px;">No hay asesores comerciales que coincidan.</div>';
   } else {
     window.filteredAdvisors.forEach(a => {
-      const aMetric = (allMatchingMetrics?.advisors || []).find(am => am.asesor_id === a.id);
+      const aMetric = advisorMetricsMap.get(a.id);
       const salesVol = aMetric ? Number(aMetric.total_sales_mxn || 0) : 0;
       const complVisits = aMetric ? Number(aMetric.completed_visits || 0) : 0;
       const totalVisits = aMetric ? Number(aMetric.total_visits || 0) : 0;
