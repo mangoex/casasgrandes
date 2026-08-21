@@ -6801,15 +6801,18 @@ window.loadAsignacionView = async function() {
     
     // 1. Fetch unassigned clients
     const clientsRes = await fetch(`${API_URL}/api/asignacion/sin-asesor`, { headers: getHeaders() });
-    allUnassignedClients = await clientsRes.json();
+    const clientsData = clientsRes.ok ? await clientsRes.json() : [];
+    allUnassignedClients = Array.isArray(clientsData) ? clientsData : [];
     
     // 2. Fetch all bids
     const bidsRes = await fetch(`${API_URL}/api/asignacion/pujas`, { headers: getHeaders() });
-    allActiveBids = await bidsRes.json();
+    const bidsData = bidsRes.ok ? await bidsRes.json() : [];
+    allActiveBids = Array.isArray(bidsData) ? bidsData : [];
     
     // 3. Fetch active advisors
     const advisorsRes = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
-    const advisors = await advisorsRes.json();
+    const advisorsData = advisorsRes.ok ? await advisorsRes.json() : [];
+    const advisors = Array.isArray(advisorsData) ? advisorsData : [];
     
     // 4. Fetch metrics for AI Suggestions
     try {
