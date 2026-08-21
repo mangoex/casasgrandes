@@ -196,10 +196,61 @@ async function validateMultiItemSalida(items, getStockForLot) {
   return { valido: true };
 }
 
+/**
+ * Construye de forma determinista la consulta SQL parametrizada para filtrar el Kardex.
+ * @param {Object} query - Parámetros de consulta (producto_id, cliente_id, tipo_movimiento, categoria)
+ * @returns {{ sql: string, params: Array, whereClause: string, conditions: Array }}
+ */
+function buildWarehouseMovementsQuery(query = {}) {
+  const conditions = [];
+  const params = [];
+  const productId = Number(query.producto_id);
+  const clienteId = Number(query.cliente_id);
+  const movementType = String(query.tipo_movimiento || '').trim();
+  const categoria = String(query.categoria || '').trim();
+
+  if (Number.isInteger(productId) && productId > 0) {
+    conditions.push('m.producto_id = ?');
+    params.push(productId);
+  }
+  if (Number.isInteger(clienteId) && clienteId > 0) {
+    conditions.push('m.cliente_id = ?');
+    params.push(clienteId);
+  }
+  if (movementType) {
+    conditions.push('m.tipo_movimiento LIKE ?');
+    params.push(`%${movementType}%`);
+  }
+  if (categoria) {
+    conditions.push('m.categoria = ?');
+    params.push(categoria);
+  }
+
+  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const sql = `
+    SELECT m.*, 
+           p.producto as producto_nombre, 
+           p.tipo_categoria as producto_categoria_orig,
+           a.nombre as asesor_nombre, 
+           cli.nombre as cliente_nombre,
+           c.folio_cotizacion
+    FROM almacen_movimientos m
+    JOIN productos p ON m.producto_id = p.id
+    LEFT JOIN asesores a ON m.asesor_id = a.id
+    LEFT JOIN clientes cli ON m.cliente_id = cli.id
+    LEFT JOIN cotizaciones c ON m.cotizacion_id = c.id
+    ${whereClause}
+    ORDER BY m.id DESC LIMIT 500
+  `;
+
+  return { sql, params, whereClause, conditions };
+}
+
 module.exports = {
   calculateLotStock,
   validateLotSalida,
   filterLotsWithStock,
   normalizeMovementItems,
-  validateMultiItemSalida
+  validateMultiItemSalida,
+  buildWarehouseMovementsQuery
 };

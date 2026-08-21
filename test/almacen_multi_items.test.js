@@ -93,3 +93,25 @@ test('validateMultiItemSalida: exige tamaño para productos de semilla en partid
   assert.equal(result.valido, false);
   assert.match(result.error, /tamaño es obligatorio para productos de categoría Semilla/);
 });
+
+test('buildWarehouseMovementsQuery: genera WHERE clause con filtro por cliente_id', () => {
+  const { buildWarehouseMovementsQuery } = require('../utils/almacen');
+  const query = buildWarehouseMovementsQuery({ cliente_id: 15, categoria: 'Agroquímicos' });
+
+  assert.ok(query.conditions.includes('m.cliente_id = ?'));
+  assert.ok(query.conditions.includes('m.categoria = ?'));
+  assert.equal(query.params.length, 2);
+  assert.equal(query.params[0], 15);
+  assert.equal(query.params[1], 'Agroquímicos');
+  assert.match(query.whereClause, /m\.cliente_id = \?/);
+  assert.match(query.sql, /LEFT JOIN clientes cli/);
+});
+
+test('buildWarehouseMovementsQuery: genera consulta completa sin filtros cuando no se proporcionan', () => {
+  const { buildWarehouseMovementsQuery } = require('../utils/almacen');
+  const query = buildWarehouseMovementsQuery({});
+
+  assert.equal(query.conditions.length, 0);
+  assert.equal(query.params.length, 0);
+  assert.equal(query.whereClause, '');
+});

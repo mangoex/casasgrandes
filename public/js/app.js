@@ -3017,7 +3017,7 @@ async function populateWarehouseAuxiliaryControls() {
     }
   }
 
-  // Load all active clients for interactive search box (high performance for 3,500+ records)
+  // Load all active clients for interactive search box and Kardex filter
   if (!window.allWarehouseClients || window.allWarehouseClients.length === 0) {
     try {
       const res = await fetch(`${API_URL}/api/clientes?all=true`, { headers: getHeaders() });
@@ -3025,6 +3025,7 @@ async function populateWarehouseAuxiliaryControls() {
         const data = await res.json();
         window.allWarehouseClients = Array.isArray(data) ? data : (data.clientes || []);
         setupWarehouseClientSearch();
+        populateWarehouseClientFilter();
       }
     } catch (e) {
       console.warn('Failed to load clients for warehouse form:', e);
@@ -3395,11 +3396,13 @@ async function loadWarehouseMovements() {
   const category = document.getElementById('movement-filter-category')?.value || '';
   const type = document.getElementById('movement-filter-type')?.value || '';
   const productId = document.getElementById('movement-filter-product')?.value || '';
+  const clienteId = document.getElementById('movement-filter-client')?.value || '';
 
   const params = new URLSearchParams();
   if (category) params.set('categoria', category);
   if (type) params.set('tipo_movimiento', type);
   if (productId) params.set('producto_id', productId);
+  if (clienteId) params.set('cliente_id', clienteId);
 
   const query = params.toString();
   const res = await fetch(`${API_URL}/api/almacen/movimientos${query ? `?${query}` : ''}`, { headers: getHeaders() });
@@ -3527,6 +3530,9 @@ document.getElementById('movement-filter-type')?.addEventListener('change', () =
   loadWarehouseMovements().catch(err => alert(err.message));
 });
 document.getElementById('movement-filter-product')?.addEventListener('change', () => {
+  loadWarehouseMovements().catch(err => alert(err.message));
+});
+document.getElementById('movement-filter-client')?.addEventListener('change', () => {
   loadWarehouseMovements().catch(err => alert(err.message));
 });
 

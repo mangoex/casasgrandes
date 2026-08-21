@@ -8,7 +8,7 @@ const db = require('./db');
 const agentsService = require('./agentsService');
 const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
 const { normalizeProductSizes } = require('./utils/productos');
-const { normalizeMovementItems } = require('./utils/almacen');
+const { normalizeMovementItems, buildWarehouseMovementsQuery } = require('./utils/almacen');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
 const { authenticateToken, requireAdmin, requireAdminOrCoordinador, requireProgramacionManager } = require('./middleware/auth');
 
@@ -1311,44 +1311,11 @@ app.get('/api/almacen/existencias', authenticateToken, async (req, res) => {
 
 app.get('/api/almacen/movimientos', authenticateToken, async (req, res) => {
   try {
-    const conditions = [];
-    const params = [];
-    const productId = Number(req.query.producto_id);
-    const movementType = String(req.query.tipo_movimiento || '').trim();
-    const categoria = String(req.query.categoria || '').trim();
-    
-    if (Number.isInteger(productId) && productId > 0) {
-      conditions.push('m.producto_id = ?');
-      params.push(productId);
-    }
-    if (movementType) {
-      conditions.push('m.tipo_movimiento LIKE ?');
-      params.push(`%${movementType}%`);
-    }
-    if (categoria) {
-      conditions.push('m.categoria = ?');
-      params.push(categoria);
-    }
-    
-    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const rows = await db.all(`
-      SELECT m.*, 
-             p.producto as producto_nombre, 
-             p.tipo_categoria as producto_categoria_orig,
-             a.nombre as asesor_nombre, 
-             cli.nombre as cliente_nombre,
-             c.folio_cotizacion
-      FROM almacen_movimientos m
-      JOIN productos p ON m.producto_id = p.id
-      LEFT JOIN asesores a ON m.asesor_id = a.id
-      LEFT JOIN clientes cli ON m.cliente_id = cli.id
-      LEFT JOIN cotizaciones c ON m.cotizacion_id = c.id
-      ${whereClause}
-      ORDER BY m.id DESC LIMIT 500
-    `, params);
+    const { sql, params } = buildWarehouseMovementsQuery(req.query);
+    const rows = await db.all(sql, params);
     res.json(rows);
   } catch (err) {
-    console.error(err);
+    console.error('Error fetching warehouse movements:', err);
     res.status(500).json({ error: 'Failed to fetch warehouse movements' });
   }
 });
