@@ -2878,6 +2878,233 @@ function openWarehouseExitForm() {
   document.getElementById('movement-entry-card')?.scrollIntoView({ behavior: 'smooth' });
 }
 
+// -------------------------------------------------------------
+// WAREHOUSE MOVEMENT ITEMS DYNAMIC MANAGEMENT
+// -------------------------------------------------------------
+let warehouseItemCounter = 0;
+
+function initWarehouseMovementItems() {
+  const container = document.getElementById('movement-items-list');
+  if (!container) return;
+  container.innerHTML = '';
+  warehouseItemCounter = 0;
+  addWarehouseMovementItem();
+}
+
+function addWarehouseMovementItem() {
+  const container = document.getElementById('movement-items-list');
+  if (!container) return;
+
+  warehouseItemCounter++;
+  const rowId = `movement-item-row-${Date.now()}-${warehouseItemCounter}`;
+  const row = document.createElement('div');
+  row.className = 'movement-item-row';
+  row.id = rowId;
+  row.style.border = '1px solid var(--border)';
+  row.style.borderRadius = 'var(--radius)';
+  row.style.padding = '12px';
+  row.style.background = 'var(--bg-hover)';
+  row.style.position = 'relative';
+
+  const isSalida = (document.getElementById('move-tipo-operacion')?.value || 'Salida') === 'Salida';
+
+  row.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <span class="move-item-badge" style="font-weight: 700; font-size: 12px; color: var(--primary);">Partida #${container.children.length + 1}</span>
+      <button type="button" class="btn-remove-item" style="background: none; border: none; color: var(--danger); font-size: 16px; cursor: pointer; padding: 2px 6px;" title="Eliminar partida">🗑️</button>
+    </div>
+    
+    <div class="form-group" style="margin-bottom: 8px;">
+      <label style="font-size: 12px; margin-bottom: 4px;">Producto *</label>
+      <select class="form-input move-item-prod" required>
+        <option value="">-- Selecciona un Producto --</option>
+      </select>
+    </div>
+
+    <div class="form-group move-item-tamano-group" style="display: none; margin-bottom: 8px;">
+      <label style="font-size: 12px; margin-bottom: 4px;">Tamaño *</label>
+      <select class="form-input move-item-tamano">
+        <option value="">-- Selecciona Tamaño --</option>
+      </select>
+      <input type="text" class="form-input move-item-tamano-custom" placeholder="Especificar tamaño personalizado..." style="display: none; margin-top: 6px;">
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="font-size: 12px; margin-bottom: 4px;">Lote *</label>
+        <select class="form-input move-item-lote-select" style="${isSalida ? 'display: block;' : 'display: none;'}">
+          <option value="">-- Selecciona un Lote --</option>
+        </select>
+        <input type="text" class="form-input move-item-lote-input" placeholder="Ej. L-2026-X" style="${isSalida ? 'display: none;' : 'display: block;'}">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="font-size: 12px; margin-bottom: 4px;">Cantidad *</label>
+        <input type="number" step="any" min="0.001" class="form-input move-item-cantidad" placeholder="0.000" required>
+      </div>
+    </div>
+
+    <div class="form-group move-item-precio-group" style="${isSalida ? 'display: block;' : 'display: none;'} margin-bottom: 0;">
+      <label style="font-size: 12px; margin-bottom: 4px;">Precio Venta Unitario (MXN)</label>
+      <input type="number" step="any" min="0" class="form-input move-item-precio" placeholder="0.00">
+    </div>
+  `;
+
+  container.appendChild(row);
+
+  // Setup listeners for this row
+  const removeBtn = row.querySelector('.btn-remove-item');
+  removeBtn.onclick = () => {
+    if (container.querySelectorAll('.movement-item-row').length <= 1) {
+      alert('La remisión debe contener al menos un producto.');
+      return;
+    }
+    row.remove();
+    updateMovementItemBadges();
+  };
+
+  const selectProd = row.querySelector('.move-item-prod');
+  selectProd.onchange = () => {
+    updateMovementItemTamanos(row);
+    updateMovementItemLots(row);
+  };
+
+  const selectTamano = row.querySelector('.move-item-tamano');
+  const inputTamanoCustom = row.querySelector('.move-item-tamano-custom');
+  if (selectTamano) {
+    selectTamano.onchange = () => {
+      if (inputTamanoCustom) {
+        inputTamanoCustom.style.display = selectTamano.value === 'Otro' ? 'block' : 'none';
+        if (selectTamano.value !== 'Otro') inputTamanoCustom.value = '';
+      }
+      updateMovementItemLots(row);
+    };
+  }
+
+  if (inputTamanoCustom) {
+    inputTamanoCustom.oninput = () => {
+      updateMovementItemLots(row);
+    };
+  }
+
+  populateMovementItemProducts(row);
+  updateMovementItemBadges();
+}
+
+function updateMovementItemBadges() {
+  const container = document.getElementById('movement-items-list');
+  if (!container) return;
+  const rows = container.querySelectorAll('.movement-item-row');
+  rows.forEach((row, idx) => {
+    const badge = row.querySelector('.move-item-badge');
+    if (badge) badge.textContent = `Partida #${idx + 1}`;
+  });
+}
+
+function populateMovementItemProducts(row, selectedProdId = null) {
+  const selectProd = row.querySelector('.move-item-prod');
+  if (!selectProd) return;
+  const activeCategory = document.getElementById('move-categoria')?.value || 'Todos';
+
+  const prods = Array.isArray(allProducts) ? allProducts : [];
+  const filtered = prods.filter(p => p.activo === 1).filter(p => {
+    if (activeCategory === 'Semilla') {
+      return p.tipo_categoria === 'Híbrido' || p.tipo_categoria === 'Semilla';
+    } else if (activeCategory === 'Agroquímicos') {
+      return p.tipo_categoria !== 'Híbrido' && p.tipo_categoria !== 'Semilla';
+    }
+    return true;
+  });
+
+  const listToRender = filtered.length > 0 ? filtered : prods.filter(p => p.activo === 1);
+  const curVal = selectedProdId || selectProd.value;
+  selectProd.innerHTML = '<option value="">-- Selecciona un Producto --</option>' + listToRender.map(p => 
+    `<option value="${p.id}">${escapeHtml(p.producto)} (${escapeHtml(p.tipo_categoria)})</option>`
+  ).join('');
+
+  if (curVal) selectProd.value = curVal;
+  updateMovementItemTamanos(row);
+  updateMovementItemLots(row);
+}
+
+function updateMovementItemTamanos(row) {
+  const selectProd = row.querySelector('.move-item-prod');
+  const tamanoGroup = row.querySelector('.move-item-tamano-group');
+  const selectTamano = row.querySelector('.move-item-tamano');
+  if (!selectProd || !tamanoGroup || !selectTamano) return;
+
+  const prodId = Number(selectProd.value);
+  const prods = Array.isArray(allProducts) ? allProducts : [];
+  const prodObj = prods.find(p => p.id === prodId);
+
+  const isSeed = prodObj && (prodObj.tipo_categoria === 'Híbrido' || prodObj.tipo_categoria === 'Semilla');
+  if (isSeed) {
+    tamanoGroup.style.display = 'block';
+    const sizes = typeof getSizesForProduct === 'function' ? getSizesForProduct(prodObj) : [];
+    const curVal = selectTamano.value;
+    selectTamano.innerHTML = '<option value="">-- Selecciona Tamaño --</option>' + sizes.map(s => 
+      `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`
+    ).join('') + '<option value="Otro">Otro / Especificar</option>';
+    selectTamano.value = curVal;
+  } else {
+    tamanoGroup.style.display = 'none';
+    selectTamano.value = '';
+    const inputCustom = row.querySelector('.move-item-tamano-custom');
+    if (inputCustom) {
+      inputCustom.value = '';
+      inputCustom.style.display = 'none';
+    }
+  }
+}
+
+async function updateMovementItemLots(row) {
+  const isSalida = (document.getElementById('move-tipo-operacion')?.value || 'Salida') === 'Salida';
+  const selectProd = row.querySelector('.move-item-prod');
+  const loteSelect = row.querySelector('.move-item-lote-select');
+  const loteInput = row.querySelector('.move-item-lote-input');
+
+  if (!selectProd || !loteSelect || !loteInput) return;
+
+  if (isSalida) {
+    loteSelect.style.display = 'block';
+    loteInput.style.display = 'none';
+
+    const prodId = Number(selectProd.value);
+    if (!prodId) {
+      loteSelect.innerHTML = '<option value="">-- Selecciona Producto primero --</option>';
+      return;
+    }
+
+    const selectTamano = row.querySelector('.move-item-tamano');
+    const inputTamanoCustom = row.querySelector('.move-item-tamano-custom');
+    let tamano = selectTamano ? selectTamano.value.trim() : '';
+    if (tamano === 'Otro' && inputTamanoCustom) {
+      tamano = inputTamanoCustom.value.trim();
+    }
+
+    try {
+      const url = `${API_URL}/api/almacen/lotes-disponibles?producto_id=${prodId}${tamano ? `&tamano=${encodeURIComponent(tamano)}` : ''}`;
+      const res = await fetch(url, { headers: getHeaders() });
+      if (res.ok) {
+        const lots = await res.json();
+        const curVal = loteSelect.value;
+        if (!Array.isArray(lots) || lots.length === 0) {
+          loteSelect.innerHTML = '<option value="">Sin lotes con stock disponible</option>';
+        } else {
+          loteSelect.innerHTML = '<option value="">-- Selecciona un Lote --</option>' + lots.map(l => 
+            `<option value="${escapeHtml(l.lote)}" data-existencias="${l.existencias}">${escapeHtml(l.lote)} (Disp: ${Number(l.existencias).toLocaleString('es-MX', { minimumFractionDigits: 3 })})</option>`
+          ).join('');
+          loteSelect.value = curVal;
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching lots for item row:', err);
+    }
+  } else {
+    loteSelect.style.display = 'none';
+    loteInput.style.display = 'block';
+  }
+}
+
 function setupWarehouseFormHandlers() {
   const btnAll = document.getElementById('cat-btn-all');
   const btnAgroquimicos = document.getElementById('cat-btn-agroquimicos');
@@ -3441,7 +3668,11 @@ async function loadWarehouseMovements() {
 }
 
 async function loadAlmacenData() {
-  setupWarehouseFormHandlers();
+  try {
+    setupWarehouseFormHandlers();
+  } catch (err) {
+    console.warn('Could not setup warehouse form handlers:', err);
+  }
 
   // 1. Fetch Products if needed
   try {
