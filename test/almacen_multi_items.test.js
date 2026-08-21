@@ -98,12 +98,13 @@ test('buildWarehouseMovementsQuery: genera WHERE clause con filtro por cliente_i
   const { buildWarehouseMovementsQuery } = require('../utils/almacen');
   const query = buildWarehouseMovementsQuery({ cliente_id: 15, categoria: 'Agroquímicos' });
 
-  assert.ok(query.conditions.includes('m.cliente_id = ?'));
-  assert.ok(query.conditions.includes('m.categoria = ?'));
-  assert.equal(query.params.length, 2);
+  assert.ok(query.conditions.some(c => c.includes('cliente_id')));
+  assert.ok(query.conditions.some(c => c.includes('categoria')));
+  assert.equal(query.params.length, 3);
   assert.equal(query.params[0], 15);
-  assert.equal(query.params[1], 'Agroquímicos');
-  assert.match(query.whereClause, /m\.cliente_id = \?/);
+  assert.equal(query.params[1], 15);
+  assert.equal(query.params[2], 'Agroquímicos');
+  assert.match(query.whereClause, /cliente_id/);
   assert.match(query.sql, /LEFT JOIN clientes cli/);
 });
 

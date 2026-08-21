@@ -214,7 +214,8 @@ function buildWarehouseMovementsQuery(query = {}) {
     params.push(productId);
   }
   if (Number.isInteger(clienteId) && clienteId > 0) {
-    conditions.push('m.cliente_id = ?');
+    conditions.push('(m.cliente_id = ? OR (m.cliente_id IS NULL AND c.cliente_id = ?))');
+    params.push(clienteId);
     params.push(clienteId);
   }
   if (movementType) {
@@ -222,23 +223,25 @@ function buildWarehouseMovementsQuery(query = {}) {
     params.push(`%${movementType}%`);
   }
   if (categoria) {
-    conditions.push('m.categoria = ?');
+    conditions.push('COALESCE(m.categoria, p.tipo_categoria) = ?');
     params.push(categoria);
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const sql = `
     SELECT m.*, 
-           p.producto as producto_nombre, 
-           p.tipo_categoria as producto_categoria_orig,
+           COALESCE(p.producto, 'Producto ' || m.producto_id) as producto_nombre, 
+           COALESCE(p.tipo_categoria, m.categoria) as producto_categoria_orig,
+           COALESCE(m.categoria, p.tipo_categoria) as categoria,
            a.nombre as asesor_nombre, 
-           cli.nombre as cliente_nombre,
+           COALESCE(cli.nombre, cli_c.nombre) as cliente_nombre,
            c.folio_cotizacion
     FROM almacen_movimientos m
-    JOIN productos p ON m.producto_id = p.id
+    LEFT JOIN productos p ON m.producto_id = p.id
     LEFT JOIN asesores a ON m.asesor_id = a.id
-    LEFT JOIN clientes cli ON m.cliente_id = cli.id
     LEFT JOIN cotizaciones c ON m.cotizacion_id = c.id
+    LEFT JOIN clientes cli ON m.cliente_id = cli.id
+    LEFT JOIN clientes cli_c ON c.cliente_id = cli_c.id
     ${whereClause}
     ORDER BY m.id DESC LIMIT 500
   `;

@@ -3405,10 +3405,19 @@ async function loadWarehouseMovements() {
   if (clienteId) params.set('cliente_id', clienteId);
 
   const query = params.toString();
-  const res = await fetch(`${API_URL}/api/almacen/movimientos${query ? `?${query}` : ''}`, { headers: getHeaders() });
-  if (!res.ok) throw new Error('No fue posible cargar el historial de movimientos.');
-  allMovements = await res.json();
-  renderWarehouseMovements(allMovements);
+  try {
+    const res = await fetch(`${API_URL}/api/almacen/movimientos${query ? `?${query}` : ''}`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('No fue posible cargar el historial de movimientos.');
+    allMovements = await res.json();
+    renderWarehouseMovements(allMovements);
+  } catch (err) {
+    console.warn('Error loading warehouse movements:', err);
+    const movesTbody = document.getElementById('movements-tbody');
+    if (movesTbody) {
+      movesTbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--danger); padding: 16px;"><span style="display: block; margin-bottom: 8px; font-size: 13px;">No se pudo conectar con el servidor temporalmente.</span><button type="button" class="btn btn-secondary" onclick="loadWarehouseMovements()" style="padding: 4px 12px; font-size: 12px; width: auto; display: inline-flex; align-items: center; gap: 6px;">🔄 Reintentar cargar historial</button></td></tr>`;
+    }
+    throw err;
+  }
 }
 
 async function loadAlmacenData() {
