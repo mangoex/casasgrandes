@@ -801,16 +801,6 @@
               <div id="movement-entry-card" class="card" style="height: fit-content;">
                 <h3 style="margin-bottom: 16px;">Registrar Entradas / Salidas</h3>
                 <form id="add-movement-form">
-                  <!-- Categoría selector -->
-                  <div class="form-group" style="margin-bottom: 14px;">
-                    <label style="font-weight: 600; font-size: 13px;">Categoría</label>
-                    <div style="display: flex; gap: 8px;">
-                      <button type="button" id="cat-btn-agroquimicos" class="btn btn-secondary active" style="flex: 1; padding: 6px 10px; font-size: 12px;">🌱 Agroquímicos</button>
-                      <button type="button" id="cat-btn-semilla" class="btn btn-secondary" style="flex: 1; padding: 6px 10px; font-size: 12px;">🌽 Semilla</button>
-                    </div>
-                    <input type="hidden" id="move-categoria" value="Agroquímicos">
-                  </div>
-
                   <!-- Operación selector (Salida / Entrada) -->
                   <div class="form-group" style="margin-bottom: 14px;">
                     <label style="font-weight: 600; font-size: 13px;">Tipo de Movimiento</label>
@@ -821,33 +811,21 @@
                     <input type="hidden" id="move-tipo-operacion" value="Salida">
                   </div>
 
+                  <!-- Categoría filtro de productos -->
+                  <div class="form-group" style="margin-bottom: 14px;">
+                    <label style="font-weight: 600; font-size: 13px;">Filtro de Categoría</label>
+                    <div style="display: flex; gap: 6px;">
+                      <button type="button" id="cat-btn-all" class="btn btn-secondary active" style="flex: 1; padding: 5px 8px; font-size: 11px;">🌾 Todos</button>
+                      <button type="button" id="cat-btn-agroquimicos" class="btn btn-secondary" style="flex: 1; padding: 5px 8px; font-size: 11px;">🌱 Agroquímicos</button>
+                      <button type="button" id="cat-btn-semilla" class="btn btn-secondary" style="flex: 1; padding: 5px 8px; font-size: 11px;">🌽 Semilla</button>
+                    </div>
+                    <input type="hidden" id="move-categoria" value="Todos">
+                  </div>
+
                   <!-- Fecha -->
                   <div class="form-group">
                     <label for="move-fecha">Fecha</label>
                     <input type="date" id="move-fecha" class="form-input" required>
-                  </div>
-
-                  <!-- Producto -->
-                  <div class="form-group">
-                    <label for="move-prod">Producto</label>
-                    <select id="move-prod" class="form-input" required></select>
-                  </div>
-
-                  <!-- Tamaño -->
-                  <div id="group-move-tamano" class="form-group" style="display: none;">
-                    <label for="move-tamano">Tamaño <span style="color: var(--danger);">*</span></label>
-                    <select id="move-tamano" class="form-input">
-                      <option value="">-- Seleccionar Tamaño --</option>
-                    </select>
-                    <input type="text" id="move-tamano-custom" class="form-input" style="display: none; margin-top: 6px;" placeholder="Escribe el tamaño personalizado">
-                  </div>
-
-                  <!-- Lote -->
-                  <div id="group-move-lote" class="form-group">
-                    <label for="move-lote">Lote <span style="color: var(--danger);">*</span></label>
-                    <select id="move-lote-select" class="form-input"></select>
-                    <input type="text" id="move-lote" class="form-input" list="move-lote-datalist" placeholder="Ej. L-2026A" style="display: none;">
-                    <datalist id="move-lote-datalist"></datalist>
                   </div>
 
                   <!-- CAMPOS DE SALIDA -->
@@ -878,22 +856,16 @@
                       </div>
                       <small id="move-cliente-selected-info" style="display: none; color: var(--success, #10b981); font-size: 11px; font-weight: 600; margin-top: 4px;"></small>
                     </div>
-                    <div class="input-grid">
-                      <div class="form-group">
-                        <label for="move-opcion">Opción (Tipo Op.)</label>
-                        <select id="move-opcion" class="form-input">
-                          <option value="Crédito">Crédito</option>
-                          <option value="Contado">Contado</option>
-                          <option value="Ajuste">Ajuste</option>
-                          <option value="Cupón NUCLE">Cupón NUCLE</option>
-                          <option value="Obsequio">Obsequio</option>
-                          <option value="Devolución">Devolución</option>
-                        </select>
-                      </div>
-                      <div class="form-group">
-                        <label for="move-precio">Precio de Venta ($)</label>
-                        <input type="number" step="0.01" id="move-precio" class="form-input" placeholder="0.00">
-                      </div>
+                    <div class="form-group">
+                      <label for="move-opcion">Opción (Tipo Op.)</label>
+                      <select id="move-opcion" class="form-input">
+                        <option value="Crédito">Crédito</option>
+                        <option value="Contado">Contado</option>
+                        <option value="Ajuste">Ajuste</option>
+                        <option value="Cupón NUCLE">Cupón NUCLE</option>
+                        <option value="Obsequio">Obsequio</option>
+                        <option value="Devolución">Devolución</option>
+                      </select>
                     </div>
                   </div>
 
@@ -909,13 +881,22 @@
                     </div>
                   </div>
 
-                  <!-- Cantidad y Notas -->
-                  <div class="form-group">
-                    <label for="move-cantidad">Cantidad</label>
-                    <input type="number" step="0.001" id="move-cantidad" class="form-input" placeholder="0.000" required>
+                  <!-- LISTA DINÁMICA DE PARTIDAS DE PRODUCTO -->
+                  <div class="form-group" style="margin-top: 18px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                      <label style="font-weight: 700; font-size: 13px; margin: 0;">📦 Productos / Partidas</label>
+                      <button type="button" id="btn-add-movement-item" class="btn btn-secondary" style="width: auto; padding: 4px 12px; font-size: 12px; font-weight: 700; border-color: var(--primary); color: var(--primary);">
+                        ➕ Agregar Producto
+                      </button>
+                    </div>
+                    <div id="movement-items-list" style="display: flex; flex-direction: column; gap: 12px;">
+                      <!-- Filas de partidas generadas dinámicamente -->
+                    </div>
                   </div>
+
+                  <!-- Notas -->
                   <div class="form-group">
-                    <label for="move-notas">Notas</label>
+                    <label for="move-notas">Notas de la Remisión</label>
                     <textarea id="move-notas" class="form-input" rows="2" placeholder="Detalle adicional..."></textarea>
                   </div>
 

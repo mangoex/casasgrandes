@@ -2868,7 +2868,6 @@ function openWarehouseEntryForm() {
   document.getElementById('op-btn-entrada')?.click();
   document.getElementById('movement-entry-card')?.scrollIntoView({ behavior: 'smooth' });
 }
-
 function openWarehouseExitForm() {
   toggleAlmacenTab('movimientos');
   if (warehouseMovementFormCollapsed) {
@@ -2880,12 +2879,10 @@ function openWarehouseExitForm() {
 }
 
 function setupWarehouseFormHandlers() {
+  const btnAll = document.getElementById('cat-btn-all');
   const btnAgroquimicos = document.getElementById('cat-btn-agroquimicos');
   const btnSemilla = document.getElementById('cat-btn-semilla');
   const inputCat = document.getElementById('move-categoria');
-  const groupTamano = document.getElementById('group-move-tamano');
-  const selectTamano = document.getElementById('move-tamano');
-  const inputTamanoCustom = document.getElementById('move-tamano-custom');
 
   const btnSalida = document.getElementById('op-btn-salida');
   const btnEntrada = document.getElementById('op-btn-entrada');
@@ -2894,102 +2891,92 @@ function setupWarehouseFormHandlers() {
   const containerEntrada = document.getElementById('fields-entrada-container');
   const btnSubmit = document.getElementById('btn-submit-movement');
   const labelProveedor = document.getElementById('label-move-proveedor');
-  const moveProdSelect = document.getElementById('move-prod');
+  const btnAddItem = document.getElementById('btn-add-movement-item');
 
-  if (!btnAgroquimicos || !btnSemilla) return;
+  const updateCategoryFilterUI = (cat) => {
+    if (inputCat) inputCat.value = cat;
+    [btnAll, btnAgroquimicos, btnSemilla].forEach(btn => {
+      if (!btn) return;
+      btn.classList.remove('active');
+      btn.style.backgroundColor = '';
+      btn.style.color = '';
+    });
 
-  const updateCategoryUI = (cat) => {
-    inputCat.value = cat;
-    if (cat === 'Semilla') {
-      btnSemilla.classList.add('active');
-      btnSemilla.style.backgroundColor = 'var(--primary, #047857)';
-      btnSemilla.style.color = '#ffffff';
-      btnAgroquimicos.classList.remove('active');
-      btnAgroquimicos.style.backgroundColor = '';
-      btnAgroquimicos.style.color = '';
-      if (groupTamano) groupTamano.style.display = 'block';
-      if (selectTamano) selectTamano.required = true;
-    } else {
-      btnAgroquimicos.classList.add('active');
-      btnAgroquimicos.style.backgroundColor = 'var(--primary, #047857)';
-      btnAgroquimicos.style.color = '#ffffff';
-      btnSemilla.classList.remove('active');
-      btnSemilla.style.backgroundColor = '';
-      btnSemilla.style.color = '';
-      if (groupTamano) groupTamano.style.display = 'none';
-      if (selectTamano) {
-        selectTamano.required = false;
-        selectTamano.value = '';
-      }
-      if (inputTamanoCustom) {
-        inputTamanoCustom.value = '';
-        inputTamanoCustom.style.display = 'none';
-      }
+    let activeBtn = btnAll;
+    if (cat === 'Agroquímicos') activeBtn = btnAgroquimicos;
+    else if (cat === 'Semilla') activeBtn = btnSemilla;
+
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+      activeBtn.style.backgroundColor = 'var(--primary, #047857)';
+      activeBtn.style.color = '#ffffff';
     }
-    populateWarehouseProductControls();
-    updateWarehouseLoteOptions();
+
+    // Refresh products in all current item rows
+    document.querySelectorAll('#movement-items-list .movement-item-row').forEach(row => {
+      const selectProd = row.querySelector('.move-item-prod');
+      const curVal = selectProd ? selectProd.value : null;
+      populateMovementItemProducts(row, curVal);
+    });
   };
 
   const updateOperationUI = (op) => {
-    inputTipoOp.value = op;
+    if (inputTipoOp) inputTipoOp.value = op;
     if (op === 'Salida') {
-      btnSalida.classList.add('active');
-      btnSalida.style.backgroundColor = 'var(--danger, #ef4444)';
-      btnSalida.style.color = '#ffffff';
-      btnEntrada.classList.remove('active');
-      btnEntrada.style.backgroundColor = '';
-      btnEntrada.style.color = '';
-      containerSalida.style.display = 'block';
-      containerEntrada.style.display = 'none';
+      if (btnSalida) {
+        btnSalida.classList.add('active');
+        btnSalida.style.backgroundColor = 'var(--danger, #ef4444)';
+        btnSalida.style.color = '#ffffff';
+      }
+      if (btnEntrada) {
+        btnEntrada.classList.remove('active');
+        btnEntrada.style.backgroundColor = '';
+        btnEntrada.style.color = '';
+      }
+      if (containerSalida) containerSalida.style.display = 'block';
+      if (containerEntrada) containerEntrada.style.display = 'none';
       if (btnSubmit) btnSubmit.textContent = 'Registrar Salida';
     } else {
-      btnEntrada.classList.add('active');
-      btnEntrada.style.backgroundColor = 'var(--success, #10b981)';
-      btnEntrada.style.color = '#ffffff';
-      btnSalida.classList.remove('active');
-      btnSalida.style.backgroundColor = '';
-      btnSalida.style.color = '';
-      containerSalida.style.display = 'none';
-      containerEntrada.style.display = 'block';
+      if (btnEntrada) {
+        btnEntrada.classList.add('active');
+        btnEntrada.style.backgroundColor = 'var(--success, #10b981)';
+        btnEntrada.style.color = '#ffffff';
+      }
+      if (btnSalida) {
+        btnSalida.classList.remove('active');
+        btnSalida.style.backgroundColor = '';
+        btnSalida.style.color = '';
+      }
+      if (containerSalida) containerSalida.style.display = 'none';
+      if (containerEntrada) containerEntrada.style.display = 'block';
       if (btnSubmit) btnSubmit.textContent = 'Registrar Entrada';
     }
     if (labelProveedor) {
-      labelProveedor.textContent = inputCat.value === 'Semilla' ? 'Proveedor' : 'Proveedor o Cliente';
+      labelProveedor.textContent = 'Proveedor o Cliente';
     }
-    updateWarehouseLoteOptions();
+
+    // Update item rows for salida vs entrada (lots and price)
+    document.querySelectorAll('#movement-items-list .movement-item-row').forEach(row => {
+      const isSalida = op === 'Salida';
+      const precioGroup = row.querySelector('.move-item-precio-group');
+      if (precioGroup) precioGroup.style.display = isSalida ? 'block' : 'none';
+      updateMovementItemLots(row);
+    });
   };
 
-  btnAgroquimicos.onclick = () => updateCategoryUI('Agroquímicos');
-  btnSemilla.onclick = () => updateCategoryUI('Semilla');
-  btnSalida.onclick = () => updateOperationUI('Salida');
-  btnEntrada.onclick = () => updateOperationUI('Entrada');
+  if (btnAll) btnAll.onclick = () => updateCategoryFilterUI('Todos');
+  if (btnAgroquimicos) btnAgroquimicos.onclick = () => updateCategoryFilterUI('Agroquímicos');
+  if (btnSemilla) btnSemilla.onclick = () => updateCategoryFilterUI('Semilla');
+  if (btnSalida) btnSalida.onclick = () => updateOperationUI('Salida');
+  if (btnEntrada) btnEntrada.onclick = () => updateOperationUI('Entrada');
+
+  if (btnAddItem) {
+    btnAddItem.onclick = () => addWarehouseMovementItem();
+  }
 
   // Initialize UI based on current hidden input values (or defaults)
-  updateCategoryUI(inputCat.value || 'Agroquímicos');
-  updateOperationUI(inputTipoOp.value || 'Salida');
-
-  if (moveProdSelect) {
-    moveProdSelect.onchange = () => {
-      updateWarehouseTamanoOptions();
-      updateWarehouseLoteOptions();
-    };
-  }
-
-  if (selectTamano) {
-    selectTamano.onchange = function() {
-      if (inputTamanoCustom) {
-        inputTamanoCustom.style.display = this.value === 'Otro' ? 'block' : 'none';
-        if (this.value !== 'Otro') inputTamanoCustom.value = '';
-      }
-      updateWarehouseLoteOptions();
-    };
-  }
-
-  if (inputTamanoCustom) {
-    inputTamanoCustom.oninput = function() {
-      updateWarehouseLoteOptions();
-    };
-  }
+  updateCategoryFilterUI(inputCat?.value || 'Todos');
+  updateOperationUI(inputTipoOp?.value || 'Salida');
 
   const btnTopEntrada = document.getElementById('btn-top-registrar-entrada');
   const btnTopSalida = document.getElementById('btn-top-registrar-salida');
@@ -3000,6 +2987,9 @@ function setupWarehouseFormHandlers() {
   if (btnTopSalida) btnTopSalida.onclick = openWarehouseExitForm;
   if (btnCardEntrada) btnCardEntrada.onclick = openWarehouseEntryForm;
   if (btnCardSalida) btnCardSalida.onclick = openWarehouseExitForm;
+
+  // Initialize with at least 1 item row
+  initWarehouseMovementItems();
 
   // Default date to today
   const moveFecha = document.getElementById('move-fecha');
@@ -3548,67 +3538,97 @@ document.getElementById('add-movement-form').addEventListener('submit', async (e
   const tipoOp = document.getElementById('move-tipo-operacion').value; // 'Salida' o 'Entrada'
   const productoId = Number(document.getElementById('move-prod').value);
   const isSalida = tipoOp === 'Salida';
-  const lote = isSalida
-    ? (document.getElementById('move-lote-select')?.value || '').trim()
-    : (document.getElementById('move-lote')?.value || '').trim();
-  
-  const selectTamano = document.getElementById('move-tamano');
-  const inputTamanoCustom = document.getElementById('move-tamano-custom');
-  let tamano = selectTamano ? selectTamano.value.trim() : '';
-  if (tamano === 'Otro' && inputTamanoCustom) {
-    tamano = inputTamanoCustom.value.trim();
-  }
-  
   const fecha = document.getElementById('move-fecha').value;
-  const cantidad = Number(document.getElementById('move-cantidad').value) || 0;
   const notas = document.getElementById('move-notas').value.trim();
 
-  if (!productoId) {
-    alert('Por favor selecciona un producto.');
-    return;
-  }
-  if (!lote) {
-    alert('El número de Lote es obligatorio.');
-    return;
-  }
-  if (categoria === 'Semilla' && !tamano) {
-    alert('El campo Tamaño es obligatorio para la categoría Semilla.');
-    return;
-  }
-  if (cantidad <= 0) {
-    alert('Ingresa una cantidad válida mayor a cero.');
+  const itemRows = document.querySelectorAll('#movement-items-list .movement-item-row');
+  if (itemRows.length === 0) {
+    alert('Por favor agrega al menos un producto a la remisión.');
     return;
   }
 
-  if (isSalida) {
-    const selectedLot = currentWarehouseAvailableLots.find(l => String(l.lote).trim().toUpperCase() === lote.toUpperCase());
-    if (selectedLot) {
-      const disp = Number(selectedLot.existencias || 0);
-      if (cantidad > disp) {
-        alert(`Existencias insuficientes para el lote "${lote}". Disponibles: ${disp.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`);
+  const items = [];
+  for (let i = 0; i < itemRows.length; i++) {
+    const row = itemRows[i];
+    const indexLabel = `Partida #${i + 1}`;
+    const prodSelect = row.querySelector('.move-item-prod');
+    const prodId = Number(prodSelect?.value);
+    if (!prodId) {
+      alert(`Por favor selecciona un producto en la ${indexLabel}.`);
+      prodSelect?.focus();
+      return;
+    }
+
+    const prodObj = (allProducts || []).find(p => p.id === prodId) || (allAdminProductos || []).find(p => p.id === prodId);
+    const isSeed = prodObj?.tipo_categoria === 'Híbrido' || prodObj?.tipo_categoria === 'Semilla';
+
+    const selectTamano = row.querySelector('.move-item-tamano');
+    const inputTamanoCustom = row.querySelector('.move-item-tamano-custom');
+    let tamano = selectTamano ? selectTamano.value.trim() : '';
+    if (tamano === 'Otro' && inputTamanoCustom) {
+      tamano = inputTamanoCustom.value.trim();
+    }
+
+    if (isSeed && !tamano) {
+      alert(`El tamaño es obligatorio para el producto "${prodObj?.producto || prodId}" en la ${indexLabel}.`);
+      selectTamano?.focus();
+      return;
+    }
+
+    const loteSelect = row.querySelector('.move-item-lote-select');
+    const loteInput = row.querySelector('.move-item-lote-input');
+    const lote = (isSalida ? loteSelect?.value : loteInput?.value || '').trim();
+
+    if (!lote) {
+      alert(`El número de Lote es obligatorio en la ${indexLabel}.`);
+      if (isSalida) loteSelect?.focus(); else loteInput?.focus();
+      return;
+    }
+
+    const cantidadInput = row.querySelector('.move-item-cantidad');
+    const cantidad = Number(cantidadInput?.value) || 0;
+    if (cantidad <= 0) {
+      alert(`Ingresa una cantidad válida mayor a cero en la ${indexLabel}.`);
+      cantidadInput?.focus();
+      return;
+    }
+
+    if (isSalida && loteSelect) {
+      const selectedOption = loteSelect.options[loteSelect.selectedIndex];
+      const disp = selectedOption ? Number(selectedOption.getAttribute('data-existencias')) : NaN;
+      if (Number.isFinite(disp) && cantidad > disp) {
+        alert(`Existencias insuficientes para el lote "${lote}" en la ${indexLabel}. Disponibles: ${disp.toLocaleString('es-MX', { minimumFractionDigits: 3 })}, Requeridas: ${cantidad.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`);
+        cantidadInput?.focus();
         return;
       }
     }
+
+    const precioInput = row.querySelector('.move-item-precio');
+    const precioVenta = isSalida ? (Number(precioInput?.value) || 0.0) : 0.0;
+
+    items.push({
+      producto_id: prodId,
+      lote,
+      tamano: tamano || null,
+      cantidad,
+      precio_venta: precioVenta,
+      categoria: prodObj?.tipo_categoria || 'Agroquímicos'
+    });
   }
 
   const payload = {
-    categoria,
     tipo: tipoOp,
-    producto_id: productoId,
-    lote,
-    tamano,
     fecha_movimiento: fecha ? new Date(fecha).toISOString() : new Date().toISOString(),
-    cantidad,
-    notas
+    notas,
+    items
   };
 
-  if (tipoOp === 'Salida') {
+  if (isSalida) {
     payload.opcion_operacion = document.getElementById('move-opcion').value;
     payload.numero_remision = document.getElementById('move-remision').value.trim();
     payload.numero_movimiento = document.getElementById('move-num-salida').value.trim();
     payload.asesor_id = Number(document.getElementById('move-asesor').value) || null;
     payload.cliente_id = Number(document.getElementById('move-cliente').value) || null;
-    payload.precio_venta = Number(document.getElementById('move-precio').value) || 0;
     payload.tipo_movimiento = `Salida (${payload.opcion_operacion})`;
   } else {
     payload.proveedor_cliente = document.getElementById('move-proveedor').value.trim();
@@ -3622,19 +3642,22 @@ document.getElementById('add-movement-form').addEventListener('submit', async (e
       headers: getHeaders(),
       body: JSON.stringify(payload)
     });
-    
+
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error || 'No fue posible registrar el movimiento.');
     }
-    
+
     document.getElementById('add-movement-form').reset();
     document.getElementById('move-fecha').value = new Date().toISOString().slice(0, 10);
-    document.getElementById('cat-btn-agroquimicos').click();
-    document.getElementById('op-btn-salida').click();
+    document.getElementById('cat-btn-all')?.click();
+    document.getElementById('op-btn-salida')?.click();
+
+    // Reset items list to 1 single clean row
+    initWarehouseMovementItems();
 
     await loadAlmacenData();
-    alert(data.message || 'Movimiento registrado exitosamente.');
+    alert(data.message || 'Movimientos registrados exitosamente.');
   } catch (err) {
     alert(err.message);
   }

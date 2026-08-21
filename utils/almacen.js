@@ -113,8 +113,93 @@ function filterLotsWithStock(movesList, productoId, tamano = null) {
   return result;
 }
 
+/**
+ * Normaliza el payload de movimientos de almacén, soportando tanto formato
+ * multi-ítem (`body.items`) como formato legado de ítem individual en la raíz.
+ * @param {Object} body - Payload de la solicitud
+ * @returns {Array<{ producto_id: number, lote: string, tamano: string|null, cantidad: number, precio_venta: number, categoria: string }>}
+ */
+function normalizeMovementItems(body = {}) {
+  if (Array.isArray(body.items) && body.items.length > 0) {
+    return body.items.map(item => {
+      const isSalida = String(body.tipo || body.tipo_movimiento || item.tipo || '').toLowerCase().includes('salida');
+      const qty = Number(item.cantidad || (isSalida ? item.cantidad_saliente : item.cantidad_entrante)) || 0.0;
+      return {
+        producto_id: Number(item.producto_id),
+        lote: String(item.lote || '').trim(),
+        tamano: item.tamano ? String(item.tamano).trim() : null,
+        cantidad: qty,
+        precio_venta: Number(item.precio_venta) || 0.0,
+        categoria: String(item.categoria || body.categoria || 'Agroquímicos').trim()
+      };
+    });
+  }
+
+  // Formato legado (1 solo ítem en la raíz)
+  const isSalida = String(body.tipo || body.tipo_movimiento || '').toLowerCase().includes('salida');
+  const qty = Number(body.cantidad || (isSalida ? body.cantidad_saliente : body.cantidad_entrante)) || 0.0;
+  const prodId = Number(body.producto_id);
+
+  if (!prodId && !body.producto_id) {
+    return [];
+  }
+
+  return [{
+    producto_id: prodId,
+    lote: String(body.lote || '').trim(),
+    tamano: body.tamano ? String(body.tamano).trim() : null,
+    cantidad: qty,
+    precio_venta: Number(body.precio_venta) || 0.0,
+    categoria: String(body.categoria || 'Agroquímicos').trim()
+  }];
+}
+
+/**
+ * Valida un conjunto de partidas de salida contra los saldos de producto y lote.
+ * @param {Array<Object>} items - Lista de partidas normalizadas
+ * @param {Function} getStockForLot - Función síncrona/asíncrona que retorna el saldo disponible para (producto_id, lote, tamano)
+ * @returns {Promise<{ valido: boolean, error?: string }>}
+ */
+async function validateMultiItemSalida(items, getStockForLot) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { valido: false, error: 'Debe incluir al menos una partida de producto para registrar la salida.' };
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const indexStr = items.length > 1 ? ` (Partida #${i + 1})` : '';
+
+    if (!item.producto_id || item.producto_id <= 0) {
+      return { valido: false, error: `El producto es obligatorio en cada partida${indexStr}.` };
+    }
+    if (!item.lote) {
+      return { valido: false, error: `El lote es obligatorio en cada partida${indexStr}.` };
+    }
+    if (item.cantidad <= 0) {
+      return { valido: false, error: `La cantidad debe ser mayor a cero${indexStr}.` };
+    }
+    if (item.categoria === 'Semilla' && !item.tamano) {
+      return { valido: false, error: `El tamaño es obligatorio para productos de categoría Semilla${indexStr}.` };
+    }
+
+    if (typeof getStockForLot === 'function') {
+      const disp = await getStockForLot(item.producto_id, item.lote, item.tamano);
+      if (typeof disp === 'number' && item.cantidad > disp) {
+        return {
+          valido: false,
+          error: `Existencias insuficientes para el lote "${item.lote}"${indexStr}. Disponibles: ${disp.toLocaleString('es-MX', { minimumFractionDigits: 3 })}, Requeridas: ${item.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
+        };
+      }
+    }
+  }
+
+  return { valido: true };
+}
+
 module.exports = {
   calculateLotStock,
   validateLotSalida,
-  filterLotsWithStock
+  filterLotsWithStock,
+  normalizeMovementItems,
+  validateMultiItemSalida
 };

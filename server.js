@@ -8,6 +8,7 @@ const db = require('./db');
 const agentsService = require('./agentsService');
 const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
 const { normalizeProductSizes } = require('./utils/productos');
+const { normalizeMovementItems } = require('./utils/almacen');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
 const { authenticateToken, requireAdmin, requireAdminOrCoordinador, requireProgramacionManager } = require('./middleware/auth');
 
@@ -1484,13 +1485,16 @@ app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
   if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
     return res.status(403).json({ error: 'Permisos insuficientes para registrar movimientos de almacén.' });
   }
+
+  const items = normalizeMovementItems(req.body);
+  if (!items || items.length === 0) {
+    return res.status(400).json({ error: 'Debe especificar al menos un producto para registrar el movimiento.' });
+  }
+
   const {
     categoria,
-    tipo, // 'Entrada' o 'Salida' (o tipo_movimiento completo)
+    tipo,
     tipo_movimiento,
-    producto_id,
-    lote,
-    tamano,
     opcion_operacion,
     numero_remision,
     numero_movimiento,
@@ -1498,115 +1502,169 @@ app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
     asesor_id,
     cliente_id,
     proveedor_cliente,
-    precio_venta,
-    cantidad,
-    cantidad_entrante,
-    cantidad_saliente,
     referencia_factura,
     notas
   } = req.body;
 
-  const prodId = Number(producto_id);
-  if (!prodId) {
-    return res.status(400).json({ error: 'El producto es requerido' });
-  }
-
-  const catStr = String(categoria || 'Agroquímicos').trim();
   const isSalida = String(tipo || tipo_movimiento || '').toLowerCase().includes('salida');
   const fullTipoMovimiento = tipo_movimiento || (isSalida ? `Salida (${opcion_operacion || 'Venta'})` : 'Entrada');
-  const qty = Number(cantidad || (isSalida ? cantidad_saliente : cantidad_entrante)) || 0.0;
-
-  if (qty <= 0) {
-    return res.status(400).json({ error: 'La cantidad debe ser mayor a cero' });
-  }
+  const dateVal = fecha_movimiento || new Date().toISOString();
 
   try {
-    const prod = await db.get('SELECT * FROM productos WHERE id = ?', [prodId]);
-    if (!prod) return res.status(404).json({ error: 'Producto no encontrado' });
+    const result = await db.transaction(async (tx) => {
+      // 1. Validaciones previas de todas las partidas
+      const productRunningStock = new Map();
+      const lotRunningStock = new Map();
 
-    const last_move = await db.get('SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1', [prodId]);
-    const current_stock = last_move ? Number(last_move.existencias_resultantes || 0) : 0.0;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const indexLabel = items.length > 1 ? ` (Partida #${i + 1})` : '';
 
-    const ent = isSalida ? 0.0 : qty;
-    const sal = isSalida ? qty : 0.0;
-
-    if (isSalida && current_stock < sal) {
-      return res.status(400).json({ error: `Existencias insuficientes en almacén. Disponibles: ${current_stock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}` });
-    }
-
-    if (isSalida && lote) {
-      const loteTrim = String(lote).trim();
-      if (loteTrim) {
-        let lotQuery = `
-          SELECT (SUM(COALESCE(cantidad_entrante, 0)) - SUM(COALESCE(cantidad_saliente, 0))) AS existencias
-          FROM almacen_movimientos
-          WHERE producto_id = ? AND lote = ?
-        `;
-        const lotParams = [prodId, loteTrim];
-        if (tamano) {
-          lotQuery += ' AND tamano = ?';
-          lotParams.push(String(tamano).trim());
+        if (!item.producto_id || item.producto_id <= 0) {
+          throw new Error(`El producto es requerido${indexLabel}`);
         }
-        const lotRes = await db.get(lotQuery, lotParams);
-        const disp = lotRes ? (Number(lotRes.existencias) || 0.0) : 0.0;
-        if (sal > disp) {
-          return res.status(400).json({
-            error: `Existencias insuficientes para el lote "${lote}". Disponibles: ${disp.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
-          });
+        if (item.cantidad <= 0) {
+          throw new Error(`La cantidad debe ser mayor a cero${indexLabel}`);
+        }
+        if (!item.lote) {
+          throw new Error(`El lote es obligatorio${indexLabel}`);
+        }
+
+        const prod = await tx.get('SELECT * FROM productos WHERE id = ?', [item.producto_id]);
+        if (!prod) {
+          throw new Error(`Producto #${item.producto_id} no encontrado${indexLabel}`);
+        }
+
+        const isSeed = item.categoria === 'Semilla' || prod.tipo_categoria === 'Híbrido' || prod.tipo_categoria === 'Semilla';
+        if (isSeed && !item.tamano) {
+          throw new Error(`El tamaño es obligatorio para el producto "${prod.producto}"${indexLabel}`);
+        }
+
+        if (isSalida) {
+          // Validar existencias globales del producto
+          if (!productRunningStock.has(item.producto_id)) {
+            const lastMove = await tx.get(
+              'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+              [item.producto_id]
+            );
+            productRunningStock.set(item.producto_id, lastMove ? Number(lastMove.existencias_resultantes || 0) : 0.0);
+          }
+
+          const currentProdStock = productRunningStock.get(item.producto_id);
+          if (currentProdStock < item.cantidad) {
+            throw new Error(
+              `Existencias insuficientes para el producto "${prod.producto}"${indexLabel}. Disponibles: ${currentProdStock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
+            );
+          }
+          productRunningStock.set(item.producto_id, currentProdStock - item.cantidad);
+
+          // Validar existencias específicas por lote
+          const lotKey = `${item.producto_id}__${item.lote.toUpperCase()}__${(item.tamano || '').toUpperCase()}`;
+          if (!lotRunningStock.has(lotKey)) {
+            let lotQuery = `
+              SELECT (SUM(COALESCE(cantidad_entrante, 0)) - SUM(COALESCE(cantidad_saliente, 0))) AS existencias
+              FROM almacen_movimientos
+              WHERE producto_id = ? AND lote = ?
+            `;
+            const lotParams = [item.producto_id, item.lote];
+            if (item.tamano) {
+              lotQuery += ' AND tamano = ?';
+              lotParams.push(item.tamano);
+            }
+            const lotRes = await tx.get(lotQuery, lotParams);
+            lotRunningStock.set(lotKey, lotRes ? (Number(lotRes.existencias) || 0.0) : 0.0);
+          }
+
+          const currentLotStock = lotRunningStock.get(lotKey);
+          if (currentLotStock < item.cantidad) {
+            throw new Error(
+              `Existencias insuficientes para el lote "${item.lote}" del producto "${prod.producto}"${indexLabel}. Disponibles: ${currentLotStock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}, Requeridas: ${item.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
+            );
+          }
+          lotRunningStock.set(lotKey, currentLotStock - item.cantidad);
         }
       }
-    }
 
-    const new_stock = current_stock + ent - sal;
-    const dateVal = fecha_movimiento || new Date().toISOString();
+      // 2. Inserción atómica de todos los renglones
+      productRunningStock.clear();
+      let lastResultingStock = 0.0;
 
-    await db.run(`
-      INSERT INTO almacen_movimientos (
-        fecha_movimiento, 
-        tipo_movimiento, 
-        categoria,
-        producto_id, 
-        lote,
-        tamano,
-        opcion_operacion,
-        numero_remision,
-        numero_movimiento,
-        precio_venta,
-        proveedor_cliente,
-        cantidad_entrante, 
-        cantidad_saliente, 
-        existencias_resultantes, 
-        referencia_factura, 
-        asesor_id,
-        cliente_id,
-        notas
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      dateVal,
-      fullTipoMovimiento,
-      catStr,
-      prodId,
-      lote || null,
-      tamano || null,
-      opcion_operacion || null,
-      numero_remision || null,
-      numero_movimiento || referencia_factura || null,
-      Number(precio_venta) || 0.0,
-      proveedor_cliente || null,
-      ent,
-      sal,
-      new_stock,
-      referencia_factura || numero_movimiento || null,
-      asesor_id || req.user.id,
-      cliente_id || null,
-      notas || null
-    ]);
+      for (const item of items) {
+        if (!productRunningStock.has(item.producto_id)) {
+          const lastMove = await tx.get(
+            'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+            [item.producto_id]
+          );
+          productRunningStock.set(item.producto_id, lastMove ? Number(lastMove.existencias_resultantes || 0) : 0.0);
+        }
 
-    res.status(201).json({ existencias: new_stock, message: 'Movimiento de almacén registrado correctamente' });
+        const currentStock = productRunningStock.get(item.producto_id);
+        const ent = isSalida ? 0.0 : item.cantidad;
+        const sal = isSalida ? item.cantidad : 0.0;
+        const newStock = currentStock + ent - sal;
+        productRunningStock.set(item.producto_id, newStock);
+        lastResultingStock = newStock;
+
+        await tx.run(`
+          INSERT INTO almacen_movimientos (
+            fecha_movimiento, 
+            tipo_movimiento, 
+            categoria,
+            producto_id, 
+            lote,
+            tamano,
+            opcion_operacion,
+            numero_remision,
+            numero_movimiento,
+            precio_venta,
+            proveedor_cliente,
+            cantidad_entrante, 
+            cantidad_saliente, 
+            existencias_resultantes, 
+            referencia_factura, 
+            asesor_id,
+            cliente_id,
+            notas
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          dateVal,
+          fullTipoMovimiento,
+          item.categoria || categoria || 'Agroquímicos',
+          item.producto_id,
+          item.lote || null,
+          item.tamano || null,
+          opcion_operacion || null,
+          numero_remision || null,
+          numero_movimiento || referencia_factura || null,
+          Number(item.precio_venta) || 0.0,
+          proveedor_cliente || null,
+          ent,
+          sal,
+          newStock,
+          referencia_factura || numero_movimiento || null,
+          asesor_id || req.user.id,
+          cliente_id || null,
+          notas || null
+        ]);
+      }
+
+      return { count: items.length, existencias: lastResultingStock };
+    });
+
+    const msg = result.count > 1
+      ? `Se registraron ${result.count} partidas de producto exitosamente en la remisión ${numero_remision || numero_movimiento || ''}`.trim()
+      : 'Movimiento de almacén registrado correctamente';
+
+    res.status(201).json({
+      success: true,
+      count: result.count,
+      existencias: result.existencias,
+      message: msg
+    });
   } catch (err) {
     console.error('Error registrando movimiento de almacén:', err);
-    res.status(500).json({ error: 'No se pudo registrar el movimiento de almacén' });
+    res.status(400).json({ error: err.message || 'No se pudo registrar el movimiento de almacén' });
   }
 });
 
