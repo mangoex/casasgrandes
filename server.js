@@ -1085,11 +1085,14 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
     client = await db.pool.connect();
     await client.query('BEGIN');
 
-    // The warehouse rows reference the quotation and must be removed before its header.
+    // The child rows reference the quotation and must be removed before its header.
+    await client.query('DELETE FROM cotizacion_detalles WHERE cotizacion_id = $1', [id]);
+    await client.query('DELETE FROM cotizacion_adjuntos WHERE cotizacion_id = $1', [id]);
     await client.query('DELETE FROM almacen_movimientos WHERE cotizacion_id = $1', [id]);
     if (q.prospecto_id) {
       await client.query("UPDATE crm_prospectos SET estado = 'Prospecto', cotizacion_id = NULL, actualizado_en = CURRENT_TIMESTAMP WHERE id = $1", [q.prospecto_id]);
     }
+    await client.query('UPDATE crm_prospectos SET cotizacion_id = NULL WHERE cotizacion_id = $1', [id]);
     await client.query('DELETE FROM cotizaciones WHERE id = $1', [id]);
 
     // Rebuild the running stock from the movements that remain in the warehouse.

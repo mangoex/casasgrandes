@@ -3032,6 +3032,26 @@ async function populateWarehouseAuxiliaryControls() {
     }
   } else {
     setupWarehouseClientSearch();
+    populateWarehouseClientFilter();
+  }
+}
+
+async function populateWarehouseClientFilter() {
+  const filterSelect = document.getElementById('movement-filter-client');
+  if (!filterSelect) return;
+  const curVal = filterSelect.value;
+  try {
+    const res = await fetch(`${API_URL}/api/almacen/clientes-movimientos`, { headers: getHeaders() });
+    if (res.ok) {
+      const clients = await res.json();
+      const optionsHtml = (Array.isArray(clients) ? clients : []).map(c => 
+        `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`
+      ).join('');
+      filterSelect.innerHTML = '<option value="">Todos los clientes</option>' + optionsHtml;
+      filterSelect.value = curVal;
+    }
+  } catch (err) {
+    console.warn('Could not populate warehouse client filter:', err);
   }
 }
 
