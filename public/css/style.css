@@ -2,29 +2,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0');
 
 :root {
-  /* AgriSales Pro Color Palette */
-  --primary: #10b981; /* Vibrant esmeralda */
-  --primary-hover: #059669;
-  --primary-dark: #061d07; /* Dark forest green for sidebar */
-  --primary-sidebar-active: #0f3f1e;
-  --primary-light: #d1fae5;
-  --primary-glow: rgba(16, 185, 129, 0.15);
+  /* AgriSales Pro Color Palette - Light Theme (Verde & Naranja) */
+  --primary: #15803d; /* Vibrant rich agricultural green */
+  --primary-hover: #166534;
+  --primary-dark: #0f3f1e; /* Deep forest green for dark contrasts */
+  --primary-sidebar-active: #15803d;
+  --primary-light: #dcfce7;
+  --primary-glow: rgba(21, 128, 61, 0.15);
   
-  --accent: #d97706; /* Golden amber */
-  --accent-light: #fef3c7;
+  --accent: #ea580c; /* Vibrant warm harvest orange */
+  --accent-hover: #c2410c;
+  --accent-light: #ffedd5;
+  --accent-glow: rgba(234, 88, 12, 0.18);
   
-  --bg: #f4f6f4; /* Cozy beige/gray agricultural tint */
+  --bg: #f8fafc; /* Clean, crisp light background */
   --surface: #ffffff;
   
-  --text: #0f172a; /* Deep slate */
-  --text-light: #64748b; /* Soft gray for captions */
+  --text: #0f172a; /* Deep charcoal slate */
+  --text-light: #475569; /* Balanced slate for captions */
   --border: #e2e8f0;
-  --border-focus: #10b981;
+  --border-focus: #15803d;
   
   --danger: #ef4444;
-  --danger-light: #fee2fee2;
-  --success: #059669;
-  --success-light: #d1fae5;
+  --danger-light: #fee2e2;
+  --success: #15803d;
+  --success-light: #dcfce7;
   --info: #3b82f6;
   --info-light: #dbeafe;
   
@@ -2249,48 +2251,6 @@ tr:hover td {
     display: none !important;
   }
   
-  /* Bottom navigation bar */
-  .mobile-bottom-nav {
-    display: flex !important;
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 60px !important;
-    background-color: var(--surface) !important;
-    border-top: 1px solid var(--border) !important;
-    z-index: 95 !important;
-    justify-content: space-around !important;
-    align-items: center !important;
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08) !important;
-  }
-  
-  .mobile-nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    height: 100%;
-    color: var(--text-light);
-    cursor: pointer;
-    transition: var(--transition);
-  }
-  
-  .mobile-nav-icon {
-    font-size: 28px !important;
-    margin-bottom: 0 !important;
-    transition: transform 0.2s ease;
-  }
-  
-  .mobile-nav-item.active {
-    color: var(--primary) !important;
-  }
-  
-  .mobile-nav-item.active .mobile-nav-icon {
-    transform: scale(1.15) !important;
-  }
-  
   /* Force sidebar links to list vertically inside drawer */
   .nav-links {
     flex-direction: column !important;
@@ -2850,33 +2810,38 @@ tr:hover td {
 
 /* =========================================================
    ASESOR MOBILE REDESIGN (Viewport <= 768px)
-   ========================================================= */
-/* =========================================================
-   ASESOR MOBILE REDESIGN (Viewport <= 768px)
-   Ultra-modern Obsidian Dark & Electric Lime Web App Experience
+   Clean Light Theme (White, Emerald Green & Harvest Orange)
    ========================================================= */
 @media (max-width: 768px) {
   :root {
-    --mobile-bg: #0e1015;
-    --mobile-surface: #14171f;
-    --mobile-card-bg: #181b23;
-    --mobile-card-surface: #20242f;
-    --mobile-border: rgba(255, 255, 255, 0.08);
-    --mobile-border-hover: rgba(255, 255, 255, 0.15);
-    --mobile-border-focus: rgba(228, 255, 58, 0.45);
-    --mobile-accent-lime: #e4ff3a;
-    --mobile-accent-lime-hover: #d4f72c;
-    --mobile-accent-dark: #0e1015;
-    --mobile-text-white: #ffffff;
-    --mobile-text-secondary: #949dae;
-    --mobile-text-muted: #64748b;
-    --mobile-dock-bg: rgba(20, 23, 31, 0.94);
+    --mobile-bg: #f8fafc;
+    --mobile-surface: #ffffff;
+    --mobile-card-bg: #ffffff;
+    --mobile-card-surface: #f1f5f9;
+    --mobile-border: #e2e8f0;
+    --mobile-border-hover: #cbd5e1;
+    --mobile-border-focus: rgba(21, 128, 61, 0.45);
+    
+    --mobile-accent-green: #15803d;
+    --mobile-accent-green-hover: #166534;
+    --mobile-accent-green-light: #dcfce7;
+    
+    --mobile-accent-orange: #ea580c;
+    --mobile-accent-orange-hover: #c2410c;
+    --mobile-accent-orange-light: #ffedd5;
+    
+    --mobile-accent-dark: #0f172a;
+    --mobile-text-dark: #0f172a;
+    --mobile-text-white: #0f172a;
+    --mobile-text-secondary: #475569;
+    --mobile-text-muted: #94a3b8;
+    --mobile-dock-bg: rgba(255, 255, 255, 0.96);
   }
 
   /* Base Mobile Application Styles for Advisor */
   body.role-asesor {
     background-color: var(--mobile-bg) !important;
-    color: var(--mobile-text-white);
+    color: var(--mobile-text-dark);
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
   }
@@ -2887,16 +2852,16 @@ tr:hover td {
 
   body.role-asesor main {
     background-color: var(--mobile-bg) !important;
-    padding: 0 16px 100px !important;
+    padding: 0 16px 110px !important;
     min-height: 100vh;
   }
 
   body.role-asesor .card {
     background: var(--mobile-card-bg);
     border: 1px solid var(--mobile-border);
-    border-radius: 22px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    color: var(--mobile-text-white);
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    color: var(--mobile-text-dark);
   }
 
   body.role-asesor .card-title {
@@ -2909,17 +2874,18 @@ tr:hover td {
   body.role-asesor select.form-input {
     background: var(--mobile-card-surface);
     border: 1px solid var(--mobile-border);
-    border-radius: 14px;
-    color: var(--mobile-text-white);
+    border-radius: 12px;
+    color: var(--mobile-text-dark);
     font-size: 14px;
     padding: 10px 14px;
   }
 
   body.role-asesor .form-input:focus,
   body.role-asesor select.form-input:focus {
-    border-color: var(--mobile-border-focus);
+    border-color: var(--mobile-accent-green);
     outline: none;
-    box-shadow: 0 0 0 2px rgba(228, 255, 58, 0.2);
+    box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.2);
+    background: #ffffff;
   }
 
   /* Floating Bottom Navigation Dock (Pill Shape) */
@@ -2930,18 +2896,19 @@ tr:hover td {
     left: 50%;
     transform: translateX(-50%);
     width: calc(100% - 32px);
-    max-width: 380px;
+    max-width: 420px;
     height: 64px;
     background: var(--mobile-dock-bg);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(226, 232, 240, 0.95);
     border-radius: 36px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
     z-index: 1000;
     justify-content: space-evenly;
     align-items: center;
     padding: 6px 10px;
+    margin: 0;
   }
 
   body.role-asesor .mobile-bottom-nav {
@@ -2953,17 +2920,19 @@ tr:hover td {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 3px;
     background: transparent;
     border: none;
     color: var(--mobile-text-secondary);
     font-size: 11px;
     font-weight: 600;
-    padding: 6px 16px;
+    padding: 6px 8px;
     border-radius: 24px;
     cursor: pointer;
     transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-    min-width: 76px;
+    min-width: 0;
+    flex: 1;
+    text-align: center;
   }
 
   .mobile-nav-item .mobile-nav-icon {
@@ -2973,20 +2942,26 @@ tr:hover td {
     transition: transform 0.2s ease, color 0.2s ease;
   }
 
+  .mobile-nav-item .mobile-nav-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--mobile-text-secondary);
+  }
+
   .mobile-nav-item.active {
-    background: var(--mobile-accent-lime);
-    color: var(--mobile-accent-dark) !important;
-    font-weight: 800;
-    box-shadow: 0 4px 18px rgba(228, 255, 58, 0.35);
+    background: var(--mobile-accent-green);
+    color: #ffffff !important;
+    font-weight: 750;
+    box-shadow: 0 4px 14px rgba(21, 128, 61, 0.28);
   }
 
   .mobile-nav-item.active .mobile-nav-icon {
-    color: var(--mobile-accent-dark) !important;
-    transform: translateY(-1px);
+    color: #ffffff !important;
+    transform: translateY(-1px) scale(1.05);
   }
 
   .mobile-nav-item.active .mobile-nav-label {
-    color: var(--mobile-accent-dark) !important;
+    color: #ffffff !important;
   }
 
   /* Mobile Top Header */
@@ -3006,25 +2981,26 @@ tr:hover td {
     width: 40px;
     height: 40px;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #ffffff;
+    background: #ffffff;
+    border: 1px solid var(--mobile-border);
+    color: var(--mobile-text-dark);
     font-size: 18px;
     cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   }
 
   body.role-asesor #view-title {
     font-size: 19px;
     font-weight: 800;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     letter-spacing: -0.5px;
     margin: 0;
   }
 
   body.role-asesor #header-user-badge {
-    background: rgba(228, 255, 58, 0.15);
-    color: var(--mobile-accent-lime);
-    border: 1px solid rgba(228, 255, 58, 0.3);
+    background: var(--mobile-accent-green-light);
+    color: var(--mobile-accent-green);
+    border: 1px solid rgba(21, 128, 61, 0.25);
     border-radius: 20px;
     font-weight: 700;
     font-size: 11px;
@@ -3056,7 +3032,8 @@ tr:hover td {
     padding: 16px 20px;
     background: var(--mobile-card-bg);
     border: 1px solid var(--mobile-border);
-    border-radius: 24px;
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
   }
 
   .mobile-user-summary {
@@ -3071,25 +3048,25 @@ tr:hover td {
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    border: 2px solid var(--mobile-accent-lime);
+    border: 2px solid var(--mobile-accent-green);
     border-radius: 50%;
-    background: #1f232c;
-    color: var(--mobile-accent-lime);
+    background: var(--mobile-accent-green-light);
+    color: var(--mobile-accent-green);
     font-size: 17px;
     font-weight: 800;
   }
 
   .mobile-dashboard-header h2 {
     margin: 0 0 2px;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 17px;
     font-weight: 750;
     line-height: 1.2;
   }
 
   .mobile-dashboard-header .role-badge {
-    color: var(--mobile-accent-lime);
-    background: rgba(228, 255, 58, 0.12);
+    color: var(--mobile-accent-orange);
+    background: var(--mobile-accent-orange-light);
     border-radius: 20px;
     padding: 2px 8px;
     font-size: 11px;
@@ -3104,9 +3081,10 @@ tr:hover td {
     place-items: center;
     border: 1px solid var(--mobile-border);
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #ffffff;
+    background: #ffffff;
+    color: var(--mobile-text-dark);
     cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   }
 
   .notification-dot {
@@ -3115,9 +3093,9 @@ tr:hover td {
     right: 9px;
     width: 8px;
     height: 8px;
-    border: 2px solid #181b23;
+    border: 2px solid #ffffff;
     border-radius: 50%;
-    background: var(--mobile-accent-lime);
+    background: var(--mobile-accent-orange);
   }
 
   .mobile-day-heading {
@@ -3126,7 +3104,7 @@ tr:hover td {
 
   .mobile-day-heading h2 {
     margin: 0;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 26px;
     font-weight: 800;
     letter-spacing: -0.6px;
@@ -3138,14 +3116,14 @@ tr:hover td {
     font-size: 13px;
   }
 
-  /* Next Visit Highlight Card (Vibrant Electric Lime Accent) */
+  /* Next Visit Highlight Card (Verde con Botón Naranja) */
   .mobile-next-visit {
     padding: 0;
   }
 
   .mobile-section-label {
     margin-bottom: 8px;
-    color: var(--mobile-accent-lime);
+    color: var(--mobile-accent-green);
     font-size: 13px;
     font-weight: 700;
     text-transform: uppercase;
@@ -3154,10 +3132,10 @@ tr:hover td {
 
   .mobile-visit-card {
     padding: 20px;
-    border-radius: 24px;
-    background: var(--mobile-accent-lime);
-    color: var(--mobile-accent-dark);
-    box-shadow: 0 12px 30px rgba(228, 255, 58, 0.22);
+    border-radius: 22px;
+    background: linear-gradient(135deg, #15803d 0%, #16a34a 100%);
+    color: #ffffff;
+    box-shadow: 0 10px 24px rgba(21, 128, 61, 0.22);
   }
 
   .mobile-visit-main {
@@ -3173,8 +3151,8 @@ tr:hover td {
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: var(--mobile-accent-dark);
-    color: var(--mobile-accent-lime);
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
   }
 
   .mobile-visit-icon .material-symbols-rounded {
@@ -3183,7 +3161,7 @@ tr:hover td {
 
   .mobile-visit-copy h3 {
     margin: 0 0 2px;
-    color: var(--mobile-accent-dark);
+    color: #ffffff;
     font-size: 17px;
     font-weight: 800;
     line-height: 1.2;
@@ -3194,9 +3172,9 @@ tr:hover td {
 
   .mobile-visit-copy p {
     margin: 0;
-    color: rgba(14, 16, 21, 0.78);
+    color: rgba(255, 255, 255, 0.88);
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3205,21 +3183,22 @@ tr:hover td {
   .mobile-visit-date {
     min-width: 50px;
     padding-left: 10px;
-    border-left: 1px solid rgba(14, 16, 21, 0.15);
-    color: var(--mobile-accent-dark);
+    border-left: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
     text-align: center;
   }
 
   .mobile-visit-date .material-symbols-rounded {
     display: block;
     margin: 0 auto 2px;
-    color: var(--mobile-accent-dark);
+    color: #ffffff;
     font-size: 20px;
   }
 
   .mobile-visit-date strong {
     font-size: 11px;
     font-weight: 750;
+    color: #ffffff;
   }
 
   .mobile-primary-action {
@@ -3232,13 +3211,18 @@ tr:hover td {
     margin-top: 14px;
     border: 0;
     border-radius: 14px;
-    background: var(--mobile-accent-dark);
-    color: var(--mobile-accent-lime);
+    background: var(--mobile-accent-orange);
+    color: #ffffff;
     font: inherit;
     font-size: 14px;
     font-weight: 800;
     cursor: pointer;
-    transition: transform 0.15s ease;
+    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+
+  .mobile-primary-action:hover {
+    background: var(--mobile-accent-orange-hover);
   }
 
   .mobile-primary-action:active {
@@ -3253,9 +3237,9 @@ tr:hover td {
     gap: 14px;
     padding: 18px;
     border: 1px solid var(--mobile-border);
-    border-radius: 22px;
+    border-radius: 20px;
     background: var(--mobile-card-bg);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
   }
 
   .mobile-metric {
@@ -3272,8 +3256,13 @@ tr:hover td {
     place-items: center;
     flex: 0 0 auto;
     border-radius: 50%;
-    background: rgba(228, 255, 58, 0.12);
-    color: var(--mobile-accent-lime);
+    background: var(--mobile-accent-green-light);
+    color: var(--mobile-accent-green);
+  }
+
+  .mobile-metric:nth-child(3) .mobile-metric-icon {
+    background: var(--mobile-accent-orange-light);
+    color: var(--mobile-accent-orange);
   }
 
   .mobile-metric-icon .material-symbols-rounded {
@@ -3290,11 +3279,15 @@ tr:hover td {
 
   .mobile-metric strong {
     margin: 1px 0;
-    color: var(--mobile-accent-lime);
+    color: var(--mobile-accent-green);
     font-size: 20px;
     font-weight: 800;
     line-height: 1.1;
     display: block;
+  }
+
+  .mobile-metric:nth-child(3) strong {
+    color: var(--mobile-accent-orange);
   }
 
   .mobile-metric small {
@@ -3311,7 +3304,7 @@ tr:hover td {
 
   .mobile-actions-title {
     margin: 6px 4px 2px;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 15px;
     font-weight: 750;
   }
@@ -3323,7 +3316,7 @@ tr:hover td {
     border: 1px solid var(--mobile-border);
     border-radius: 20px;
     background: var(--mobile-card-bg);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
   }
 
   .mobile-action-card {
@@ -3337,7 +3330,7 @@ tr:hover td {
     border: 0;
     border-right: 1px solid var(--mobile-border);
     background: transparent;
-    color: var(--mobile-text-white);
+    color: var(--mobile-text-dark);
     font: inherit;
     cursor: pointer;
     transition: background 0.15s ease;
@@ -3348,17 +3341,22 @@ tr:hover td {
   }
 
   .mobile-action-card .material-symbols-rounded {
-    color: var(--mobile-accent-lime);
+    color: var(--mobile-accent-green);
     font-size: 26px;
+  }
+
+  .mobile-action-card:nth-child(2) .material-symbols-rounded {
+    color: var(--mobile-accent-orange);
   }
 
   .mobile-action-card strong {
     font-size: 11px;
     font-weight: 700;
+    color: var(--mobile-text-dark);
   }
 
   .mobile-action-card:active {
-    background: rgba(228, 255, 58, 0.08);
+    background: rgba(21, 128, 61, 0.06);
   }
 
   /* ---------------------------------------------------------
@@ -3387,6 +3385,7 @@ tr:hover td {
     border-radius: 20px;
     padding: 14px;
     min-height: auto !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
   }
 
   body.role-asesor #planeacion-view .kanban-column-header {
@@ -3396,14 +3395,14 @@ tr:hover td {
   }
 
   body.role-asesor #planeacion-view .kanban-column-title {
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 15px;
     font-weight: 750;
   }
 
   body.role-asesor #planeacion-view .kanban-column-count {
-    background: rgba(228, 255, 58, 0.15);
-    color: var(--mobile-accent-lime);
+    background: var(--mobile-accent-green-light);
+    color: var(--mobile-accent-green);
     border-radius: 12px;
     padding: 2px 8px;
     font-size: 11px;
@@ -3411,17 +3410,17 @@ tr:hover td {
   }
 
   body.role-asesor #planeacion-view .kanban-card {
-    background: var(--mobile-card-surface);
+    background: #ffffff;
     border: 1px solid var(--mobile-border);
     border-radius: 16px;
     padding: 14px;
     margin-bottom: 10px;
-    color: var(--mobile-text-white);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    color: var(--mobile-text-dark);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   }
 
   body.role-asesor #planeacion-view .kanban-card:hover {
-    border-color: var(--mobile-border-focus);
+    border-color: var(--mobile-accent-green);
   }
 
   /* ---------------------------------------------------------
@@ -3439,8 +3438,8 @@ tr:hover td {
     width: 100% !important;
     background: var(--mobile-card-surface);
     border: 1px solid var(--mobile-border);
-    border-radius: 20px;
-    color: var(--mobile-text-white);
+    border-radius: 14px;
+    color: var(--mobile-text-dark);
     padding: 12px 18px;
     font-size: 14px;
     box-sizing: border-box;
@@ -3474,19 +3473,19 @@ tr:hover td {
   }
 
   body.role-asesor .catalog-filters .filter-pill.active {
-    background-color: var(--mobile-accent-lime);
-    color: var(--mobile-accent-dark);
-    border-color: var(--mobile-accent-lime);
-    font-weight: 800;
+    background-color: var(--mobile-accent-green);
+    color: #ffffff;
+    border-color: var(--mobile-accent-green);
+    font-weight: 700;
   }
 
   /* Mobile Client Cards */
   body.role-asesor .mobile-client-card {
     background: var(--mobile-card-bg);
-    border-radius: 20px;
+    border-radius: 18px;
     padding: 16px 18px;
     border: 1px solid var(--mobile-border);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
     margin-bottom: 12px;
     display: flex;
     align-items: center;
@@ -3498,7 +3497,7 @@ tr:hover td {
     font-size: 16px;
     font-weight: 750;
     margin: 0 0 3px 0;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
   }
 
   body.role-asesor .mobile-client-card .client-info p {
@@ -3508,8 +3507,8 @@ tr:hover td {
   }
 
   body.role-asesor .mobile-client-card .btn-pedido {
-    background-color: var(--mobile-accent-lime);
-    color: var(--mobile-accent-dark);
+    background-color: var(--mobile-accent-orange);
+    color: #ffffff;
     font-weight: 800;
     font-size: 12px;
     padding: 8px 14px;
@@ -3517,6 +3516,7 @@ tr:hover td {
     border: none;
     cursor: pointer;
     flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
   }
 
   /* ---------------------------------------------------------
@@ -3527,7 +3527,7 @@ tr:hover td {
   }
 
   body.role-asesor.mobile-quote-active main {
-    padding: 0 16px 100px !important;
+    padding: 0 16px 110px !important;
     background: var(--mobile-bg);
   }
 
@@ -3545,7 +3545,7 @@ tr:hover td {
     align-items: center;
     gap: 10px;
     padding: 16px 4px;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     border-bottom: 1px solid var(--mobile-border);
     margin-bottom: 16px;
   }
@@ -3558,14 +3558,15 @@ tr:hover td {
     padding: 0;
     border: 1px solid var(--mobile-border);
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #ffffff;
+    background: #ffffff;
+    color: var(--mobile-text-dark);
     cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   }
 
   .mobile-quote-header h2 {
     margin: 0;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 20px;
     font-weight: 800;
     line-height: 1.1;
@@ -3576,7 +3577,7 @@ tr:hover td {
     align-items: center;
     gap: 6px;
     margin-top: 2px;
-    color: var(--mobile-accent-lime);
+    color: var(--mobile-accent-green);
     font-size: 11px;
     font-weight: 600;
   }
@@ -3586,7 +3587,7 @@ tr:hover td {
     height: 6px;
     display: inline-block;
     border-radius: 50%;
-    background: var(--mobile-accent-lime);
+    background: var(--mobile-accent-green);
   }
 
   body.role-asesor.mobile-quote-active .quote-builder-grid {
@@ -3633,9 +3634,9 @@ tr:hover td {
     margin: 0 0 16px;
     padding: 16px;
     border: 1px solid var(--mobile-border);
-    border-radius: 20px;
+    border-radius: 18px;
     background: var(--mobile-card-bg);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
   }
 
   body.role-asesor.mobile-quote-active .quote-client-field label {
@@ -3649,10 +3650,10 @@ tr:hover td {
 
   body.role-asesor.mobile-quote-active #quote-client {
     height: 48px;
-    border-color: var(--mobile-border);
-    border-radius: 14px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
     background: var(--mobile-card-surface);
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 15px;
     font-weight: 700;
   }
@@ -3668,7 +3669,7 @@ tr:hover td {
 
   body.role-asesor.mobile-quote-active .quote-items-section h4 {
     margin: 0;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 17px;
     font-weight: 800;
   }
@@ -3679,10 +3680,10 @@ tr:hover td {
     align-items: center;
     gap: 4px;
     padding: 6px 12px !important;
-    border: 1px solid rgba(228, 255, 58, 0.3);
+    border: 1px solid rgba(21, 128, 61, 0.3);
     border-radius: 12px;
-    background: rgba(228, 255, 58, 0.1);
-    color: var(--mobile-accent-lime);
+    background: var(--mobile-accent-green-light);
+    color: var(--mobile-accent-green);
     font-size: 12px !important;
     font-weight: 750;
   }
@@ -3692,9 +3693,9 @@ tr:hover td {
     margin-bottom: 12px;
     padding: 16px;
     border: 1px solid var(--mobile-border);
-    border-radius: 20px;
+    border-radius: 18px;
     background: var(--mobile-card-bg);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
   }
 
   body.role-asesor.mobile-quote-active .item-row {
@@ -3713,8 +3714,8 @@ tr:hover td {
     grid-column: 1;
     grid-row: 1;
     border-radius: 14px;
-    background: rgba(228, 255, 58, 0.12);
-    color: var(--mobile-accent-lime);
+    background: var(--mobile-accent-green-light);
+    color: var(--mobile-accent-green);
   }
 
   body.role-asesor.mobile-quote-active .item-product-group {
@@ -3736,7 +3737,7 @@ tr:hover td {
     overflow: hidden;
     border: 0;
     background-color: transparent;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 14px;
     font-weight: 750;
     text-overflow: ellipsis;
@@ -3752,7 +3753,7 @@ tr:hover td {
     place-items: center;
     padding: 0;
     border-radius: 10px;
-    background: rgba(239, 68, 68, 0.15);
+    background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.25);
     color: #ef4444;
   }
@@ -3789,7 +3790,7 @@ tr:hover td {
     display: block;
     border: 0;
     background: transparent;
-    color: var(--mobile-accent-lime);
+    color: var(--mobile-accent-green);
     font-size: 20px;
     font-weight: 800;
     cursor: pointer;
@@ -3804,7 +3805,7 @@ tr:hover td {
     border-right: 1px solid var(--mobile-border);
     border-left: 1px solid var(--mobile-border);
     background: transparent;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 15px;
     font-weight: 800;
     text-align: center;
@@ -3829,7 +3830,7 @@ tr:hover td {
     padding: 0;
     border: 0;
     background: transparent !important;
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 13px;
     font-weight: 750;
     text-align: right;
@@ -3842,7 +3843,7 @@ tr:hover td {
     font-size: 9px;
   }
 
-  /* Total Summary Card (Electric Lime Highlight) */
+  /* Total Summary Card (Emerald Green Highlight) */
   body.role-asesor.mobile-quote-active .mobile-quote-summary {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -3856,16 +3857,16 @@ tr:hover td {
     align-items: flex-end;
     justify-content: space-between;
     padding: 16px 20px;
-    border-radius: 20px;
-    background: var(--mobile-accent-lime);
-    color: var(--mobile-accent-dark);
-    box-shadow: 0 10px 26px rgba(228, 255, 58, 0.25);
+    border-radius: 18px;
+    background: linear-gradient(135deg, #15803d 0%, #16a34a 100%);
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(21, 128, 61, 0.25);
     font-size: 14px;
     font-weight: 700;
   }
 
   .mobile-quote-total-row strong {
-    color: var(--mobile-accent-dark);
+    color: #ffffff;
     font-size: 24px;
     font-weight: 850;
     letter-spacing: -0.5px;
@@ -3880,24 +3881,25 @@ tr:hover td {
     padding: 12px;
     border: 1px solid var(--mobile-border);
     border-radius: 18px;
-    background: var(--mobile-card-bg);
-    color: #ffffff;
+    background: #ffffff;
+    color: var(--mobile-text-dark);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
   }
 
   .mobile-quote-benefit.coupon {
-    border-color: rgba(228, 255, 58, 0.25);
-    background: rgba(228, 255, 58, 0.08);
-    color: var(--mobile-accent-lime);
+    border-color: rgba(234, 88, 12, 0.25);
+    background: var(--mobile-accent-orange-light);
+    color: var(--mobile-accent-orange);
   }
 
   .mobile-quote-benefit strong {
-    color: #ffffff;
+    color: var(--mobile-text-dark);
     font-size: 13px;
     font-weight: 800;
   }
 
   .mobile-quote-benefit.coupon strong {
-    color: var(--mobile-accent-lime);
+    color: var(--mobile-accent-orange);
   }
 
   .mobile-quote-benefit small {
@@ -3914,31 +3916,35 @@ tr:hover td {
   body.role-asesor.mobile-quote-active .quote-submit-button {
     height: 52px !important;
     border-radius: 16px;
-    background: var(--mobile-accent-lime);
-    color: var(--mobile-accent-dark) !important;
-    box-shadow: 0 10px 24px rgba(228, 255, 58, 0.3);
+    background: var(--mobile-accent-orange);
+    color: #ffffff !important;
+    box-shadow: 0 8px 20px rgba(234, 88, 12, 0.32);
     font-size: 15px;
     font-weight: 800;
     border: 0;
     width: 100%;
     cursor: pointer;
-    transition: transform 0.15s ease;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+
+  body.role-asesor.mobile-quote-active .quote-submit-button:hover {
+    background: var(--mobile-accent-orange-hover);
   }
 
   body.role-asesor.mobile-quote-active .quote-submit-button:active {
     transform: scale(0.98);
   }
 
-  /* Mobile Tables & Modals Dark Enhancements */
+  /* Mobile Tables & Modals Light Enhancements */
   body.role-asesor .table-container {
-    background: var(--mobile-card-bg);
+    background: #ffffff;
     border: 1px solid var(--mobile-border);
     border-radius: 18px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
   }
 
   body.role-asesor th {
-    background-color: var(--mobile-surface);
+    background-color: var(--mobile-card-surface);
     color: var(--mobile-text-secondary);
     border-bottom: 1px solid var(--mobile-border);
     font-size: 11px;
@@ -3946,19 +3952,19 @@ tr:hover td {
 
   body.role-asesor td {
     border-bottom: 1px solid var(--mobile-border);
-    color: var(--mobile-text-white);
+    color: var(--mobile-text-dark);
   }
 
   body.role-asesor tr:hover td {
-    background-color: rgba(228, 255, 58, 0.04);
+    background-color: rgba(21, 128, 61, 0.04);
   }
 
   body.role-asesor .modal-content {
-    background: var(--mobile-card-bg);
+    background: #ffffff;
     border: 1px solid var(--mobile-border);
     border-radius: 24px;
-    color: var(--mobile-text-white);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+    color: var(--mobile-text-dark);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
   }
 
   body.role-asesor .modal-header {
@@ -3966,22 +3972,23 @@ tr:hover td {
   }
 
   body.role-asesor .modal-header h3 {
-    color: #ffffff;
+    color: var(--mobile-text-dark);
   }
 
   body.role-asesor .btn-primary {
-    background-color: var(--mobile-accent-lime) !important;
-    color: var(--mobile-accent-dark) !important;
-    font-weight: 800 !important;
+    background-color: var(--mobile-accent-green) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
     border: none !important;
-    border-radius: 14px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(21, 128, 61, 0.25) !important;
   }
 
   body.role-asesor .btn-secondary {
     background-color: var(--mobile-card-surface) !important;
     color: var(--mobile-text-secondary) !important;
     border: 1px solid var(--mobile-border) !important;
-    border-radius: 14px !important;
+    border-radius: 12px !important;
   }
 }
 
