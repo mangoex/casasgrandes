@@ -1620,7 +1620,7 @@ app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
         `, [
           dateVal,
           fullTipoMovimiento,
-          item.categoria || categoria || 'Agroquímicos',
+          (item.categoria === 'Semilla' || item.categoria === 'Híbrido') ? 'Semilla' : (item.categoria || categoria || 'Agroquímicos'),
           item.producto_id,
           item.lote || null,
           item.tamano || null,

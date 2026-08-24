@@ -3593,7 +3593,8 @@ function renderWarehouseMovements(movements) {
       if (m.precio_venta > 0) contactDetails += `${contactDetails ? '<br>' : ''}<span style="font-size: 11px; font-weight: 600;">$${Number(m.precio_venta).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>`;
     }
 
-    const catBadge = m.categoria === 'Semilla' ? '🌽 Semilla' : '🌱 Agroquímico';
+    const isSeedCategory = m.categoria === 'Semilla' || m.categoria === 'Híbrido' || m.producto_categoria_orig === 'Híbrido' || m.producto_categoria_orig === 'Semilla';
+    const catBadge = isSeedCategory ? '🌽 Semilla' : '🌱 Agroquímico';
 
     const canDelete = user?.nivel_rol === 'Administrador';
 
@@ -3877,7 +3878,7 @@ document.getElementById('add-movement-form').addEventListener('submit', async (e
       tamano: tamano || null,
       cantidad,
       precio_venta: precioVenta,
-      categoria: prodObj?.tipo_categoria || 'Agroquímicos'
+      categoria: isSeed ? 'Semilla' : (prodObj?.tipo_categoria || 'Agroquímicos')
     });
   }
 

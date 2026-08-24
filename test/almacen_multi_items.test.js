@@ -100,10 +100,12 @@ test('buildWarehouseMovementsQuery: genera WHERE clause con filtro por cliente_i
 
   assert.ok(query.conditions.some(c => c.includes('cliente_id')));
   assert.ok(query.conditions.some(c => c.includes('categoria')));
-  assert.equal(query.params.length, 3);
+  assert.equal(query.params.length, 5);
   assert.equal(query.params[0], 15);
   assert.equal(query.params[1], 15);
   assert.equal(query.params[2], 'Agroquímicos');
+  assert.equal(query.params[3], 'Agroquímico');
+  assert.equal(query.params[4], 'Fertilizante');
   assert.match(query.whereClause, /cliente_id/);
   assert.match(query.sql, /LEFT JOIN clientes cli/);
 });

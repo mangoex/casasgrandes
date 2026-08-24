@@ -124,13 +124,15 @@ function normalizeMovementItems(body = {}) {
     return body.items.map(item => {
       const isSalida = String(body.tipo || body.tipo_movimiento || item.tipo || '').toLowerCase().includes('salida');
       const qty = Number(item.cantidad || (isSalida ? item.cantidad_saliente : item.cantidad_entrante)) || 0.0;
+      const rawCat = String(item.categoria || body.categoria || 'Agroquímicos').trim();
+      const isSeed = rawCat.toLowerCase().includes('semilla') || rawCat.toLowerCase().includes('híbrido') || rawCat.toLowerCase().includes('hibrido');
       return {
         producto_id: Number(item.producto_id),
         lote: String(item.lote || '').trim(),
         tamano: item.tamano ? String(item.tamano).trim() : null,
         cantidad: qty,
         precio_venta: Number(item.precio_venta) || 0.0,
-        categoria: String(item.categoria || body.categoria || 'Agroquímicos').trim()
+        categoria: isSeed ? 'Semilla' : rawCat
       };
     });
   }
@@ -144,13 +146,16 @@ function normalizeMovementItems(body = {}) {
     return [];
   }
 
+  const rawCat = String(body.categoria || 'Agroquímicos').trim();
+  const isSeed = rawCat.toLowerCase().includes('semilla') || rawCat.toLowerCase().includes('híbrido') || rawCat.toLowerCase().includes('hibrido');
+
   return [{
     producto_id: prodId,
     lote: String(body.lote || '').trim(),
     tamano: body.tamano ? String(body.tamano).trim() : null,
     cantidad: qty,
     precio_venta: Number(body.precio_venta) || 0.0,
-    categoria: String(body.categoria || 'Agroquímicos').trim()
+    categoria: isSeed ? 'Semilla' : rawCat
   }];
 }
 
@@ -223,8 +228,19 @@ function buildWarehouseMovementsQuery(query = {}) {
     params.push(`%${movementType}%`);
   }
   if (categoria) {
-    conditions.push('COALESCE(m.categoria, p.tipo_categoria) = ?');
-    params.push(categoria);
+    if (categoria === 'Semilla') {
+      conditions.push('(COALESCE(m.categoria, p.tipo_categoria) = ? OR COALESCE(m.categoria, p.tipo_categoria) = ?)');
+      params.push('Semilla');
+      params.push('Híbrido');
+    } else if (categoria === 'Agroquímicos' || categoria === 'Agroquímico') {
+      conditions.push('(COALESCE(m.categoria, p.tipo_categoria) = ? OR COALESCE(m.categoria, p.tipo_categoria) = ? OR COALESCE(m.categoria, p.tipo_categoria) = ?)');
+      params.push('Agroquímicos');
+      params.push('Agroquímico');
+      params.push('Fertilizante');
+    } else {
+      conditions.push('COALESCE(m.categoria, p.tipo_categoria) = ?');
+      params.push(categoria);
+    }
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
