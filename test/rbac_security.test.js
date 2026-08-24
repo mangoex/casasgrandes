@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { requireAdmin, requireAdminOrCoordinador, requireProgramacionManager } = require('../middleware/auth');
+const { requireAdmin, requireAdminOrCoordinador, requireProgramacionManager, requireWarehouseOperator } = require('../middleware/auth');
 
 function createMockReqRes(userRole, userId = 1) {
   const req = {
@@ -92,6 +92,40 @@ test('RBAC Middleware - requireProgramacionManager', () => {
   requireProgramacionManager(asesorContext.req, asesorContext.res, asesorContext.next);
   assert.equal(asesorContext.isNextCalled(), false);
   assert.equal(asesorContext.res.getStatusCode(), 403);
+});
+
+test('RBAC Middleware - requireWarehouseOperator', () => {
+  // Administrador passes
+  const adminContext = createMockReqRes('Administrador');
+  requireWarehouseOperator(adminContext.req, adminContext.res, adminContext.next);
+  assert.equal(adminContext.isNextCalled(), true);
+
+  // Coordinador passes
+  const coordContext = createMockReqRes('Coordinador');
+  requireWarehouseOperator(coordContext.req, coordContext.res, coordContext.next);
+  assert.equal(coordContext.isNextCalled(), true);
+
+  // Almacen passes
+  const almacenContext = createMockReqRes('Almacen');
+  requireWarehouseOperator(almacenContext.req, almacenContext.res, almacenContext.next);
+  assert.equal(almacenContext.isNextCalled(), true);
+
+  // Director passes
+  const directorContext = createMockReqRes('Director');
+  requireWarehouseOperator(directorContext.req, directorContext.res, directorContext.next);
+  assert.equal(directorContext.isNextCalled(), true);
+
+  // Asesor gets 403
+  const asesorContext = createMockReqRes('Asesor');
+  requireWarehouseOperator(asesorContext.req, asesorContext.res, asesorContext.next);
+  assert.equal(asesorContext.isNextCalled(), false);
+  assert.equal(asesorContext.res.getStatusCode(), 403);
+
+  // Acopio gets 403
+  const acopioContext = createMockReqRes('Acopio');
+  requireWarehouseOperator(acopioContext.req, acopioContext.res, acopioContext.next);
+  assert.equal(acopioContext.isNextCalled(), false);
+  assert.equal(acopioContext.res.getStatusCode(), 403);
 });
 
 test('Cartera Isolation Logic - Asesor strictly restricted to own client records', () => {

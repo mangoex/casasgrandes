@@ -34,12 +34,22 @@ function requireProgramacionManager(req, res, next) {
   return requireAdminOrCoordinador(req, res, next);
 }
 
+function requireWarehouseOperator(req, res, next) {
+  const allowed = ['Administrador', 'Coordinador', 'Almacen', 'Director'];
+  if (!req.user || !allowed.includes(req.user.nivel_rol)) {
+    return res.status(403).json({ error: 'Permisos insuficientes para operar almacén.' });
+  }
+  next();
+}
+
 module.exports = {
   authenticateToken,
   requireAdmin,
   requireAdminOrCoordinador,
   requireProgramacionManager,
+  requireWarehouseOperator,
   JWT_SECRET,
   JWT_EXPIRES_IN
 };
+
 

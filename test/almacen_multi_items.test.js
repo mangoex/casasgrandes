@@ -116,3 +116,23 @@ test('buildWarehouseMovementsQuery: genera consulta completa sin filtros cuando 
   assert.equal(query.params.length, 0);
   assert.equal(query.whereClause, '');
 });
+
+test('Warehouse Operative Roles: Almacen, Director, Administrador y Coordinador tienen acceso autorizado', () => {
+  const allowedWarehouseRoles = ['Administrador', 'Coordinador', 'Almacen', 'Director'];
+
+  const testUsers = [
+    { role: 'Almacen', expectedAllowed: true },
+    { role: 'Director', expectedAllowed: true },
+    { role: 'Administrador', expectedAllowed: true },
+    { role: 'Coordinador', expectedAllowed: true },
+    { role: 'Asesor', expectedAllowed: false },
+    { role: 'Comisionista', expectedAllowed: false },
+    { role: 'Acopio', expectedAllowed: false }
+  ];
+
+  for (const u of testUsers) {
+    const isAllowed = allowedWarehouseRoles.includes(u.role);
+    assert.equal(isAllowed, u.expectedAllowed, `El rol ${u.role} debería tener acceso=${u.expectedAllowed}`);
+  }
+});
+

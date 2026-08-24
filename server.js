@@ -1471,7 +1471,8 @@ app.post('/api/almacen/existencias/:productoId/ajuste', authenticateToken, async
 });
 
 app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
-  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+  const allowedWarehouseRoles = ['Administrador', 'Coordinador', 'Almacen', 'Director'];
+  if (!allowedWarehouseRoles.includes(req.user?.nivel_rol)) {
     return res.status(403).json({ error: 'Permisos insuficientes para registrar movimientos de almacén.' });
   }
 
@@ -1695,7 +1696,8 @@ app.post('/api/almacen/produccion-uan32', authenticateToken, async (req, res) =>
     return res.status(400).json({ error: 'cantidad_solub_toneladas must be a positive number' });
   }
   
-  if (req.user.nivel_rol !== 'Administrador' && req.user.nivel_rol !== 'Coordinador') {
+  const allowedWarehouseRoles = ['Administrador', 'Coordinador', 'Almacen', 'Director'];
+  if (!allowedWarehouseRoles.includes(req.user?.nivel_rol)) {
     return res.status(403).json({ error: 'Permisos insuficientes para producción interna de UAN-32.' });
   }
   
