@@ -3800,12 +3800,11 @@ document.getElementById('movement-filter-client')?.addEventListener('change', ()
 document.getElementById('add-movement-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   
-  const categoria = document.getElementById('move-categoria').value;
-  const tipoOp = document.getElementById('move-tipo-operacion').value; // 'Salida' o 'Entrada'
-  const productoId = Number(document.getElementById('move-prod').value);
+  const categoria = document.getElementById('move-categoria')?.value || 'Todos';
+  const tipoOp = document.getElementById('move-tipo-operacion')?.value || 'Salida'; // 'Salida' o 'Entrada'
   const isSalida = tipoOp === 'Salida';
-  const fecha = document.getElementById('move-fecha').value;
-  const notas = document.getElementById('move-notas').value.trim();
+  const fecha = document.getElementById('move-fecha')?.value;
+  const notas = document.getElementById('move-notas')?.value ? document.getElementById('move-notas').value.trim() : '';
 
   const itemRows = document.querySelectorAll('#movement-items-list .movement-item-row');
   if (itemRows.length === 0) {
@@ -3890,15 +3889,15 @@ document.getElementById('add-movement-form').addEventListener('submit', async (e
   };
 
   if (isSalida) {
-    payload.opcion_operacion = document.getElementById('move-opcion').value;
-    payload.numero_remision = document.getElementById('move-remision').value.trim();
-    payload.numero_movimiento = document.getElementById('move-num-salida').value.trim();
-    payload.asesor_id = Number(document.getElementById('move-asesor').value) || null;
-    payload.cliente_id = Number(document.getElementById('move-cliente').value) || null;
+    payload.opcion_operacion = document.getElementById('move-opcion')?.value || 'Contado';
+    payload.numero_remision = document.getElementById('move-remision')?.value?.trim() || '';
+    payload.numero_movimiento = document.getElementById('move-num-salida')?.value?.trim() || '';
+    payload.asesor_id = Number(document.getElementById('move-asesor')?.value) || null;
+    payload.cliente_id = Number(document.getElementById('move-cliente')?.value) || null;
     payload.tipo_movimiento = `Salida (${payload.opcion_operacion})`;
   } else {
-    payload.proveedor_cliente = document.getElementById('move-proveedor').value.trim();
-    payload.numero_movimiento = document.getElementById('move-num-entrada').value.trim();
+    payload.proveedor_cliente = document.getElementById('move-proveedor')?.value?.trim() || '';
+    payload.numero_movimiento = document.getElementById('move-num-entrada')?.value?.trim() || '';
     payload.tipo_movimiento = 'Entrada';
   }
 
