@@ -110,6 +110,20 @@ test('buildWarehouseMovementsQuery: genera WHERE clause con filtro por cliente_i
   assert.match(query.sql, /LEFT JOIN clientes cli/);
 });
 
+test('buildWarehouseMovementsQuery: genera WHERE clause con filtro por asesor_id', () => {
+  const { buildWarehouseMovementsQuery } = require('../utils/almacen');
+  const query = buildWarehouseMovementsQuery({ asesor_id: 3, tipo_movimiento: 'Salida' });
+
+  assert.ok(query.conditions.some(c => c.includes('asesor_id')));
+  assert.ok(query.conditions.some(c => c.includes('tipo_movimiento')));
+  assert.equal(query.params.length, 3);
+  assert.equal(query.params[0], 3);
+  assert.equal(query.params[1], 3);
+  assert.equal(query.params[2], '%Salida%');
+  assert.match(query.whereClause, /asesor_id/);
+  assert.match(query.sql, /LEFT JOIN asesores a/);
+});
+
 test('buildWarehouseMovementsQuery: genera consulta completa sin filtros cuando no se proporcionan', () => {
   const { buildWarehouseMovementsQuery } = require('../utils/almacen');
   const query = buildWarehouseMovementsQuery({});

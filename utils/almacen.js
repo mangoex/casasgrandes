@@ -211,6 +211,7 @@ function buildWarehouseMovementsQuery(query = {}) {
   const params = [];
   const productId = Number(query.producto_id);
   const clienteId = Number(query.cliente_id);
+  const asesorId = Number(query.asesor_id);
   const movementType = String(query.tipo_movimiento || '').trim();
   const categoria = String(query.categoria || '').trim();
 
@@ -222,6 +223,11 @@ function buildWarehouseMovementsQuery(query = {}) {
     conditions.push('(m.cliente_id = ? OR (m.cliente_id IS NULL AND c.cliente_id = ?))');
     params.push(clienteId);
     params.push(clienteId);
+  }
+  if (Number.isInteger(asesorId) && asesorId > 0) {
+    conditions.push('(m.asesor_id = ? OR (m.asesor_id IS NULL AND c.asesor_id = ?))');
+    params.push(asesorId);
+    params.push(asesorId);
   }
   if (movementType) {
     conditions.push('m.tipo_movimiento LIKE ?');

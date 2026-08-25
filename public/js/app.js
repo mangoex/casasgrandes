@@ -3227,17 +3227,29 @@ function setupWarehouseFormHandlers() {
 
 async function populateWarehouseAuxiliaryControls() {
   const moveAsesor = document.getElementById('move-asesor');
+  const filterAsesor = document.getElementById('movement-filter-advisor');
 
   // Load advisors if needed
-  if (moveAsesor && moveAsesor.children.length <= 1) {
+  if ((moveAsesor && moveAsesor.children.length <= 1) || (filterAsesor && filterAsesor.children.length <= 1)) {
     try {
       const res = await fetch(`${API_URL}/api/asesores`, { headers: getHeaders() });
       if (res.ok) {
         const asesores = await res.json();
-        const optionsHtml = (Array.isArray(asesores) ? asesores : []).map(a => 
-          `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`
-        ).join('');
-        moveAsesor.innerHTML = '<option value="">-- Seleccionar Asesor --</option>' + optionsHtml;
+        const advisorList = Array.isArray(asesores) ? asesores : [];
+        if (moveAsesor && moveAsesor.children.length <= 1) {
+          const optionsHtml = advisorList.map(a => 
+            `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`
+          ).join('');
+          moveAsesor.innerHTML = '<option value="">-- Seleccionar Asesor --</option>' + optionsHtml;
+        }
+        if (filterAsesor) {
+          const curVal = filterAsesor.value;
+          const optionsHtml = advisorList.map(a => 
+            `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`
+          ).join('');
+          filterAsesor.innerHTML = '<option value="">Todos los asesores</option>' + optionsHtml;
+          filterAsesor.value = curVal;
+        }
       }
     } catch (e) {
       console.warn('Failed to load advisors for warehouse form:', e);
@@ -3644,12 +3656,14 @@ async function loadWarehouseMovements() {
   const category = document.getElementById('movement-filter-category')?.value || '';
   const type = document.getElementById('movement-filter-type')?.value || '';
   const productId = document.getElementById('movement-filter-product')?.value || '';
+  const asesorId = document.getElementById('movement-filter-advisor')?.value || '';
   const clienteId = document.getElementById('movement-filter-client')?.value || '';
 
   const params = new URLSearchParams();
   if (category) params.set('categoria', category);
   if (type) params.set('tipo_movimiento', type);
   if (productId) params.set('producto_id', productId);
+  if (asesorId) params.set('asesor_id', asesorId);
   if (clienteId) params.set('cliente_id', clienteId);
 
   const query = params.toString();
@@ -3791,6 +3805,9 @@ document.getElementById('movement-filter-type')?.addEventListener('change', () =
   loadWarehouseMovements().catch(err => alert(err.message));
 });
 document.getElementById('movement-filter-product')?.addEventListener('change', () => {
+  loadWarehouseMovements().catch(err => alert(err.message));
+});
+document.getElementById('movement-filter-advisor')?.addEventListener('change', () => {
   loadWarehouseMovements().catch(err => alert(err.message));
 });
 document.getElementById('movement-filter-client')?.addEventListener('change', () => {
