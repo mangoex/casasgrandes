@@ -3983,12 +3983,26 @@ document.getElementById('produccion-uan-form').addEventListener('submit', async 
 // -------------------------------------------------------------
 // ADMINISTRATION CATALOG LOGIC
 // -------------------------------------------------------------
-let adminActiveTab = 'asesores';
+let adminActiveTab = 'seguimiento';
 let allAdminAsesores = [];
 let allAdminProductos = [];
 let allAdminKeyAccounts = [];
 
+// Salesforce Tracking Dashboard State
+let sfDashboardData = null;
+let sfActivePreset = 'ciclo';
+let sfCustomStartDate = '';
+let sfCustomEndDate = '';
+let sfSelectedAsesorId = 'ALL';
+let sfActiveQueueFilter = 'all';
+let sfSelectedAdvisorSpotlightId = null;
+let sfSearchAdvisorTerm = '';
+let sfEventsInitialized = false;
+
 // Tab switching
+if (document.getElementById('tab-admin-seguimiento')) {
+  document.getElementById('tab-admin-seguimiento').addEventListener('click', () => switchAdminTab('seguimiento'));
+}
 if (document.getElementById('tab-admin-asesores')) {
   document.getElementById('tab-admin-asesores').addEventListener('click', () => switchAdminTab('asesores'));
   document.getElementById('tab-admin-productos').addEventListener('click', () => switchAdminTab('productos'));
@@ -4000,26 +4014,50 @@ if (document.getElementById('tab-admin-asesores')) {
 
 function switchAdminTab(tabName) {
   adminActiveTab = tabName;
-  document.getElementById('tab-admin-asesores').classList.remove('active');
-  document.getElementById('tab-admin-productos').classList.remove('active');
-  document.getElementById('tab-admin-metas').classList.remove('active');
-  document.getElementById('tab-admin-ciclos').classList.remove('active');
-  document.getElementById('tab-admin-cuentas').classList.remove('active');
-  document.getElementById('panel-admin-asesores').style.display = 'none';
-  document.getElementById('panel-admin-productos').style.display = 'none';
-  document.getElementById('panel-admin-metas').style.display = 'none';
-  document.getElementById('panel-admin-ciclos').style.display = 'none';
-  document.getElementById('panel-admin-cuentas').style.display = 'none';
-  document.getElementById('panel-admin-mantenimiento').style.display = 'none';
+  const tabSeg = document.getElementById('tab-admin-seguimiento');
+  const tabAse = document.getElementById('tab-admin-asesores');
+  const tabProd = document.getElementById('tab-admin-productos');
+  const tabMet = document.getElementById('tab-admin-metas');
+  const tabCic = document.getElementById('tab-admin-ciclos');
+  const tabCue = document.getElementById('tab-admin-cuentas');
+  const tabMan = document.getElementById('tab-admin-mantenimiento');
+
+  if (tabSeg) tabSeg.classList.remove('active');
+  if (tabAse) tabAse.classList.remove('active');
+  if (tabProd) tabProd.classList.remove('active');
+  if (tabMet) tabMet.classList.remove('active');
+  if (tabCic) tabCic.classList.remove('active');
+  if (tabCue) tabCue.classList.remove('active');
+  if (tabMan) tabMan.classList.remove('active');
+
+  const pSeg = document.getElementById('panel-admin-seguimiento');
+  const pAse = document.getElementById('panel-admin-asesores');
+  const pProd = document.getElementById('panel-admin-productos');
+  const pMet = document.getElementById('panel-admin-metas');
+  const pCic = document.getElementById('panel-admin-ciclos');
+  const pCue = document.getElementById('panel-admin-cuentas');
+  const pMan = document.getElementById('panel-admin-mantenimiento');
+
+  if (pSeg) pSeg.style.display = 'none';
+  if (pAse) pAse.style.display = 'none';
+  if (pProd) pProd.style.display = 'none';
+  if (pMet) pMet.style.display = 'none';
+  if (pCic) pCic.style.display = 'none';
+  if (pCue) pCue.style.display = 'none';
+  if (pMan) pMan.style.display = 'none';
   
-  document.getElementById(`tab-admin-${tabName}`).classList.add('active');
-  document.getElementById(`panel-admin-${tabName}`).style.display = 'block';
+  const activeTabBtn = document.getElementById(`tab-admin-${tabName}`);
+  const activePanel = document.getElementById(`panel-admin-${tabName}`);
+  if (activeTabBtn) activeTabBtn.classList.add('active');
+  if (activePanel) activePanel.style.display = 'block';
   
   loadAdminData();
 }
 
 async function loadAdminData() {
-  if (adminActiveTab === 'asesores') {
+  if (adminActiveTab === 'seguimiento') {
+    await loadSeguimientoDashboard();
+  } else if (adminActiveTab === 'asesores') {
     await loadAdminAsesores();
   } else if (adminActiveTab === 'productos') {
     await loadAdminProductos();
@@ -4029,6 +4067,565 @@ async function loadAdminData() {
     await loadAdminCiclos();
   } else if (adminActiveTab === 'cuentas') {
     await loadAdminKeyAccounts();
+  }
+}
+
+// -------------------------------------------------------------
+// SALESFORCE STYLE TRACKING (SEGUIMIENTO) DASHBOARD LOGIC
+// -------------------------------------------------------------
+function initSeguimientoEvents() {
+  if (sfEventsInitialized) return;
+  sfEventsInitialized = true;
+
+  const asesorSelect = document.getElementById('sf-filter-asesor');
+  if (asesorSelect) {
+    asesorSelect.addEventListener('change', (e) => {
+      sfSelectedAsesorId = e.target.value;
+      if (sfSelectedAsesorId !== 'ALL') {
+        sfSelectedAdvisorSpotlightId = Number(sfSelectedAsesorId);
+      }
+      loadSeguimientoDashboard();
+    });
+  }
+
+  const cicloSelect = document.getElementById('sf-filter-ciclo');
+  if (cicloSelect) {
+    cicloSelect.addEventListener('change', () => {
+      loadSeguimientoDashboard();
+    });
+  }
+
+  // Date presets
+  const pills = document.querySelectorAll('.sf-date-pills .sf-pill');
+  pills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      pills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const preset = pill.getAttribute('data-preset');
+      sfActivePreset = preset;
+
+      const customBar = document.getElementById('sf-custom-dates-bar');
+      if (preset === 'personalizado') {
+        if (customBar) customBar.style.display = 'inline-flex';
+      } else {
+        if (customBar) customBar.style.display = 'none';
+        sfCustomStartDate = '';
+        sfCustomEndDate = '';
+        loadSeguimientoDashboard();
+      }
+    });
+  });
+
+  const btnApplyDates = document.getElementById('sf-btn-apply-dates');
+  if (btnApplyDates) {
+    btnApplyDates.addEventListener('click', () => {
+      const s = document.getElementById('sf-date-start')?.value;
+      const e = document.getElementById('sf-date-end')?.value;
+      if (!s || !e) {
+        alert('Por favor seleccione ambas fechas (Inicio y Fin)');
+        return;
+      }
+      sfCustomStartDate = s;
+      sfCustomEndDate = e;
+      loadSeguimientoDashboard();
+    });
+  }
+
+  const btnRefresh = document.getElementById('sf-btn-refresh');
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', () => {
+      loadSeguimientoDashboard();
+    });
+  }
+
+  // Search advisor
+  const searchAdvisorInput = document.getElementById('sf-search-asesor');
+  if (searchAdvisorInput) {
+    searchAdvisorInput.addEventListener('input', (e) => {
+      sfSearchAdvisorTerm = (e.target.value || '').trim().toLowerCase();
+      if (sfDashboardData) {
+        renderSeguimientoAdvisersTable(sfDashboardData.advisers_table || []);
+      }
+    });
+  }
+
+  // Work queue tabs
+  const qTabs = document.querySelectorAll('.sf-queue-nav .sf-queue-tab');
+  qTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      qTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      sfActiveQueueFilter = tab.getAttribute('data-qfilter') || 'all';
+      if (sfDashboardData) {
+        renderSeguimientoWorkQueue(sfDashboardData.activities_feed || []);
+      }
+    });
+  });
+}
+
+async function loadSeguimientoDashboard() {
+  initSeguimientoEvents();
+
+  // Populate cycles if empty
+  const cicloSelect = document.getElementById('sf-filter-ciclo');
+  if (cicloSelect && cicloSelect.options.length === 0) {
+    try {
+      const resCiclos = await fetch(`${API_URL}/api/ciclos`, { headers: getHeaders() });
+      if (resCiclos.ok) {
+        const ciclos = await resCiclos.json();
+        cicloSelect.innerHTML = (ciclos || []).map(c => `<option value="${escapeHtml(c.nombre)}">${escapeHtml(c.nombre)}</option>`).join('');
+      }
+    } catch (e) {
+      console.warn('Error loading cycles for seguimiento:', e);
+    }
+  }
+
+  const currentCiclo = cicloSelect?.value || 'O-I 2026';
+  const asesorId = sfSelectedAsesorId || 'ALL';
+
+  let url = `${API_URL}/api/seguimiento/dashboard?ciclo_agricola=${encodeURIComponent(currentCiclo)}&asesor_id=${encodeURIComponent(asesorId)}&preset=${encodeURIComponent(sfActivePreset)}`;
+  if (sfCustomStartDate && sfCustomEndDate) {
+    url += `&fecha_inicio=${encodeURIComponent(sfCustomStartDate)}&fecha_fin=${encodeURIComponent(sfCustomEndDate)}`;
+  }
+
+  try {
+    const res = await fetch(url, { headers: getHeaders() });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Error al cargar datos de seguimiento');
+    }
+
+    const data = await res.json();
+    sfDashboardData = data;
+
+    // Populate advisor select if not populated yet
+    const advisorSelect = document.getElementById('sf-filter-asesor');
+    if (advisorSelect && (advisorSelect.options.length <= 1 || advisorSelect.getAttribute('data-loaded') !== 'true')) {
+      const currentVal = advisorSelect.value || 'ALL';
+      const advisers = data.advisers_table || [];
+      advisorSelect.innerHTML = '<option value="ALL">👤 Todos los Asesores</option>' +
+        advisers.map(a => `<option value="${a.id}">👤 ${escapeHtml(a.nombre)}</option>`).join('');
+      advisorSelect.value = currentVal;
+      advisorSelect.setAttribute('data-loaded', 'true');
+    }
+
+    // Render components
+    renderSeguimientoKpiRibbon(data.summary_kpis || {});
+    renderSeguimientoAdvisersTable(data.advisers_table || []);
+    renderSeguimientoWorkQueue(data.activities_feed || []);
+    renderSeguimientoPipelineFunnel(data.pipeline_funnel || {});
+    renderSeguimientoAdvisorSpotlight(data.advisers_table || [], data.activities_feed || [], data.recent_interactions || []);
+    renderSeguimientoInventory(data.inventory_summary || {});
+
+  } catch (err) {
+    console.error('loadSeguimientoDashboard error:', err);
+    const tbody = document.getElementById('sf-advisers-tbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--danger); padding: 24px;">Error: ${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+}
+
+function renderSeguimientoKpiRibbon(kpis) {
+  const formatMxn = (v) => '$' + Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  
+  // 1. Pipeline
+  const elPipeline = document.getElementById('sf-kpi-pipeline');
+  const elPipelineDeals = document.getElementById('sf-kpi-pipeline-deals');
+  if (elPipeline) elPipeline.textContent = formatMxn(kpis.pipeline_value_mxn);
+  if (elPipelineDeals) elPipelineDeals.textContent = `${kpis.active_opportunities_count || 0} cotizaciones`;
+
+  // 2. Revenue Won
+  const elRevenueWon = document.getElementById('sf-kpi-revenue-won');
+  const elTargetProg = document.getElementById('sf-kpi-target-progress');
+  const elWinRate = document.getElementById('sf-kpi-win-rate');
+  if (elRevenueWon) elRevenueWon.textContent = formatMxn(kpis.revenue_won_mxn);
+  if (elTargetProg) elTargetProg.textContent = `${kpis.target_progress_pct || 0}% meta`;
+  if (elWinRate) elWinRate.textContent = `${kpis.conversion_rate_pct || 0}%`;
+
+  // 3. Quotes & Ticket
+  const elTotalQuotes = document.getElementById('sf-kpi-total-quotes');
+  const elAvgDeal = document.getElementById('sf-kpi-avg-deal');
+  if (elTotalQuotes) elTotalQuotes.textContent = `${kpis.total_quotes_count || 0}`;
+  if (elAvgDeal) elAvgDeal.textContent = formatMxn(kpis.average_deal_value_mxn);
+
+  // 4. Compliance Rate
+  const elComplianceRate = document.getElementById('sf-kpi-compliance-rate');
+  const elComplianceBadge = document.getElementById('sf-kpi-compliance-badge');
+  const elCompletedCount = document.getElementById('sf-kpi-completed-count');
+  const compRate = Number(kpis.compliance_rate_pct || 0);
+  if (elComplianceRate) elComplianceRate.textContent = `${compRate}%`;
+  if (elComplianceBadge) {
+    if (compRate >= 80) {
+      elComplianceBadge.className = 'sf-badge sf-badge-success';
+      elComplianceBadge.textContent = '🟢 Alta Efectividad';
+    } else if (compRate >= 50) {
+      elComplianceBadge.className = 'sf-badge sf-badge-warning';
+      elComplianceBadge.textContent = '🟡 En Seguimiento';
+    } else {
+      elComplianceBadge.className = 'sf-badge sf-badge-danger';
+      elComplianceBadge.textContent = '🔴 Atención';
+    }
+  }
+  if (elCompletedCount) elCompletedCount.textContent = `${kpis.completed_activities_count || 0} de ${kpis.total_activities_count || 0} hechas`;
+
+  // 5. Scheduled Events & Overdue
+  const elSchedEvents = document.getElementById('sf-kpi-scheduled-events');
+  const elOverdueBadge = document.getElementById('sf-kpi-overdue-badge');
+  const elPendingCount = document.getElementById('sf-kpi-pending-count');
+  const overdueCount = Number(kpis.overdue_activities_count || 0);
+  if (elSchedEvents) elSchedEvents.textContent = `${kpis.total_activities_count || 0}`;
+  if (elOverdueBadge) {
+    elOverdueBadge.textContent = `${overdueCount} vencidas`;
+    elOverdueBadge.className = overdueCount > 0 ? 'sf-badge sf-badge-danger' : 'sf-badge sf-badge-success';
+  }
+  if (elPendingCount) elPendingCount.textContent = `${kpis.pending_activities_count || 0} por realizar`;
+
+  // 6. Inventory Valuation
+  const elInvVal = document.getElementById('sf-kpi-inventory-val');
+  const elInvUnits = document.getElementById('sf-kpi-inventory-units');
+  if (elInvVal) elInvVal.textContent = formatMxn(kpis.inventory_value_mxn);
+  if (elInvUnits) elInvUnits.textContent = `${Number(kpis.inventory_units_total || 0).toLocaleString('es-MX', { maximumFractionDigits: 1 })} unidades`;
+}
+
+function renderSeguimientoAdvisersTable(advisers) {
+  const tbody = document.getElementById('sf-advisers-tbody');
+  if (!tbody) return;
+
+  const formatMxn = (v) => '$' + Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  let filtered = advisers;
+  if (sfSearchAdvisorTerm) {
+    filtered = advisers.filter(a =>
+      (a.nombre || '').toLowerCase().includes(sfSearchAdvisorTerm) ||
+      (a.usuario || '').toLowerCase().includes(sfSearchAdvisorTerm)
+    );
+  }
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #64748b; padding: 24px;">No se encontraron asesores que coincidan con la búsqueda.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(a => {
+    const isSelected = sfSelectedAdvisorSpotlightId === a.id;
+    const compRate = Number(a.compliance_rate || 0);
+    const progressLevel = compRate >= 80 ? 'high' : (compRate >= 50 ? 'medium' : 'low');
+    const initials = (a.nombre || 'A').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+    const ratingScore = Number(a.calificacion || 5.0).toFixed(1);
+
+    return `
+      <tr class="sf-row-selectable ${isSelected ? 'sf-row-selected' : ''}" onclick="selectSeguimientoAdvisorSpotlight(${a.id})">
+        <td>
+          <div class="sf-advisor-cell">
+            <div class="sf-avatar">${escapeHtml(initials)}</div>
+            <div>
+              <div style="font-weight: 700; color: #0f172a;">${escapeHtml(a.nombre)}</div>
+              <div style="font-size: 11px; color: #64748b;">@${escapeHtml(a.usuario)}</div>
+            </div>
+          </div>
+        </td>
+        <td style="text-align: center; font-weight: 600;">${a.client_count || 0}</td>
+        <td style="text-align: center; font-weight: 600;">${a.activities_scheduled || 0}</td>
+        <td style="text-align: center; font-weight: 600; color: #166534;">${a.activities_completed || 0}</td>
+        <td style="text-align: center; font-weight: 600; color: ${a.activities_overdue > 0 ? '#991b1b' : '#64748b'};">
+          ${a.activities_overdue > 0 ? `<span class="sf-badge sf-badge-danger">${a.activities_overdue}</span>` : '0'}
+        </td>
+        <td>
+          <div class="sf-compliance-bar-container">
+            <div class="sf-progress-track">
+              <div class="sf-progress-fill ${progressLevel}" style="width: ${compRate}%;"></div>
+            </div>
+            <span style="font-weight: 700; font-size: 12px; color: ${compRate >= 80 ? '#166534' : (compRate >= 50 ? '#92400e' : '#991b1b')};">${compRate}%</span>
+          </div>
+        </td>
+        <td style="text-align: right; font-weight: 700; color: #0f172a;">${formatMxn(a.sales_won_mxn)}</td>
+        <td style="text-align: center;">
+          <span class="sf-badge ${a.target_progress_pct >= 100 ? 'sf-badge-success' : (a.target_progress_pct >= 50 ? 'sf-badge-warning' : 'sf-badge-info')}">
+            ${a.target_progress_pct || 0}%
+          </span>
+        </td>
+        <td style="text-align: center;">
+          <div style="display: inline-flex; align-items: center; gap: 3px; font-weight: 700; color: #d97706;">
+            <span>⭐</span>
+            <span>${ratingScore}</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function selectSeguimientoAdvisorSpotlight(advisorId) {
+  sfSelectedAdvisorSpotlightId = advisorId;
+  if (sfDashboardData) {
+    renderSeguimientoAdvisersTable(sfDashboardData.advisers_table || []);
+    renderSeguimientoAdvisorSpotlight(sfDashboardData.advisers_table || [], sfDashboardData.activities_feed || [], sfDashboardData.recent_interactions || []);
+  }
+}
+
+function renderSeguimientoWorkQueue(activities) {
+  const list = document.getElementById('sf-activities-queue-list');
+  if (!list) return;
+
+  const cntAll = document.getElementById('sf-qcnt-all');
+  const cntUpcoming = document.getElementById('sf-qcnt-upcoming');
+  const cntOverdue = document.getElementById('sf-qcnt-overdue');
+  const cntCompleted = document.getElementById('sf-qcnt-completed');
+  const totalInd = document.getElementById('sf-queue-total-indicator');
+
+  const allCount = activities.length;
+  const completedCount = activities.filter(a => a.statusKey === 'completada').length;
+  const overdueCount = activities.filter(a => a.statusKey === 'vencida').length;
+  const upcomingCount = activities.filter(a => a.statusKey === 'pendiente' || a.statusKey === 'atrasada').length;
+
+  if (cntAll) cntAll.textContent = allCount;
+  if (cntCompleted) cntCompleted.textContent = completedCount;
+  if (cntOverdue) cntOverdue.textContent = overdueCount;
+  if (cntUpcoming) cntUpcoming.textContent = upcomingCount;
+  if (totalInd) totalInd.textContent = `${allCount} eventos`;
+
+  let filtered = activities;
+  if (sfActiveQueueFilter === 'completed') {
+    filtered = activities.filter(a => a.statusKey === 'completada');
+  } else if (sfActiveQueueFilter === 'overdue') {
+    filtered = activities.filter(a => a.statusKey === 'vencida');
+  } else if (sfActiveQueueFilter === 'upcoming') {
+    filtered = activities.filter(a => a.statusKey === 'pendiente' || a.statusKey === 'atrasada');
+  }
+
+  if (!filtered.length) {
+    list.innerHTML = `<div style="text-align: center; color: #64748b; padding: 24px;">No hay eventos en esta vista de la cola.</div>`;
+    return;
+  }
+
+  const formatMxn = (v) => '$' + Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  list.innerHTML = filtered.slice(0, 40).map(act => {
+    let cardClass = 'upcoming';
+    if (act.statusKey === 'completada') cardClass = 'completed';
+    else if (act.statusKey === 'vencida') cardClass = 'overdue';
+
+    const stagesHtml = (act.activeStageDetails || []).map(s => `
+      <span class="sf-badge" style="background: ${s.color}20; color: ${s.color}; border: 1px solid ${s.color}40;">
+        🌾 ${escapeHtml(s.nombre)}
+      </span>
+    `).join('');
+
+    const forecastBolsas = Number(act.pronostico_bolsas) || 0;
+    const forecastMonto = Number(act.pronostico_monto_mxn) || 0;
+    let forecastStr = '';
+    if (forecastBolsas > 0 || forecastMonto > 0) {
+      forecastStr = `📈 Pronóstico: <strong>${forecastBolsas} bolsas</strong> (${formatMxn(forecastMonto)})`;
+    }
+
+    const bitacoraStr = act.comentarios_bitacora ? `💬 <em>"${escapeHtml(act.comentarios_bitacora)}"</em>` : '';
+
+    return `
+      <div class="sf-queue-card ${cardClass}">
+        <div class="sf-queue-header">
+          <div>
+            <span class="sf-queue-client">${escapeHtml(act.cliente_nombre)}</span>
+            <span style="font-size: 12px; color: #64748b; margin-left: 6px;">👤 ${escapeHtml(act.asesor_nombre)}</span>
+          </div>
+          <span class="sf-badge ${act.statusBadgeClass}">
+            ${escapeHtml(act.statusLabel)}
+          </span>
+        </div>
+
+        <div class="sf-queue-objective">
+          🎯 <strong>Objetivo:</strong> ${escapeHtml(act.objetivo_visita || 'Visita técnica y seguimiento comercial')}
+        </div>
+
+        ${bitacoraStr ? `<div style="font-size: 12px; color: #475569; background: #ffffff; padding: 6px 10px; border-radius: 6px; border: 1px solid #f1f5f9;">${bitacoraStr}</div>` : ''}
+
+        <div class="sf-queue-meta-row">
+          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+            <span>📅 Fecha: <strong>${escapeHtml(act.fecha_programada || '-')}</strong></span>
+            ${stagesHtml}
+          </div>
+          <div>
+            ${forecastStr ? `<span>${forecastStr}</span>` : ''}
+            ${act.hasReport ? `<span class="sf-badge sf-badge-purple" style="margin-left: 6px;">📝 Reporte Etapa ✓</span>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderSeguimientoPipelineFunnel(funnel) {
+  const container = document.getElementById('sf-pipeline-funnel-container');
+  if (!container) return;
+
+  const stages = funnel.stages || [];
+  const formatMxn = (v) => '$' + Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  
+  const maxMonto = Math.max(...stages.map(s => Number(s.monto_mxn) || 0), 1);
+
+  container.innerHTML = stages.map(st => {
+    const monto = Number(st.monto_mxn) || 0;
+    const count = Number(st.count) || 0;
+    const widthPct = Math.max(12, Math.round((monto / maxMonto) * 100));
+
+    return `
+      <div class="sf-funnel-row">
+        <div class="sf-funnel-label" title="${escapeHtml(st.name)}">${escapeHtml(st.name)}</div>
+        <div class="sf-funnel-bar-wrap">
+          <div class="sf-funnel-bar" style="width: ${widthPct}%; background: ${st.color};">
+            ${count} ops
+          </div>
+        </div>
+        <div class="sf-funnel-stats">${formatMxn(monto)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderSeguimientoAdvisorSpotlight(advisers, activities, interactions) {
+  const container = document.getElementById('sf-spotlight-content');
+  if (!container) return;
+
+  if (!advisers.length) {
+    container.innerHTML = `<div style="text-align:center; color:#64748b; padding:20px;">No hay asesores disponibles.</div>`;
+    return;
+  }
+
+  // Find target advisor
+  let target = advisers.find(a => a.id === sfSelectedAdvisorSpotlightId);
+  if (!target) {
+    target = advisers[0];
+    sfSelectedAdvisorSpotlightId = target.id;
+  }
+
+  const initials = (target.nombre || 'A').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  const formatMxn = (v) => '$' + Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const compRate = Number(target.compliance_rate || 0);
+
+  // Filter activities for this advisor
+  const advisorActivities = activities.filter(a => a.asesor_id === target.id);
+  const advisorInteractions = interactions.filter(i => i.asesor_id === target.id);
+
+  // Category quotas
+  const cats = target.category_targets || {};
+  const renderQuotaBar = (label, real, targetVal, unit) => {
+    const pct = targetVal > 0 ? Math.min(100, Math.round((real / targetVal) * 100)) : (real > 0 ? 100 : 0);
+    return `
+      <div style="margin-bottom: 8px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; color:#334155; margin-bottom:3px;">
+          <span>${escapeHtml(label)}</span>
+          <span><strong>${real}</strong> / ${targetVal} ${escapeHtml(unit)} (${pct}%)</span>
+        </div>
+        <div class="sf-progress-track">
+          <div class="sf-progress-fill ${pct >= 100 ? 'high' : (pct >= 50 ? 'medium' : 'low')}" style="width:${pct}%;"></div>
+        </div>
+      </div>
+    `;
+  };
+
+  // Interactions timeline HTML
+  let timelineHtml = `<div style="font-size:12px; color:#64748b; padding:8px 0;">Sin interacciones recientes registradas.</div>`;
+  if (advisorInteractions.length > 0) {
+    timelineHtml = `
+      <div class="sf-timeline">
+        ${advisorInteractions.slice(0, 10).map(v => `
+          <div class="sf-timeline-item">
+            <div class="sf-timeline-dot"></div>
+            <div class="sf-timeline-content">
+              <div class="sf-timeline-date">📅 ${escapeHtml(v.fecha_visita || '-')} • <strong>${escapeHtml(v.cliente_nombre)}</strong></div>
+              <div class="sf-timeline-text">${escapeHtml(v.comentarios_bitacora || 'Visita efectuada con éxito')}</div>
+              ${v.proxima_cita ? `<div style="font-size:11px; color:#0284c7; margin-top:2px;">🗓️ Próxima Cita: ${escapeHtml(v.proxima_cita)}</div>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <div class="sf-spotlight-profile">
+      <div class="sf-spotlight-avatar">${escapeHtml(initials)}</div>
+      <div class="sf-spotlight-info">
+        <h3>${escapeHtml(target.nombre)}</h3>
+        <p>📧 ${escapeHtml(target.email || '-')}</p>
+        <p>📱 ${escapeHtml(target.telefono || '-')}</p>
+        <div style="display:flex; align-items:center; gap:4px; margin-top:4px; font-weight:700; color:#d97706; font-size:13px;">
+          <span>⭐ ${Number(target.calificacion || 5.0).toFixed(1)} Calificación</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini stats -->
+    <div class="sf-spotlight-metrics">
+      <div class="sf-mini-stat">
+        <div class="sf-mini-stat-val">${target.client_count || 0}</div>
+        <div class="sf-mini-stat-label">Cartera Clientes</div>
+      </div>
+      <div class="sf-mini-stat">
+        <div class="sf-mini-stat-val">${formatMxn(target.sales_won_mxn)}</div>
+        <div class="sf-mini-stat-label">Ventas Ganadas</div>
+      </div>
+      <div class="sf-mini-stat">
+        <div class="sf-mini-stat-val" style="color: ${compRate >= 80 ? '#166534' : (compRate >= 50 ? '#92400e' : '#991b1b')};">${compRate}%</div>
+        <div class="sf-mini-stat-label">Cumplimiento Agenda</div>
+      </div>
+      <div class="sf-mini-stat">
+        <div class="sf-mini-stat-val">${target.target_progress_pct || 0}%</div>
+        <div class="sf-mini-stat-label">Avance Cuota $</div>
+      </div>
+    </div>
+
+    <!-- Metas por categoría -->
+    <div style="margin-bottom: 16px; border-top: 1px solid #f1f5f9; padding-top: 12px;">
+      <h4 style="font-size: 13px; font-weight: 700; color: #1e293b; margin: 0 0 10px 0;">🎯 Avance de Metas por Línea:</h4>
+      ${renderQuotaBar('Semilla Híbrida', cats.semilla?.real || 0, cats.semilla?.target || 0, 'bolsas')}
+      ${renderQuotaBar('Faena (Glifosato)', cats.faena?.real || 0, cats.faena?.target || 0, 'L')}
+      ${renderQuotaBar('Clavis (Atrazina)', cats.clavis?.real || 0, cats.clavis?.target || 0, 'L')}
+      ${renderQuotaBar('Crop Protection', cats.cropprotection?.real || 0, cats.cropprotection?.target || 0, 'L')}
+      ${renderQuotaBar('Cosecha / Fertilizante', cats.cosecha?.real || 0, cats.cosecha?.target || 0, 'ton')}
+    </div>
+
+    <!-- Bitácora & Timeline -->
+    <div style="border-top: 1px solid #f1f5f9; padding-top: 12px;">
+      <h4 style="font-size: 13px; font-weight: 700; color: #1e293b; margin: 0 0 10px 0;">📝 Historial de Interacciones Recientes:</h4>
+      ${timelineHtml}
+    </div>
+  `;
+}
+
+function renderSeguimientoInventory(invSummary) {
+  const badgeTotal = document.getElementById('sf-inv-badge-total');
+  const catContainer = document.getElementById('sf-inv-cat-breakdown');
+  const topContainer = document.getElementById('sf-inv-top-stock');
+
+  const formatMxn = (v) => '$' + Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (badgeTotal) badgeTotal.textContent = formatMxn(invSummary.valuation_mxn);
+
+  if (catContainer && invSummary.categories) {
+    const cats = invSummary.categories;
+    catContainer.innerHTML = Object.keys(cats).map(catKey => {
+      const c = cats[catKey];
+      return `
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 700; font-size: 13px; color: #0f172a;">${escapeHtml(catKey)}</div>
+            <div style="font-size: 11px; color: #64748b;">${Number(c.units || 0).toLocaleString('es-MX', { maximumFractionDigits: 1 })} unidades</div>
+          </div>
+          <div style="font-weight: 700; font-size: 13px; color: #0176d3;">
+            ${formatMxn(c.valor_mxn)}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  if (topContainer && Array.isArray(invSummary.top_stock)) {
+    topContainer.innerHTML = invSummary.top_stock.map(item => `
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 4px 0; border-bottom: 1px dashed #f1f5f9;">
+        <span style="color: #334155; font-weight: 500;">${escapeHtml(item.producto)}</span>
+        <span class="sf-badge sf-badge-info">${Number(item.existencias || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 })} disp.</span>
+      </div>
+    `).join('');
   }
 }
 

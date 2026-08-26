@@ -10,6 +10,7 @@ const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing }
 const { normalizeProductSizes } = require('./utils/productos');
 const { normalizeMovementItems, buildWarehouseMovementsQuery } = require('./utils/almacen');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
+const { calculateComplianceRate, calculateWinRate, calculateAverageDealValue, classifyActivityStatus, buildPipelineFunnel, resolveDateRange } = require('./utils/seguimientoHelpers');
 const { authenticateToken, requireAdmin, requireAdminOrCoordinador, requireProgramacionManager } = require('./middleware/auth');
 
 // Routers
@@ -1941,6 +1942,428 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+  }
+});
+
+// -------------------------------------------------------------
+// SALESFORCE STYLE TRACKING DASHBOARD ENDPOINT
+// -------------------------------------------------------------
+app.get('/api/seguimiento/dashboard', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
+  try {
+    const localToday = getLocalISODate();
+    const ciclo = req.query.ciclo_agricola || 'O-I 2026';
+    const asesorIdParam = req.query.asesor_id;
+    const preset = req.query.preset || 'ciclo';
+    const customStart = req.query.fecha_inicio;
+    const customEnd = req.query.fecha_fin;
+    const categoriaParam = req.query.categoria || 'ALL';
+
+    const dateRange = resolveDateRange(preset, customStart, customEnd, localToday);
+    const { fecha_inicio, fecha_fin } = dateRange;
+
+    const isAdvisorFiltered = asesorIdParam && asesorIdParam !== 'ALL' && !isNaN(Number(asesorIdParam));
+    const targetAsesorId = isAdvisorFiltered ? Number(asesorIdParam) : null;
+
+    // 1. Asesores catalog (active)
+    let asesoresQuery = "SELECT id, nombre, usuario, email, telefono, COALESCE(calificacion, 5.0) as calificacion FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'";
+    const asesoresParams = [];
+    if (targetAsesorId) {
+      asesoresQuery += " AND id = ?";
+      asesoresParams.push(targetAsesorId);
+    }
+    asesoresQuery += " ORDER BY nombre ASC";
+    const asesores = await db.all(asesoresQuery, asesoresParams);
+
+    // 2. Metas de ventas
+    let metasQuery = "SELECT asesor_id, ciclo_agricola, monto_objetivo_mxn, bolsas_objetivo, meta_faena, meta_clavis, meta_cropprotection, meta_cosecha FROM metas_ventas WHERE ciclo_agricola = ? AND activo = 1";
+    const metasParams = [ciclo];
+    if (targetAsesorId) {
+      metasQuery += " AND asesor_id = ?";
+      metasParams.push(targetAsesorId);
+    }
+    const metasRows = await db.all(metasQuery, metasParams);
+    const metasMap = {};
+    metasRows.forEach(m => {
+      metasMap[m.asesor_id] = m;
+    });
+
+    // 3. Clientes counts per advisor
+    let clientsQuery = `
+      SELECT COALESCE(asesor_id, 0) as asesor_id, COUNT(DISTINCT COALESCE(cliente_principal_id, id)) as client_count
+      FROM clientes
+      WHERE activo = 1
+      GROUP BY asesor_id
+    `;
+    const clientsRows = await db.all(clientsQuery);
+    const clientsMap = {};
+    clientsRows.forEach(c => {
+      clientsMap[c.asesor_id] = Number(c.client_count);
+    });
+
+    // 4. Cotizaciones
+    let quotesQuery = `
+      SELECT q.id, q.folio_cotizacion, q.fecha_creacion, q.cliente_id, q.asesor_id, q.ciclo_agricola,
+             q.condiciones_pago, q.estatus, q.total_mxn, q.anticipo_apartado,
+             c.nombre as cliente_nombre, a.nombre as asesor_nombre
+      FROM cotizaciones q
+      JOIN clientes c ON q.cliente_id = c.id
+      JOIN asesores a ON q.asesor_id = a.id
+      WHERE q.ciclo_agricola = ?
+    `;
+    const quotesParams = [ciclo];
+    if (targetAsesorId) {
+      quotesQuery += " AND q.asesor_id = ?";
+      quotesParams.push(targetAsesorId);
+    }
+    if (fecha_inicio && fecha_fin) {
+      quotesQuery += " AND q.fecha_creacion >= ? AND q.fecha_creacion <= ?";
+      quotesParams.push(fecha_inicio, fecha_fin + ' 23:59:59');
+    }
+    quotesQuery += " ORDER BY q.fecha_creacion DESC";
+    const allQuotes = await db.all(quotesQuery, quotesParams);
+
+    // 5. Categoría details for sold quotes
+    let detailsQuery = `
+      SELECT cd.cotizacion_id, cd.producto_id, cd.cantidad_ordenada, cd.precio_neto_unitario, cd.subtotal_mxn,
+             p.producto, p.tipo_categoria, q.asesor_id, q.estatus
+      FROM cotizacion_detalles cd
+      JOIN productos p ON cd.producto_id = p.id
+      JOIN cotizaciones q ON cd.cotizacion_id = q.id
+      WHERE q.ciclo_agricola = ?
+    `;
+    const detailsParams = [ciclo];
+    if (targetAsesorId) {
+      detailsQuery += " AND q.asesor_id = ?";
+      detailsParams.push(targetAsesorId);
+    }
+    if (fecha_inicio && fecha_fin) {
+      detailsQuery += " AND q.fecha_creacion >= ? AND q.fecha_creacion <= ?";
+      detailsParams.push(fecha_inicio, fecha_fin + ' 23:59:59');
+    }
+    const quoteDetails = await db.all(detailsQuery, detailsParams);
+
+    // 6. Planificación & Actividades
+    await db.run(
+      "UPDATE planificacion_semanal SET realizada = 0 WHERE realizada = 3 AND fecha_programada + 7 > ?",
+      [localToday]
+    );
+    await db.run(
+      "UPDATE planificacion_semanal SET realizada = 3 WHERE realizada = 0 AND fecha_programada + 7 <= ?",
+      [localToday]
+    );
+
+    let planQuery = `
+      SELECT p.id, p.asesor_id, p.cliente_id, p.fecha_programada, p.objetivo_visita,
+             p.pronostico_bolsas, p.pronostico_monto_mxn, p.realizada, p.visita_id,
+             c.nombre as cliente_nombre, a.nombre as asesor_nombre,
+             v.comentarios_bitacora, v.fecha_visita,
+             (SELECT COUNT(*) FROM crm_reportes_etapa re WHERE re.planificacion_id = p.id) as reports_count
+      FROM planificacion_semanal p
+      JOIN clientes c ON p.cliente_id = c.id
+      JOIN asesores a ON p.asesor_id = a.id
+      LEFT JOIN crm_visitas v ON p.visita_id = v.id
+      WHERE 1=1
+    `;
+    const planParams = [];
+    if (targetAsesorId) {
+      planQuery += " AND p.asesor_id = ?";
+      planParams.push(targetAsesorId);
+    }
+    if (fecha_inicio && fecha_fin) {
+      planQuery += " AND p.fecha_programada BETWEEN ? AND ?";
+      planParams.push(fecha_inicio, fecha_fin);
+    }
+    planQuery += " ORDER BY p.fecha_programada DESC, p.id DESC";
+    const allActivitiesRaw = await db.all(planQuery, planParams);
+
+    // Get active stages for activities
+    const stageRows = await db.all('SELECT id, clave, nombre, fecha_inicio, fecha_fin, color FROM crm_etapas_programacion ORDER BY fecha_inicio ASC');
+
+    const activitiesFeed = allActivitiesRaw.map(act => {
+      const classification = classifyActivityStatus(act, localToday);
+      const activeStageCodes = getActiveStageCodesForDate(stageRows, act.fecha_programada);
+      const activeStageDetails = stageRows
+        .filter(s => activeStageCodes.includes(String(s.clave || '').trim().toUpperCase()))
+        .map(s => ({ code: s.clave, nombre: s.nombre, color: s.color }));
+
+      return {
+        ...act,
+        statusKey: classification.statusKey,
+        statusLabel: classification.label,
+        statusColor: classification.color,
+        statusBadgeClass: classification.badgeClass,
+        daysLate: classification.daysLate || 0,
+        activeStageCodes,
+        activeStageDetails,
+        hasReport: Number(act.reports_count) > 0
+      };
+    });
+
+    // 7. Recent Interactions (from crm_visitas and crm_reportes_etapa)
+    let visitsQuery = `
+      SELECT v.id, v.fecha_visita, v.cliente_id, v.asesor_id, v.comentarios_bitacora, v.proxima_cita,
+             c.nombre as cliente_nombre, a.nombre as asesor_nombre
+      FROM crm_visitas v
+      JOIN clientes c ON v.cliente_id = c.id
+      JOIN asesores a ON v.asesor_id = a.id
+      WHERE 1=1
+    `;
+    const visitsQueryParams = [];
+    if (targetAsesorId) {
+      visitsQuery += " AND v.asesor_id = ?";
+      visitsQueryParams.push(targetAsesorId);
+    }
+    if (fecha_inicio && fecha_fin) {
+      visitsQuery += " AND v.fecha_visita BETWEEN ? AND ?";
+      visitsQueryParams.push(fecha_inicio, fecha_fin);
+    }
+    visitsQuery += " ORDER BY v.fecha_visita DESC, v.id DESC LIMIT 30";
+    const recentVisits = await db.all(visitsQuery, visitsQueryParams);
+
+    // 8. Inventario y Existencias
+    const inventoryRows = await db.all(`
+      SELECT p.id, p.producto, p.tipo_categoria, p.list_price_mxn,
+             COALESCE(
+               (SELECT m.existencias_resultantes 
+                FROM almacen_movimientos m 
+                WHERE m.producto_id = p.id 
+                ORDER BY m.id DESC LIMIT 1), 
+               0.0
+             ) AS existencias
+      FROM productos p
+      WHERE p.activo = 1
+      ORDER BY existencias DESC, p.producto ASC
+    `);
+
+    let inventoryValuationMxn = 0;
+    let inventoryUnitsTotal = 0;
+    const categoryInventory = {
+      Semilla: { units: 0, valor_mxn: 0, count: 0 },
+      Agroquímico: { units: 0, valor_mxn: 0, count: 0 },
+      Fertilizante: { units: 0, valor_mxn: 0, count: 0 }
+    };
+
+    inventoryRows.forEach(item => {
+      const stock = Number(item.existencias) || 0;
+      const price = Number(item.list_price_mxn) || 0;
+      const val = stock * price;
+      inventoryValuationMxn += val;
+      inventoryUnitsTotal += stock;
+
+      const catKey = (item.tipo_categoria === 'Híbrido' || item.tipo_categoria === 'Semilla')
+        ? 'Semilla'
+        : (item.tipo_categoria === 'Fertilizante' ? 'Fertilizante' : 'Agroquímico');
+
+      if (!categoryInventory[catKey]) {
+        categoryInventory[catKey] = { units: 0, valor_mxn: 0, count: 0 };
+      }
+      categoryInventory[catKey].units += stock;
+      categoryInventory[catKey].valor_mxn += val;
+      categoryInventory[catKey].count += 1;
+    });
+
+    // 9. Agregación de indicadores globales y por asesor
+    let totalPipelineMxn = 0;
+    let totalRevenueWonMxn = 0;
+    let totalContadoMxn = 0;
+    let totalCreditoMxn = 0;
+    let totalRecuperadoMxn = 0;
+    let wonQuotesCount = 0;
+    let lostQuotesCount = 0;
+    let activeQuotesCount = 0;
+
+    const advisorQuotesMap = {};
+    const advisorRealCategoryMap = {};
+
+    allQuotes.forEach(q => {
+      const m = Number(q.total_mxn) || 0;
+      const st = String(q.estatus || '').trim();
+      const aId = q.asesor_id;
+
+      if (!advisorQuotesMap[aId]) {
+        advisorQuotesMap[aId] = { total: 0, count: 0, wonCount: 0, wonMonto: 0, pipelineMonto: 0 };
+      }
+      advisorQuotesMap[aId].total += m;
+      advisorQuotesMap[aId].count += 1;
+
+      if (st === 'Borrador' || st === 'Autorizada') {
+        totalPipelineMxn += m;
+        activeQuotesCount++;
+        advisorQuotesMap[aId].pipelineMonto += m;
+      } else if (st === 'Vendido' || st === 'Entregado') {
+        totalRevenueWonMxn += m;
+        wonQuotesCount++;
+        advisorQuotesMap[aId].wonCount++;
+        advisorQuotesMap[aId].wonMonto += m;
+
+        if (q.condiciones_pago === 'Contado') {
+          totalContadoMxn += m;
+        } else {
+          if (st === 'Entregado') totalCreditoMxn += m;
+          if (st === 'Vendido') totalRecuperadoMxn += m;
+        }
+      } else if (st === 'Cancelada' || st === 'Rechazada') {
+        lostQuotesCount++;
+      }
+    });
+
+    // Compute category sales per advisor from details
+    quoteDetails.forEach(d => {
+      const aId = d.asesor_id;
+      const st = String(d.estatus || '').trim();
+      if (st !== 'Vendido' && st !== 'Entregado') return;
+
+      if (!advisorRealCategoryMap[aId]) {
+        advisorRealCategoryMap[aId] = { semilla: 0, faena: 0, clavis: 0, cropprotection: 0, cosecha: 0 };
+      }
+      const qty = Number(d.cantidad_ordenada) || 0;
+      const prodName = String(d.producto || '').toUpperCase();
+      const cat = String(d.tipo_categoria || '').toLowerCase();
+
+      if (cat === 'híbrido' || cat === 'semilla') {
+        advisorRealCategoryMap[aId].semilla += qty;
+      } else if (cat === 'agroquímico' || cat === 'agroquimicos') {
+        if (prodName.includes('FAENA')) {
+          advisorRealCategoryMap[aId].faena += qty;
+        } else if (prodName.includes('CLAVIS')) {
+          advisorRealCategoryMap[aId].clavis += qty;
+        } else {
+          advisorRealCategoryMap[aId].cropprotection += qty;
+        }
+      } else if (cat === 'fertilizante') {
+        advisorRealCategoryMap[aId].cosecha += qty;
+      }
+    });
+
+    // Compute activity stats per advisor
+    const advisorActivityMap = {};
+    let totalScheduledActivities = 0;
+    let totalCompletedActivities = 0;
+    let totalOverdueActivities = 0;
+    let totalPendingActivities = 0;
+
+    activitiesFeed.forEach(act => {
+      const aId = act.asesor_id;
+      if (!advisorActivityMap[aId]) {
+        advisorActivityMap[aId] = { scheduled: 0, completed: 0, overdue: 0, pending: 0 };
+      }
+      advisorActivityMap[aId].scheduled++;
+      totalScheduledActivities++;
+
+      if (act.statusKey === 'completada') {
+        advisorActivityMap[aId].completed++;
+        totalCompletedActivities++;
+      } else if (act.statusKey === 'vencida') {
+        advisorActivityMap[aId].overdue++;
+        totalOverdueActivities++;
+      } else {
+        advisorActivityMap[aId].pending++;
+        totalPendingActivities++;
+      }
+    });
+
+    // Build advisor performance matrix
+    let totalEconomicTarget = 0;
+    const advisersTable = asesores.map(a => {
+      const meta = metasMap[a.id] || {};
+      const targetMonto = Number(meta.monto_objetivo_mxn) || 0;
+      totalEconomicTarget += targetMonto;
+
+      const qStats = advisorQuotesMap[a.id] || { total: 0, count: 0, wonCount: 0, wonMonto: 0, pipelineMonto: 0 };
+      const actStats = advisorActivityMap[a.id] || { scheduled: 0, completed: 0, overdue: 0, pending: 0 };
+      const realCat = advisorRealCategoryMap[a.id] || { semilla: 0, faena: 0, clavis: 0, cropprotection: 0, cosecha: 0 };
+
+      const complianceRate = calculateComplianceRate(actStats.completed, actStats.scheduled);
+      const targetProgressPct = targetMonto > 0 ? Math.round((qStats.wonMonto / targetMonto) * 1000) / 10 : 0;
+
+      return {
+        id: a.id,
+        nombre: a.nombre,
+        usuario: a.usuario,
+        email: a.email,
+        telefono: a.telefono,
+        calificacion: Number(a.calificacion) || 5.0,
+        client_count: clientsMap[a.id] || 0,
+        quotes_count: qStats.count,
+        pipeline_mxn: qStats.pipelineMonto,
+        sales_won_count: qStats.wonCount,
+        sales_won_mxn: qStats.wonMonto,
+        meta_economica_mxn: targetMonto,
+        target_progress_pct: targetProgressPct,
+        activities_scheduled: actStats.scheduled,
+        activities_completed: actStats.completed,
+        activities_overdue: actStats.overdue,
+        activities_pending: actStats.pending,
+        compliance_rate: complianceRate,
+        category_targets: {
+          semilla: { target: Number(meta.bolsas_objetivo) || 0, real: realCat.semilla },
+          faena: { target: Number(meta.meta_faena) || 0, real: realCat.faena },
+          clavis: { target: Number(meta.meta_clavis) || 0, real: realCat.clavis },
+          cropprotection: { target: Number(meta.meta_cropprotection) || 0, real: realCat.cropprotection },
+          cosecha: { target: Number(meta.meta_cosecha) || 0, real: realCat.cosecha }
+        }
+      };
+    });
+
+    // Funnel
+    const totalProspectsCount = activitiesFeed.filter(a => a.statusKey !== 'completada').length;
+    const totalProspectsMonto = activitiesFeed
+      .filter(a => a.statusKey !== 'completada')
+      .reduce((sum, a) => sum + (Number(a.pronostico_monto_mxn) || 0), 0);
+    const funnel = buildPipelineFunnel(allQuotes, totalProspectsCount, totalProspectsMonto);
+
+    const overallComplianceRate = calculateComplianceRate(totalCompletedActivities, totalScheduledActivities);
+    const overallWinRate = calculateWinRate(wonQuotesCount, (wonQuotesCount + lostQuotesCount) || allQuotes.length);
+    const averageDealValue = calculateAverageDealValue(totalRevenueWonMxn, wonQuotesCount);
+    const overallTargetProgressPct = totalEconomicTarget > 0
+      ? Math.round((totalRevenueWonMxn / totalEconomicTarget) * 1000) / 10
+      : 0;
+
+    res.json({
+      filters: {
+        ciclo_agricola: ciclo,
+        asesor_id: asesorIdParam || 'ALL',
+        preset,
+        fecha_inicio,
+        fecha_fin,
+        categoria: categoriaParam
+      },
+      summary_kpis: {
+        pipeline_value_mxn: totalPipelineMxn,
+        revenue_won_mxn: totalRevenueWonMxn,
+        revenue_target_mxn: totalEconomicTarget,
+        target_progress_pct: overallTargetProgressPct,
+        active_opportunities_count: activeQuotesCount,
+        won_opportunities_count: wonQuotesCount,
+        lost_opportunities_count: lostQuotesCount,
+        total_quotes_count: allQuotes.length,
+        conversion_rate_pct: overallWinRate,
+        average_deal_value_mxn: averageDealValue,
+        contado_sales_mxn: totalContadoMxn,
+        credito_sales_mxn: totalCreditoMxn,
+        recuperado_sales_mxn: totalRecuperadoMxn,
+        total_activities_count: totalScheduledActivities,
+        completed_activities_count: totalCompletedActivities,
+        overdue_activities_count: totalOverdueActivities,
+        pending_activities_count: totalPendingActivities,
+        compliance_rate_pct: overallComplianceRate,
+        inventory_value_mxn: inventoryValuationMxn,
+        inventory_units_total: inventoryUnitsTotal
+      },
+      advisers_table: advisersTable,
+      activities_feed: activitiesFeed,
+      pipeline_funnel: funnel,
+      inventory_summary: {
+        valuation_mxn: inventoryValuationMxn,
+        units_total: inventoryUnitsTotal,
+        categories: categoryInventory,
+        top_stock: inventoryRows.slice(0, 5)
+      },
+      recent_interactions: recentVisits
+    });
+  } catch (err) {
+    console.error('Error fetching seguimiento dashboard:', err);
+    res.status(500).json({ error: 'Failed to fetch tracking dashboard' });
   }
 });
 
