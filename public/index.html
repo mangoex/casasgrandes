@@ -54,6 +54,11 @@
             <span class="icon">📊</span> Tablero
           </a>
         </li>
+        <li class="nav-item admin-or-coordinator-only" data-target="seguimiento-view" style="display: none;">
+          <a href="#">
+            <span class="icon">📈</span> Seguimiento
+          </a>
+        </li>
         <li class="nav-item" data-target="crm-view">
           <a href="#">
             <span class="icon">🔄</span> Canal de Ventas
@@ -304,6 +309,252 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <!-- SEGUIMIENTO SALESFORCE VIEW -->
+      <div id="seguimiento-view" class="view-section admin-or-coordinator-only">
+        <div class="sf-dashboard-container">
+          
+          <!-- Header Ribbon & Controls -->
+          <div class="sf-header-bar">
+            <div class="sf-header-title-group">
+              <div class="sf-brand-icon">⚡</div>
+              <div>
+                <h2>Seguimiento de Operaciones & Asesores</h2>
+                <p>Supervisión ejecutiva de ventas, cotizaciones, inventario y cumplimiento de actividades en campo</p>
+              </div>
+            </div>
+            
+            <div class="sf-filters-wrapper">
+              <div class="sf-filter-control">
+                <label class="sf-filter-label" for="sf-filter-asesor">Asesor:</label>
+                <select id="sf-filter-asesor" class="sf-select" style="min-width: 170px;">
+                  <option value="ALL">👤 Todos los Asesores</option>
+                </select>
+              </div>
+
+              <div class="sf-filter-control">
+                <label class="sf-filter-label" for="sf-filter-ciclo">Ciclo:</label>
+                <select id="sf-filter-ciclo" class="sf-select" style="min-width: 130px;"></select>
+              </div>
+
+              <div class="sf-date-pills">
+                <button type="button" class="sf-pill" data-preset="hoy">Hoy</button>
+                <button type="button" class="sf-pill" data-preset="semana">Esta Semana</button>
+                <button type="button" class="sf-pill" data-preset="mes">Este Mes</button>
+                <button type="button" class="sf-pill" data-preset="ultimos_30">30 Días</button>
+                <button type="button" class="sf-pill active" data-preset="ciclo">Ciclo</button>
+                <button type="button" class="sf-pill" data-preset="personalizado">Personalizado</button>
+              </div>
+
+              <div id="sf-custom-dates-bar" class="sf-custom-dates-bar">
+                <input type="date" id="sf-date-start" class="sf-input" style="padding: 4px 8px; font-size: 12px;">
+                <span style="font-size: 12px; color: #64748b;">a</span>
+                <input type="date" id="sf-date-end" class="sf-input" style="padding: 4px 8px; font-size: 12px;">
+                <button type="button" id="sf-btn-apply-dates" class="sf-btn sf-btn-primary" style="padding: 4px 10px; font-size: 12px;">Aplicar</button>
+              </div>
+
+              <button type="button" id="sf-btn-refresh" class="sf-btn sf-btn-outline" title="Recargar datos">
+                <span>🔄</span> Actualizar
+              </button>
+            </div>
+          </div>
+
+          <!-- Salesforce KPI Ribbon -->
+          <div class="sf-kpi-grid">
+            <!-- 1. Pipeline de Ventas -->
+            <div class="sf-kpi-card blue">
+              <div class="sf-kpi-header">
+                <span class="sf-kpi-title">Pipeline Activo</span>
+                <span class="sf-kpi-icon">💼</span>
+              </div>
+              <div class="sf-kpi-value" id="sf-kpi-pipeline">$0.00</div>
+              <div class="sf-kpi-subtext">
+                <span id="sf-kpi-pipeline-deals" class="sf-badge sf-badge-info">0 cotizaciones</span>
+                <span>en negociación</span>
+              </div>
+            </div>
+
+            <!-- 2. Ventas Ganadas (Won) -->
+            <div class="sf-kpi-card green">
+              <div class="sf-kpi-header">
+                <span class="sf-kpi-title">Ventas Ganadas</span>
+                <span class="sf-kpi-icon">🏆</span>
+              </div>
+              <div class="sf-kpi-value" id="sf-kpi-revenue-won">$0.00</div>
+              <div class="sf-kpi-subtext">
+                <span id="sf-kpi-target-progress" class="sf-badge sf-badge-success">0% meta</span>
+                <span>Win Rate: <strong id="sf-kpi-win-rate">0%</strong></span>
+              </div>
+            </div>
+
+            <!-- 3. Cotizaciones & Ticket Promedio -->
+            <div class="sf-kpi-card purple">
+              <div class="sf-kpi-header">
+                <span class="sf-kpi-title">Cotizaciones & Ticket</span>
+                <span class="sf-kpi-icon">📝</span>
+              </div>
+              <div class="sf-kpi-value" id="sf-kpi-total-quotes">0</div>
+              <div class="sf-kpi-subtext">
+                <span>Ticket Promedio:</span>
+                <strong id="sf-kpi-avg-deal" style="color: #6b21a8;">$0.00</strong>
+              </div>
+            </div>
+
+            <!-- 4. Cumplimiento de Actividades (% Compliance) -->
+            <div class="sf-kpi-card orange">
+              <div class="sf-kpi-header">
+                <span class="sf-kpi-title">Cumplimiento Agenda</span>
+                <span class="sf-kpi-icon">🎯</span>
+              </div>
+              <div class="sf-kpi-value" id="sf-kpi-compliance-rate">0%</div>
+              <div class="sf-kpi-subtext">
+                <span id="sf-kpi-compliance-badge" class="sf-badge sf-badge-warning">Visitas</span>
+                <span id="sf-kpi-completed-count">0 de 0 realizadas</span>
+              </div>
+            </div>
+
+            <!-- 5. Eventos Programados & Overdue -->
+            <div class="sf-kpi-card red">
+              <div class="sf-kpi-header">
+                <span class="sf-kpi-title">Eventos & Atrasos</span>
+                <span class="sf-kpi-icon">⏰</span>
+              </div>
+              <div class="sf-kpi-value" id="sf-kpi-scheduled-events">0</div>
+              <div class="sf-kpi-subtext">
+                <span id="sf-kpi-overdue-badge" class="sf-badge sf-badge-danger">0 vencidas</span>
+                <span id="sf-kpi-pending-count">0 por realizar</span>
+              </div>
+            </div>
+
+            <!-- 6. Inventario en Almacén -->
+            <div class="sf-kpi-card cyan">
+              <div class="sf-kpi-header">
+                <span class="sf-kpi-title">Valor Almacén</span>
+                <span class="sf-kpi-icon">📦</span>
+              </div>
+              <div class="sf-kpi-value" id="sf-kpi-inventory-val">$0.00</div>
+              <div class="sf-kpi-subtext">
+                <span id="sf-kpi-inventory-units" class="sf-badge sf-badge-info">0 unidades</span>
+                <span>en existencias</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main 2-Column Grid -->
+          <div class="sf-main-layout">
+            
+            <!-- Columna Izquierda: Tabla Asesores, Work Queue y Funnel -->
+            <div class="sf-column-left">
+              
+              <!-- 1. Tabla de Asesores & Ranking de Cumplimiento -->
+              <div class="sf-card">
+                <div class="sf-card-header">
+                  <h3 class="sf-card-title">👥 Desempeño y Cumplimiento por Asesor</h3>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="sf-search-asesor" class="sf-input" placeholder="🔍 Buscar asesor..." style="padding: 4px 10px; font-size: 12px; width: 160px;">
+                    <span style="font-size: 12px; color: #64748b;">(Clic para foco 360°)</span>
+                  </div>
+                </div>
+
+                <div class="sf-table-wrapper">
+                  <table class="sf-table">
+                    <thead>
+                      <tr>
+                        <th>Asesor</th>
+                        <th style="text-align: center;">Cartera</th>
+                        <th style="text-align: center;">Agenda</th>
+                        <th style="text-align: center;">Realizadas</th>
+                        <th style="text-align: center;">Vencidas</th>
+                        <th style="min-width: 130px;">% Cumplimiento</th>
+                        <th style="text-align: right;">Ventas ($)</th>
+                        <th style="text-align: center;">% Meta</th>
+                        <th style="text-align: center;">Calificación</th>
+                      </tr>
+                    </thead>
+                    <tbody id="sf-advisers-tbody">
+                      <tr>
+                        <td colspan="9" style="text-align: center; color: #64748b; padding: 24px;">Cargando datos de seguimiento...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- 2. Salesforce Work Queue / Cola de Actividades y Eventos -->
+              <div class="sf-card">
+                <div class="sf-card-header">
+                  <h3 class="sf-card-title">📋 Cola de Actividades y Eventos Programados</h3>
+                  <span id="sf-queue-total-indicator" class="sf-badge sf-badge-info">0 eventos</span>
+                </div>
+
+                <div class="sf-queue-nav">
+                  <button type="button" class="sf-queue-tab active" data-qfilter="all">Todos (<span id="sf-qcnt-all">0</span>)</button>
+                  <button type="button" class="sf-queue-tab" data-qfilter="upcoming">Próximos / Hoy (<span id="sf-qcnt-upcoming">0</span>)</button>
+                  <button type="button" class="sf-queue-tab" data-qfilter="overdue">Atrasados / Overdue (<span id="sf-qcnt-overdue">0</span>)</button>
+                  <button type="button" class="sf-queue-tab" data-qfilter="completed">Completados (<span id="sf-qcnt-completed">0</span>)</button>
+                </div>
+
+                <div id="sf-activities-queue-list" class="sf-queue-list">
+                  <div style="text-align: center; color: #64748b; padding: 24px;">Cargando cola de actividades...</div>
+                </div>
+              </div>
+
+              <!-- 3. Embudo de Ventas (Pipeline Funnel) -->
+              <div class="sf-card">
+                <div class="sf-card-header">
+                  <h3 class="sf-card-title">📊 Embudo Comercial (Pipeline Stage Funnel)</h3>
+                  <span class="sf-badge sf-badge-purple">Conversión de Ciclo</span>
+                </div>
+
+                <div id="sf-pipeline-funnel-container" class="sf-funnel-stages">
+                  <!-- Rendered dynamically -->
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Columna Derecha: Spotlight Asesor 360° y Resumen de Almacén -->
+            <div class="sf-column-right">
+
+              <!-- Card Asesor Spotlight 360° -->
+              <div class="sf-card" id="sf-advisor-spotlight-card">
+                <div class="sf-card-header">
+                  <h3 class="sf-card-title">🔍 Foco 360° de Asesor</h3>
+                  <span id="sf-spotlight-status-badge" class="sf-badge sf-badge-success">Activo</span>
+                </div>
+
+                <div id="sf-spotlight-content">
+                  <div style="text-align: center; color: #64748b; padding: 20px;">
+                    Seleccione un asesor en la tabla o en el filtro para ver su radiografía 360°.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card Resumen de Inventario -->
+              <div class="sf-card">
+                <div class="sf-card-header">
+                  <h3 class="sf-card-title">📦 Disponibilidad en Almacén</h3>
+                  <span id="sf-inv-badge-total" class="sf-badge sf-badge-info">$0.00 MXN</span>
+                </div>
+
+                <div id="sf-inventory-content">
+                  <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div id="sf-inv-cat-breakdown" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                    
+                    <div style="border-top: 1px solid #f1f5f9; padding-top: 12px;">
+                      <h4 style="font-size: 13px; font-weight: 700; color: #1e293b; margin: 0 0 8px 0;">Top Productos en Existencia:</h4>
+                      <div id="sf-inv-top-stock" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
         </div>
       </div>
 
@@ -1378,8 +1629,7 @@
       <div id="admin-view" class="view-section">
         <!-- View sub-tabs -->
         <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; flex-wrap: wrap;">
-          <button id="tab-admin-seguimiento" class="btn btn-secondary active" style="width: auto; padding: 8px 20px; font-size: 14px;">📈 Seguimiento</button>
-          <button id="tab-admin-asesores" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">👥 Asesores</button>
+          <button id="tab-admin-asesores" class="btn btn-secondary active" style="width: auto; padding: 8px 20px; font-size: 14px;">👥 Asesores</button>
           <button id="tab-admin-productos" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🌾 Productos</button>
           <button id="tab-admin-metas" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🎯 Metas Comerciales</button>
           <button id="tab-admin-ciclos" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">📅 Ciclos Agrícolas</button>
@@ -1387,254 +1637,8 @@
           <button id="tab-admin-mantenimiento" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🛠️ Mantenimiento</button>
         </div>
 
-        <!-- 0. SEGUIMIENTO PANEL (SALESFORCE STYLE) -->
-        <div id="panel-admin-seguimiento" class="admin-panel active">
-          <div class="sf-dashboard-container">
-            
-            <!-- Header Ribbon & Controls -->
-            <div class="sf-header-bar">
-              <div class="sf-header-title-group">
-                <div class="sf-brand-icon">⚡</div>
-                <div>
-                  <h2>Seguimiento de Operaciones & Asesores</h2>
-                  <p>Supervisión ejecutiva de ventas, cotizaciones, inventario y cumplimiento de actividades en campo</p>
-                </div>
-              </div>
-              
-              <div class="sf-filters-wrapper">
-                <div class="sf-filter-control">
-                  <label class="sf-filter-label" for="sf-filter-asesor">Asesor:</label>
-                  <select id="sf-filter-asesor" class="sf-select" style="min-width: 170px;">
-                    <option value="ALL">👤 Todos los Asesores</option>
-                  </select>
-                </div>
-
-                <div class="sf-filter-control">
-                  <label class="sf-filter-label" for="sf-filter-ciclo">Ciclo:</label>
-                  <select id="sf-filter-ciclo" class="sf-select" style="min-width: 130px;"></select>
-                </div>
-
-                <div class="sf-date-pills">
-                  <button type="button" class="sf-pill" data-preset="hoy">Hoy</button>
-                  <button type="button" class="sf-pill" data-preset="semana">Esta Semana</button>
-                  <button type="button" class="sf-pill" data-preset="mes">Este Mes</button>
-                  <button type="button" class="sf-pill" data-preset="ultimos_30">30 Días</button>
-                  <button type="button" class="sf-pill active" data-preset="ciclo">Ciclo</button>
-                  <button type="button" class="sf-pill" data-preset="personalizado">Personalizado</button>
-                </div>
-
-                <div id="sf-custom-dates-bar" class="sf-custom-dates-bar">
-                  <input type="date" id="sf-date-start" class="sf-input" style="padding: 4px 8px; font-size: 12px;">
-                  <span style="font-size: 12px; color: #64748b;">a</span>
-                  <input type="date" id="sf-date-end" class="sf-input" style="padding: 4px 8px; font-size: 12px;">
-                  <button type="button" id="sf-btn-apply-dates" class="sf-btn sf-btn-primary" style="padding: 4px 10px; font-size: 12px;">Aplicar</button>
-                </div>
-
-                <button type="button" id="sf-btn-refresh" class="sf-btn sf-btn-outline" title="Recargar datos">
-                  <span>🔄</span> Actualizar
-                </button>
-              </div>
-            </div>
-
-            <!-- Salesforce KPI Ribbon -->
-            <div class="sf-kpi-grid">
-              <!-- 1. Pipeline de Ventas -->
-              <div class="sf-kpi-card blue">
-                <div class="sf-kpi-header">
-                  <span class="sf-kpi-title">Pipeline Activo</span>
-                  <span class="sf-kpi-icon">💼</span>
-                </div>
-                <div class="sf-kpi-value" id="sf-kpi-pipeline">$0.00</div>
-                <div class="sf-kpi-subtext">
-                  <span id="sf-kpi-pipeline-deals" class="sf-badge sf-badge-info">0 cotizaciones</span>
-                  <span>en negociación</span>
-                </div>
-              </div>
-
-              <!-- 2. Ventas Ganadas (Won) -->
-              <div class="sf-kpi-card green">
-                <div class="sf-kpi-header">
-                  <span class="sf-kpi-title">Ventas Ganadas</span>
-                  <span class="sf-kpi-icon">🏆</span>
-                </div>
-                <div class="sf-kpi-value" id="sf-kpi-revenue-won">$0.00</div>
-                <div class="sf-kpi-subtext">
-                  <span id="sf-kpi-target-progress" class="sf-badge sf-badge-success">0% meta</span>
-                  <span>Win Rate: <strong id="sf-kpi-win-rate">0%</strong></span>
-                </div>
-              </div>
-
-              <!-- 3. Cotizaciones & Ticket Promedio -->
-              <div class="sf-kpi-card purple">
-                <div class="sf-kpi-header">
-                  <span class="sf-kpi-title">Cotizaciones & Ticket</span>
-                  <span class="sf-kpi-icon">📝</span>
-                </div>
-                <div class="sf-kpi-value" id="sf-kpi-total-quotes">0</div>
-                <div class="sf-kpi-subtext">
-                  <span>Ticket Promedio:</span>
-                  <strong id="sf-kpi-avg-deal" style="color: #6b21a8;">$0.00</strong>
-                </div>
-              </div>
-
-              <!-- 4. Cumplimiento de Actividades (% Compliance) -->
-              <div class="sf-kpi-card orange">
-                <div class="sf-kpi-header">
-                  <span class="sf-kpi-title">Cumplimiento Agenda</span>
-                  <span class="sf-kpi-icon">🎯</span>
-                </div>
-                <div class="sf-kpi-value" id="sf-kpi-compliance-rate">0%</div>
-                <div class="sf-kpi-subtext">
-                  <span id="sf-kpi-compliance-badge" class="sf-badge sf-badge-warning">Visitas</span>
-                  <span id="sf-kpi-completed-count">0 de 0 realizadas</span>
-                </div>
-              </div>
-
-              <!-- 5. Eventos Programados & Overdue -->
-              <div class="sf-kpi-card red">
-                <div class="sf-kpi-header">
-                  <span class="sf-kpi-title">Eventos & Atrasos</span>
-                  <span class="sf-kpi-icon">⏰</span>
-                </div>
-                <div class="sf-kpi-value" id="sf-kpi-scheduled-events">0</div>
-                <div class="sf-kpi-subtext">
-                  <span id="sf-kpi-overdue-badge" class="sf-badge sf-badge-danger">0 vencidas</span>
-                  <span id="sf-kpi-pending-count">0 por realizar</span>
-                </div>
-              </div>
-
-              <!-- 6. Inventario en Almacén -->
-              <div class="sf-kpi-card cyan">
-                <div class="sf-kpi-header">
-                  <span class="sf-kpi-title">Valor Almacén</span>
-                  <span class="sf-kpi-icon">📦</span>
-                </div>
-                <div class="sf-kpi-value" id="sf-kpi-inventory-val">$0.00</div>
-                <div class="sf-kpi-subtext">
-                  <span id="sf-kpi-inventory-units" class="sf-badge sf-badge-info">0 unidades</span>
-                  <span>en existencias</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Main 2-Column Grid -->
-            <div class="sf-main-layout">
-              
-              <!-- Columna Izquierda: Tabla Asesores, Work Queue y Funnel -->
-              <div class="sf-column-left">
-                
-                <!-- 1. Tabla de Asesores & Ranking de Cumplimiento -->
-                <div class="sf-card">
-                  <div class="sf-card-header">
-                    <h3 class="sf-card-title">👥 Desempeño y Cumplimiento por Asesor</h3>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <input type="text" id="sf-search-asesor" class="sf-input" placeholder="🔍 Buscar asesor..." style="padding: 4px 10px; font-size: 12px; width: 160px;">
-                      <span style="font-size: 12px; color: #64748b;">(Clic para foco 360°)</span>
-                    </div>
-                  </div>
-
-                  <div class="sf-table-wrapper">
-                    <table class="sf-table">
-                      <thead>
-                        <tr>
-                          <th>Asesor</th>
-                          <th style="text-align: center;">Cartera</th>
-                          <th style="text-align: center;">Agenda</th>
-                          <th style="text-align: center;">Realizadas</th>
-                          <th style="text-align: center;">Vencidas</th>
-                          <th style="min-width: 130px;">% Cumplimiento</th>
-                          <th style="text-align: right;">Ventas ($)</th>
-                          <th style="text-align: center;">% Meta</th>
-                          <th style="text-align: center;">Calificación</th>
-                        </tr>
-                      </thead>
-                      <tbody id="sf-advisers-tbody">
-                        <tr>
-                          <td colspan="9" style="text-align: center; color: #64748b; padding: 24px;">Cargando datos de seguimiento...</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <!-- 2. Salesforce Work Queue / Cola de Actividades y Eventos -->
-                <div class="sf-card">
-                  <div class="sf-card-header">
-                    <h3 class="sf-card-title">📋 Cola de Actividades y Eventos Programados</h3>
-                    <span id="sf-queue-total-indicator" class="sf-badge sf-badge-info">0 eventos</span>
-                  </div>
-
-                  <div class="sf-queue-nav">
-                    <button type="button" class="sf-queue-tab active" data-qfilter="all">Todos (<span id="sf-qcnt-all">0</span>)</button>
-                    <button type="button" class="sf-queue-tab" data-qfilter="upcoming">Próximos / Hoy (<span id="sf-qcnt-upcoming">0</span>)</button>
-                    <button type="button" class="sf-queue-tab" data-qfilter="overdue">Atrasados / Overdue (<span id="sf-qcnt-overdue">0</span>)</button>
-                    <button type="button" class="sf-queue-tab" data-qfilter="completed">Completados (<span id="sf-qcnt-completed">0</span>)</button>
-                  </div>
-
-                  <div id="sf-activities-queue-list" class="sf-queue-list">
-                    <div style="text-align: center; color: #64748b; padding: 24px;">Cargando cola de actividades...</div>
-                  </div>
-                </div>
-
-                <!-- 3. Embudo de Ventas (Pipeline Funnel) -->
-                <div class="sf-card">
-                  <div class="sf-card-header">
-                    <h3 class="sf-card-title">📊 Embudo Comercial (Pipeline Stage Funnel)</h3>
-                    <span class="sf-badge sf-badge-purple">Conversión de Ciclo</span>
-                  </div>
-
-                  <div id="sf-pipeline-funnel-container" class="sf-funnel-stages">
-                    <!-- Rendered dynamically -->
-                  </div>
-                </div>
-
-              </div>
-
-              <!-- Columna Derecha: Spotlight Asesor 360° y Resumen de Almacén -->
-              <div class="sf-column-right">
-
-                <!-- Card Asesor Spotlight 360° -->
-                <div class="sf-card" id="sf-advisor-spotlight-card">
-                  <div class="sf-card-header">
-                    <h3 class="sf-card-title">🔍 Foco 360° de Asesor</h3>
-                    <span id="sf-spotlight-status-badge" class="sf-badge sf-badge-success">Activo</span>
-                  </div>
-
-                  <div id="sf-spotlight-content">
-                    <div style="text-align: center; color: #64748b; padding: 20px;">
-                      Seleccione un asesor en la tabla o en el filtro para ver su radiografía 360°.
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Card Resumen de Inventario -->
-                <div class="sf-card">
-                  <div class="sf-card-header">
-                    <h3 class="sf-card-title">📦 Disponibilidad en Almacén</h3>
-                    <span id="sf-inv-badge-total" class="sf-badge sf-badge-info">$0.00 MXN</span>
-                  </div>
-
-                  <div id="sf-inventory-content">
-                    <div style="display: flex; flex-direction: column; gap: 12px;">
-                      <div id="sf-inv-cat-breakdown" style="display: flex; flex-direction: column; gap: 8px;"></div>
-                      
-                      <div style="border-top: 1px solid #f1f5f9; padding-top: 12px;">
-                        <h4 style="font-size: 13px; font-weight: 700; color: #1e293b; margin: 0 0 8px 0;">Top Productos en Existencia:</h4>
-                        <div id="sf-inv-top-stock" style="display: flex; flex-direction: column; gap: 6px;"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-        </div>
-
         <!-- 1. Asesores panel -->
-        <div id="panel-admin-asesores" class="admin-panel" style="display: none;">
+        <div id="panel-admin-asesores" class="admin-panel active">
           <div class="card">
             <div class="flex-header" style="margin-bottom: 20px;">
               <h3>Administrar Catálogo de Asesores</h3>

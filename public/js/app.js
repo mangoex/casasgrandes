@@ -375,10 +375,15 @@ function switchView(viewId, title) {
   if (viewId === 'programacion-view' && !['Administrador', 'Coordinador'].includes(user?.nivel_rol)) {
     return;
   }
+
+  if (viewId === 'seguimiento-view' && !['Administrador', 'Coordinador', 'Director'].includes(user?.nivel_rol)) {
+    return;
+  }
   
   if (!title) {
     const defaultTitles = {
       'dashboard-view': 'Tablero General',
+      'seguimiento-view': 'Seguimiento de Operaciones & Asesores',
       'clientes-view': 'Catálogo de Clientes / Agricultores',
       'cotizador-view': 'Cotizador de Productos',
       'catalog-view': 'Catálogo de Semillas e Insumos'
@@ -410,6 +415,8 @@ function switchView(viewId, title) {
   // Refresh specific views data
   if (viewId === 'dashboard-view') {
     loadDashboardData();
+  } else if (viewId === 'seguimiento-view') {
+    loadSeguimientoDashboard();
   } else if (viewId === 'crm-view') {
     loadCRMBoardData();
   } else if (viewId === 'clientes-view') {
@@ -3983,7 +3990,7 @@ document.getElementById('produccion-uan-form').addEventListener('submit', async 
 // -------------------------------------------------------------
 // ADMINISTRATION CATALOG LOGIC
 // -------------------------------------------------------------
-let adminActiveTab = 'seguimiento';
+let adminActiveTab = 'asesores';
 let allAdminAsesores = [];
 let allAdminProductos = [];
 let allAdminKeyAccounts = [];
@@ -4000,9 +4007,6 @@ let sfSearchAdvisorTerm = '';
 let sfEventsInitialized = false;
 
 // Tab switching
-if (document.getElementById('tab-admin-seguimiento')) {
-  document.getElementById('tab-admin-seguimiento').addEventListener('click', () => switchAdminTab('seguimiento'));
-}
 if (document.getElementById('tab-admin-asesores')) {
   document.getElementById('tab-admin-asesores').addEventListener('click', () => switchAdminTab('asesores'));
   document.getElementById('tab-admin-productos').addEventListener('click', () => switchAdminTab('productos'));
@@ -4014,7 +4018,6 @@ if (document.getElementById('tab-admin-asesores')) {
 
 function switchAdminTab(tabName) {
   adminActiveTab = tabName;
-  const tabSeg = document.getElementById('tab-admin-seguimiento');
   const tabAse = document.getElementById('tab-admin-asesores');
   const tabProd = document.getElementById('tab-admin-productos');
   const tabMet = document.getElementById('tab-admin-metas');
@@ -4022,7 +4025,6 @@ function switchAdminTab(tabName) {
   const tabCue = document.getElementById('tab-admin-cuentas');
   const tabMan = document.getElementById('tab-admin-mantenimiento');
 
-  if (tabSeg) tabSeg.classList.remove('active');
   if (tabAse) tabAse.classList.remove('active');
   if (tabProd) tabProd.classList.remove('active');
   if (tabMet) tabMet.classList.remove('active');
@@ -4030,7 +4032,6 @@ function switchAdminTab(tabName) {
   if (tabCue) tabCue.classList.remove('active');
   if (tabMan) tabMan.classList.remove('active');
 
-  const pSeg = document.getElementById('panel-admin-seguimiento');
   const pAse = document.getElementById('panel-admin-asesores');
   const pProd = document.getElementById('panel-admin-productos');
   const pMet = document.getElementById('panel-admin-metas');
@@ -4038,7 +4039,6 @@ function switchAdminTab(tabName) {
   const pCue = document.getElementById('panel-admin-cuentas');
   const pMan = document.getElementById('panel-admin-mantenimiento');
 
-  if (pSeg) pSeg.style.display = 'none';
   if (pAse) pAse.style.display = 'none';
   if (pProd) pProd.style.display = 'none';
   if (pMet) pMet.style.display = 'none';
@@ -4055,9 +4055,7 @@ function switchAdminTab(tabName) {
 }
 
 async function loadAdminData() {
-  if (adminActiveTab === 'seguimiento') {
-    await loadSeguimientoDashboard();
-  } else if (adminActiveTab === 'asesores') {
+  if (adminActiveTab === 'asesores') {
     await loadAdminAsesores();
   } else if (adminActiveTab === 'productos') {
     await loadAdminProductos();
@@ -4083,6 +4081,11 @@ function initSeguimientoEvents() {
       sfSelectedAsesorId = e.target.value;
       if (sfSelectedAsesorId !== 'ALL') {
         sfSelectedAdvisorSpotlightId = Number(sfSelectedAsesorId);
+      }
+      const searchBox = document.getElementById('sf-search-asesor');
+      if (searchBox) {
+        searchBox.value = '';
+        sfSearchAdvisorTerm = '';
       }
       loadSeguimientoDashboard();
     });
@@ -4298,7 +4301,9 @@ function renderSeguimientoAdvisersTable(advisers) {
   if (sfSearchAdvisorTerm) {
     filtered = advisers.filter(a =>
       (a.nombre || '').toLowerCase().includes(sfSearchAdvisorTerm) ||
-      (a.usuario || '').toLowerCase().includes(sfSearchAdvisorTerm)
+      (a.usuario || '').toLowerCase().includes(sfSearchAdvisorTerm) ||
+      (a.email || '').toLowerCase().includes(sfSearchAdvisorTerm) ||
+      (a.telefono || '').toLowerCase().includes(sfSearchAdvisorTerm)
     );
   }
 
