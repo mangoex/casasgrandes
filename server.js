@@ -1087,6 +1087,7 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
     await client.query('BEGIN');
 
     // The child rows reference the quotation and must be removed before its header.
+    await client.query('DELETE FROM comisiones_generadas WHERE cotizacion_id = $1 OR cotizacion_detalle_id IN (SELECT id FROM cotizacion_detalles WHERE cotizacion_id = $1)', [id]);
     await client.query('DELETE FROM cotizacion_detalles WHERE cotizacion_id = $1', [id]);
     await client.query('DELETE FROM cotizacion_adjuntos WHERE cotizacion_id = $1', [id]);
     await client.query('DELETE FROM almacen_movimientos WHERE cotizacion_id = $1', [id]);
@@ -1240,7 +1241,8 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
         }
       }
 
-      // Step 3: Delete old details
+      // Step 3: Delete old details and associated comisiones if any
+      await tx.run('DELETE FROM comisiones_generadas WHERE cotizacion_id = ? OR cotizacion_detalle_id IN (SELECT id FROM cotizacion_detalles WHERE cotizacion_id = ?)', [id, id]);
       await tx.run('DELETE FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
       
       // Step 4: Insert new details
@@ -2414,6 +2416,91 @@ app.put('/api/asignacion/clientes/:id/asesor', authenticateToken, async (req, re
   }
 });
 
+// Bulk assignment of clients to advisor
+app.put('/api/asignacion/clientes/bulk-asesor', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { client_ids, asesor_id } = req.body;
+  if (!Array.isArray(client_ids) || client_ids.length === 0) {
+    return res.status(400).json({ error: 'client_ids array is required' });
+  }
+
+  let client;
+  try {
+    client = await db.pool.connect();
+    await client.query('BEGIN');
+
+    let assignedCount = 0;
+    for (const clientId of client_ids) {
+      const cliRes = await client.query('SELECT id, nombre, asesor_id FROM clientes WHERE id = $1 AND activo = 1', [clientId]);
+      if (cliRes.rows.length === 0) continue;
+      const c = cliRes.rows[0];
+      const oldAsesorId = c.asesor_id;
+
+      await client.query('UPDATE clientes SET asesor_id = $1, disponible_para_puja = 0 WHERE id = $2', [asesor_id || null, clientId]);
+      assignedCount++;
+
+      // Handle pending bids
+      const pendingBids = await client.query("SELECT id, asesor_id FROM crm_pujas WHERE cliente_id = $1 AND estatus = 'Pendiente'", [clientId]);
+      for (const b of pendingBids.rows) {
+        if (asesor_id && Number(b.asesor_id) === Number(asesor_id)) {
+          await client.query("UPDATE crm_pujas SET estatus = 'Aprobada' WHERE id = $1", [b.id]);
+          await client.query('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES ($1, $2)', 
+            [b.asesor_id, `Tu propuesta para el agricultor ${c.nombre} fue Aprobada y se te ha asignado.`]);
+        } else {
+          await client.query("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE id = $1", [b.id]);
+          await client.query('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES ($1, $2)', 
+            [b.asesor_id, `Tu propuesta para el agricultor ${c.nombre} fue rechazada (asignado a otro asesor).`]);
+        }
+      }
+    }
+
+    if (asesor_id && assignedCount > 0) {
+      const msg = assignedCount === 1
+        ? `Se te ha asignado 1 agricultor.`
+        : `Se te han asignado ${assignedCount} agricultores.`;
+      await client.query('INSERT INTO crm_notificaciones (asesor_id, mensaje) VALUES ($1, $2)', [asesor_id, msg]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: `${assignedCount} agricultores asignados con éxito` });
+  } catch (err) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to bulk assign clients' });
+  } finally {
+    client?.release();
+  }
+});
+
+// Bulk update client biddable status
+app.put('/api/asignacion/clientes/bulk-puja-status', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol !== 'Administrador') {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  const { client_ids, disponible_para_puja } = req.body;
+  if (!Array.isArray(client_ids) || client_ids.length === 0) {
+    return res.status(400).json({ error: 'client_ids array is required' });
+  }
+
+  try {
+    const val = disponible_para_puja ? 1 : 0;
+    for (const cId of client_ids) {
+      await db.run('UPDATE clientes SET disponible_para_puja = ? WHERE id = ? AND activo = 1', [val, cId]);
+      if (!disponible_para_puja) {
+        await db.run("UPDATE crm_pujas SET estatus = 'Rechazada' WHERE cliente_id = ? AND estatus = 'Pendiente'", [cId]);
+      }
+    }
+    res.json({ message: `${client_ids.length} agricultores actualizados para disponibilidad de puja` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to bulk update puja status' });
+  }
+});
+
 // Fetch clients without advisors
 app.get('/api/asignacion/sin-asesor', authenticateToken, async (req, res) => {
   try {
@@ -3172,7 +3259,8 @@ app.post('/api/admin/limpiar-operacion', authenticateToken, async (req, res) => 
       [req.user.id, 'ventas_y_planificacion_sin_bitacora_crm', resumen, datos]
     );
 
-    // Sales movements must be removed before their quotation headers due to the foreign key.
+    // Commissions and sales movements must be removed before their quotation headers due to the foreign key.
+    await client.query('DELETE FROM comisiones_generadas WHERE cotizacion_id IS NOT NULL');
     const movementsDeleted = await client.query('DELETE FROM almacen_movimientos WHERE cotizacion_id IS NOT NULL');
     const quotesDeleted = await client.query('DELETE FROM cotizaciones');
     const plansDeleted = await client.query('DELETE FROM planificacion_semanal');

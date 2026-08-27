@@ -423,8 +423,8 @@ async function initSchema() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS comisiones_generadas (
         id SERIAL PRIMARY KEY,
-        cotizacion_id INTEGER REFERENCES cotizaciones(id),
-        cotizacion_detalle_id INTEGER REFERENCES cotizacion_detalles(id),
+        cotizacion_id INTEGER REFERENCES cotizaciones(id) ON DELETE CASCADE,
+        cotizacion_detalle_id INTEGER REFERENCES cotizacion_detalles(id) ON DELETE CASCADE,
         asesor_id INTEGER NOT NULL REFERENCES asesores(id),
         fecha_calculo TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         monto_base_aplicado REAL NOT NULL,
@@ -436,6 +436,32 @@ async function initSchema() {
     `);
     await pool.query('CREATE INDEX IF NOT EXISTS idx_comisiones_asesor ON comisiones_generadas(asesor_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_comisiones_estatus ON comisiones_generadas(estatus)');
+
+    // Ensure ON DELETE CASCADE is active for existing comisiones_generadas constraints
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.table_constraints 
+          WHERE table_name = 'comisiones_generadas' AND constraint_name = 'comisiones_generadas_cotizacion_id_fkey'
+        ) THEN
+          ALTER TABLE comisiones_generadas DROP CONSTRAINT comisiones_generadas_cotizacion_id_fkey;
+          ALTER TABLE comisiones_generadas 
+            ADD CONSTRAINT comisiones_generadas_cotizacion_id_fkey 
+            FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.table_constraints 
+          WHERE table_name = 'comisiones_generadas' AND constraint_name = 'comisiones_generadas_cotizacion_detalle_id_fkey'
+        ) THEN
+          ALTER TABLE comisiones_generadas DROP CONSTRAINT comisiones_generadas_cotizacion_detalle_id_fkey;
+          ALTER TABLE comisiones_generadas 
+            ADD CONSTRAINT comisiones_generadas_cotizacion_detalle_id_fkey 
+            FOREIGN KEY (cotizacion_detalle_id) REFERENCES cotizacion_detalles(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
 
     console.log('PostgreSQL schema auto-updates checked/applied successfully.');
   } catch (err) {

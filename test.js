@@ -168,6 +168,101 @@ async function runTests() {
         process.exit(1);
       }
 
+      // Test Case 8: Quotation Deletion with Details, Commissions & Warehouse Movements
+      console.log("\n----------------------------------------------------");
+      console.log("   TEST CASE 8: QUOTATION DELETION WITH COMMISSIONS");
+      console.log("----------------------------------------------------");
+      
+      const testClient = await db.get("SELECT id FROM clientes LIMIT 1");
+      const testClientId = testClient ? testClient.id : 1;
+      const testProd = await db.get("SELECT id FROM productos LIMIT 1");
+      const testProdId = testProd ? testProd.id : 1;
+      
+      // 1. Create a test quotation
+      const testQuoteInsert = await db.run(`
+        INSERT INTO cotizaciones (folio_cotizacion, cliente_id, asesor_id, estatus, condiciones_pago, fecha_creacion, ciclo_agricola, total_mxn)
+        VALUES ('TEST-DEL-001', ?, ?, 'Autorizada', 'Contado', CURRENT_TIMESTAMP, 'O-I 2026', 4092.0)
+      `, [testClientId, asesor.id]);
+      const testQuoteId = testQuoteInsert.id;
+
+      // 2. Insert detail
+      const testDetailInsert = await db.run(`
+        INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
+        VALUES (?, ?, 1, 1, 0, 4092.0, 4092.0, 4092.0)
+      `, [testQuoteId, testProdId]);
+
+      // 3. Insert generated commission referencing quote & detail
+      await db.run(`
+        INSERT INTO comisiones_generadas (cotizacion_id, cotizacion_detalle_id, asesor_id, monto_base_aplicado, monto_temporada_aplicado, total_comision_mxn, estatus, notas)
+        VALUES (?, ?, ?, 409.2, 0.0, 409.2, 'Pendiente', 'TEST_COMMISSION_FOR_DELETION')
+      `, [testQuoteId, testDetailInsert.id, asesor.id]);
+
+      // 4. Perform the deletion sequence matching server.js DELETE /api/cotizaciones/:id
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM comisiones_generadas WHERE cotizacion_id = $1 OR cotizacion_detalle_id IN (SELECT id FROM cotizacion_detalles WHERE cotizacion_id = $1)', [testQuoteId]);
+        await client.query('DELETE FROM cotizacion_detalles WHERE cotizacion_id = $1', [testQuoteId]);
+        await client.query('DELETE FROM cotizacion_adjuntos WHERE cotizacion_id = $1', [testQuoteId]);
+        await client.query('DELETE FROM almacen_movimientos WHERE cotizacion_id = $1', [testQuoteId]);
+        await client.query('UPDATE crm_prospectos SET cotizacion_id = NULL WHERE cotizacion_id = $1', [testQuoteId]);
+        await client.query('DELETE FROM cotizaciones WHERE id = $1', [testQuoteId]);
+        await client.query('COMMIT');
+      } catch (delErr) {
+        await client.query('ROLLBACK');
+        throw delErr;
+      } finally {
+        client.release();
+      }
+
+      // 5. Assert records are deleted
+      const quoteCheck = await db.get("SELECT * FROM cotizaciones WHERE id = ?", [testQuoteId]);
+      const detailCheck = await db.get("SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ?", [testQuoteId]);
+      const commCheck = await db.get("SELECT * FROM comisiones_generadas WHERE cotizacion_id = ?", [testQuoteId]);
+
+      if (!quoteCheck && !detailCheck && !commCheck) {
+        console.log("🟢 TEST CASE 8 PASSED (Quotation & Commission Deletion Referential Integrity)!");
+      } else {
+        console.error("🔴 TEST CASE 8 FAILED (Records still exist)!");
+        process.exit(1);
+      }
+
+      // Test Case 9: Bulk Assignment and Bulk Biddable Status
+      console.log("\n----------------------------------------------------");
+      console.log("   TEST CASE 9: BULK CLIENT ASSIGNMENT & PUJA STATUS");
+      console.log("----------------------------------------------------");
+      
+      const c1 = await db.run("INSERT INTO clientes (nombre, activo, disponible_para_puja) VALUES ('TEST_CLIENT_BULK_1', 1, 0)");
+      const c2 = await db.run("INSERT INTO clientes (nombre, activo, disponible_para_puja) VALUES ('TEST_CLIENT_BULK_2', 1, 0)");
+      
+      const bulkIds = [c1.id, c2.id];
+
+      // 1. Bulk make biddable
+      await db.run('UPDATE clientes SET disponible_para_puja = 1 WHERE id = ANY(?) AND activo = 1', [bulkIds]);
+      const checkBiddable1 = await db.get("SELECT disponible_para_puja FROM clientes WHERE id = ?", [c1.id]);
+      const checkBiddable2 = await db.get("SELECT disponible_para_puja FROM clientes WHERE id = ?", [c2.id]);
+      if (checkBiddable1.disponible_para_puja !== 1 || checkBiddable2.disponible_para_puja !== 1) {
+        console.error("🔴 TEST CASE 9 FAILED: Bulk biddable update failed");
+        process.exit(1);
+      }
+
+      // 2. Bulk assign to advisor
+      for (const id of bulkIds) {
+        await db.run("UPDATE clientes SET asesor_id = ?, disponible_para_puja = 0 WHERE id = ?", [asesor.id, id]);
+      }
+      const checkAssigned1 = await db.get("SELECT asesor_id, disponible_para_puja FROM clientes WHERE id = ?", [c1.id]);
+      const checkAssigned2 = await db.get("SELECT asesor_id, disponible_para_puja FROM clientes WHERE id = ?", [c2.id]);
+
+      if (checkAssigned1.asesor_id === asesor.id && checkAssigned2.asesor_id === asesor.id && checkAssigned1.disponible_para_puja === 0 && checkAssigned2.disponible_para_puja === 0) {
+        console.log("🟢 TEST CASE 9 PASSED (Bulk Assignment & Puja Status Update)!");
+      } else {
+        console.error("🔴 TEST CASE 9 FAILED: Bulk assignment failed");
+        process.exit(1);
+      }
+
+      // Cleanup test clients
+      await db.run("DELETE FROM clientes WHERE id = ANY(?)", [bulkIds]);
+
       // Cleanup test data
       await db.run("DELETE FROM comision_reglas_base WHERE condicion_pago = 'TEST_CONTADO'");
       await db.run("DELETE FROM comisiones_generadas WHERE notas LIKE '%TEST_COMMISSION%'");
