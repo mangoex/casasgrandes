@@ -1505,7 +1505,7 @@
 
         <div class="assign-grid" style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 24px; min-height: 500px;">
           <!-- Column 1: Unassigned Clients -->
-          <div class="card" style="padding: 16px; display: flex; flex-direction: column;">
+          <div class="card" id="assign-unassigned-card" style="padding: 16px; display: flex; flex-direction: column; border: 2px dashed transparent; transition: all 0.2s ease;">
             <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 8px;">
                 <h4 style="margin: 0; font-weight: 700;">Agricultores sin Asesor</h4>
@@ -1536,9 +1536,17 @@
 
           <!-- Column 3: Biddable pool (Drop Zone) -->
           <div class="card" id="assign-biddable-card" style="padding: 16px; display: flex; flex-direction: column; background: var(--bg-hover); border: 2px dashed var(--border); transition: all 0.2s ease;">
-            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-              <h4 style="margin: 0; font-weight: 700;">Pool "Disponible" (Pujas)</h4>
-              <span class="badge badge-warning" id="assign-biddable-count">0</span>
+            <div style="border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h4 style="margin: 0; font-weight: 700;">Pool "Disponible" (Pujas)</h4>
+                <span class="badge badge-warning" id="assign-biddable-count">0</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; width: 100%; justify-content: space-between;">
+                <label style="margin: 0; font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="assign-biddable-select-all" onchange="toggleSelectAllBiddable(this.checked)"> Seleccionar todos
+                </label>
+                <button class="btn btn-secondary" id="assign-bulk-return-btn" style="width: auto; padding: 4px 10px; font-size: 11px; margin: 0; display: none;" onclick="returnSelectedFromBiddable()">↩️ Quitar del Pool (<span id="assign-biddable-selected-count">0</span>)</button>
+              </div>
             </div>
             <div id="assign-biddable-list" style="flex: 1; overflow-y: auto; max-height: 600px; display: flex; flex-direction: column; gap: 16px; padding: 4px;">
               <div style="text-align: center; color: var(--text-light); padding: 20px;">No hay clientes en el pool de puja.</div>

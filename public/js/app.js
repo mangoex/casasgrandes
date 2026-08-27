@@ -7658,6 +7658,7 @@ document.getElementById('bid-form').addEventListener('submit', async (e) => {
 
 // Load Assignment View (Admin Only)
 let selectedUnassignedClientIds = new Set();
+let selectedBiddableClientIds = new Set();
 
 window.toggleSelectAllUnassigned = function(checked) {
   const checkboxes = document.querySelectorAll('.assign-client-checkbox');
@@ -7710,6 +7711,67 @@ window.makeSelectedBiddable = async function() {
   await window.toggleMultipleClientsBiddable(clientIds, true);
 };
 
+window.toggleSelectAllBiddable = function(checked) {
+  const checkboxes = document.querySelectorAll('.assign-biddable-checkbox');
+  checkboxes.forEach(cb => {
+    cb.checked = checked;
+    const val = Number(cb.value);
+    if (checked) {
+      selectedBiddableClientIds.add(val);
+    } else {
+      selectedBiddableClientIds.delete(val);
+    }
+  });
+
+  // If selecting all and we have the full pool in memory, select all biddable clients
+  if (checked && Array.isArray(allUnassignedClients)) {
+    allUnassignedClients.filter(c => Number(c.disponible_para_puja || 0) === 1).forEach(c => {
+      selectedBiddableClientIds.add(c.id);
+    });
+  } else if (!checked) {
+    selectedBiddableClientIds.clear();
+  }
+
+  window.updateAssignBiddableBulkAction();
+};
+
+window.updateAssignBiddableBulkAction = function(clientId = null, isChecked = null) {
+  if (clientId !== null && isChecked !== null) {
+    const numericId = Number(clientId);
+    if (isChecked) {
+      selectedBiddableClientIds.add(numericId);
+    } else {
+      selectedBiddableClientIds.delete(numericId);
+    }
+  }
+
+  const checkboxes = document.querySelectorAll('.assign-biddable-checkbox');
+  const count = selectedBiddableClientIds.size;
+  const countSpan = document.getElementById('assign-biddable-selected-count');
+  if (countSpan) countSpan.textContent = count;
+
+  const returnBtn = document.getElementById('assign-bulk-return-btn');
+  if (returnBtn) {
+    returnBtn.style.display = count > 0 ? 'inline-block' : 'none';
+  }
+
+  const selectAllCb = document.getElementById('assign-biddable-select-all');
+  if (selectAllCb && checkboxes.length > 0) {
+    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+    selectAllCb.checked = checkedCount === checkboxes.length && checkedCount > 0;
+    selectAllCb.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+  } else if (selectAllCb) {
+    selectAllCb.checked = false;
+    selectAllCb.indeterminate = false;
+  }
+};
+
+window.returnSelectedFromBiddable = async function() {
+  const clientIds = Array.from(selectedBiddableClientIds);
+  if (clientIds.length === 0) return;
+  await window.toggleMultipleClientsBiddable(clientIds, false);
+};
+
 window.toggleMultipleClientsBiddable = async function(clientIds, isBiddable) {
   if (!Array.isArray(clientIds) || clientIds.length === 0) return;
   try {
@@ -7723,6 +7785,7 @@ window.toggleMultipleClientsBiddable = async function(clientIds, isBiddable) {
       throw new Error(errData.error || 'Error al actualizar disponibilidad');
     }
     selectedUnassignedClientIds.clear();
+    selectedBiddableClientIds.clear();
     await loadAsignacionView();
   } catch (err) {
     alert(`Error: ${err.message}`);
@@ -7742,6 +7805,7 @@ window.assignMultipleClientsDirectly = async function(clientIds, advisorId, advi
       throw new Error(errData.error || 'Error al asignar agricultores');
     }
     selectedUnassignedClientIds.clear();
+    selectedBiddableClientIds.clear();
     alert(`${clientIds.length} agricultor${clientIds.length === 1 ? '' : 'es'} asignado${clientIds.length === 1 ? '' : 's'} con éxito a ${advisorName}.`);
     await loadAsignacionView();
   } catch (err) {
@@ -7804,6 +7868,39 @@ window.loadAsignacionView = async function() {
     if (searchAdvisorInput && !searchAdvisorInput.dataset.listenerBound) {
       searchAdvisorInput.dataset.listenerBound = 'true';
       searchAdvisorInput.addEventListener('input', onSearchInput);
+    }
+
+    // Bind Unassigned Column Drag & Drop (Return from Biddable to Direct)
+    const unassignedCard = document.getElementById('assign-unassigned-card');
+    if (unassignedCard && !unassignedCard.dataset.listenersBound) {
+      unassignedCard.dataset.listenersBound = 'true';
+      unassignedCard.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        unassignedCard.style.borderColor = 'var(--primary)';
+        unassignedCard.style.background = 'rgba(52, 152, 219, 0.05)';
+      });
+      unassignedCard.addEventListener('dragleave', () => {
+        unassignedCard.style.borderColor = 'transparent';
+        unassignedCard.style.background = 'transparent';
+      });
+      unassignedCard.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        unassignedCard.style.borderColor = 'transparent';
+        unassignedCard.style.background = 'transparent';
+        
+        const dragData = e.dataTransfer.getData('text/plain');
+        if (dragData) {
+          let clientIds = [];
+          if (dragData.startsWith('clients:')) {
+            clientIds = dragData.replace('clients:', '').split(',').map(Number).filter(Boolean);
+          } else if (dragData.startsWith('client:')) {
+            clientIds = [Number(dragData.split(':')[1])].filter(Boolean);
+          }
+          if (clientIds.length > 0) {
+            await window.toggleMultipleClientsBiddable(clientIds, false);
+          }
+        }
+      });
     }
     
     // Bind Biddable Pool Card Drag & Drop
@@ -7902,6 +7999,14 @@ window.renderAsignacionBoard = function(advisors) {
     }
   }
 
+  // Clean up selected ids that are no longer in biddablePoolClients
+  const biddableIdsSet = new Set(biddablePoolClients.map(c => c.id));
+  for (const selId of selectedBiddableClientIds) {
+    if (!biddableIdsSet.has(selId)) {
+      selectedBiddableClientIds.delete(selId);
+    }
+  }
+
   // Update counts
   if (document.getElementById('assign-unassigned-count')) document.getElementById('assign-unassigned-count').textContent = directAssignClients.length;
   if (document.getElementById('assign-biddable-count')) document.getElementById('assign-biddable-count').textContent = biddablePoolClients.length;
@@ -7969,20 +8074,37 @@ window.renderAsignacionBoard = function(advisors) {
   if (biddablePoolClients.length === 0) {
     biddableList.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 30px; border: 1px dashed var(--border); border-radius: var(--radius);">El pool de pujas está vacío.</div>';
   } else {
-    biddablePoolClients.forEach(c => {
+    const biddableToRender = biddablePoolClients.slice(0, 100);
+    biddableToRender.forEach(c => {
       const clientBids = (Array.isArray(allActiveBids) ? allActiveBids : []).filter(b => b.cliente_id === c.id && b.estatus === 'Pendiente');
       const purchaseVol = clientPurchasesMap.get(c.id) || 0;
+      const isChecked = selectedBiddableClientIds.has(c.id);
       
       const card = document.createElement('div');
       card.className = 'kanban-card';
+      card.id = `client-biddable-card-${c.id}`;
+      card.draggable = true;
+      card.style.cursor = 'grab';
       card.style.padding = '12px';
       card.style.borderLeft = '4px solid var(--warning)';
       card.style.marginBottom = '12px';
+      card.addEventListener('dragstart', (e) => {
+        let idsToDrag = [];
+        if (selectedBiddableClientIds.has(c.id) && selectedBiddableClientIds.size > 1) {
+          idsToDrag = Array.from(selectedBiddableClientIds);
+        } else {
+          idsToDrag = [c.id];
+        }
+        e.dataTransfer.setData('text/plain', `clients:${idsToDrag.join(',')}`);
+      });
       
       const hasBids = clientBids.length > 0;
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
-          <strong style="font-size: 13px; color: var(--text-dark);">${escapeHtml(c.nombre)}</strong>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" class="assign-biddable-checkbox" value="${c.id}" ${isChecked ? 'checked' : ''} onchange="updateAssignBiddableBulkAction(${c.id}, this.checked)">
+            <strong style="font-size: 13px; color: var(--text-dark);">${escapeHtml(c.nombre)}</strong>
+          </div>
           <button class="btn btn-secondary" style="width: auto; padding: 2px 6px; font-size: 10px; margin: 0; line-height: 1;" onclick="toggleClientBiddable(${c.id}, false)" title="Quitar del pool">Quitar ✗</button>
         </div>
         <div style="font-size: 11px; color: var(--text-light); margin-bottom: 8px;">📍 ${escapeHtml(c.ubicacion || 'Sin ubicación')} | $${purchaseVol.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</div>
@@ -7997,7 +8119,20 @@ window.renderAsignacionBoard = function(advisors) {
       `;
       biddableList.appendChild(card);
     });
+
+    if (biddablePoolClients.length > 100) {
+      const moreBiddableNotice = document.createElement('div');
+      moreBiddableNotice.style.textAlign = 'center';
+      moreBiddableNotice.style.color = 'var(--text-light)';
+      moreBiddableNotice.style.fontSize = '12px';
+      moreBiddableNotice.style.padding = '10px';
+      moreBiddableNotice.innerHTML = `Mostrando los primeros 100 de ${biddablePoolClients.length.toLocaleString('es-MX')} agricultores en el pool de pujas.`;
+      biddableList.appendChild(moreBiddableNotice);
+    }
   }
+
+  // Sync biddable bulk actions state when rendering
+  window.updateAssignBiddableBulkAction();
   
   // Render column 3: Advisors (Drop Zones)
   advisorsList.innerHTML = '';
