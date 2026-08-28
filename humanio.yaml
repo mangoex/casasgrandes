@@ -1,0 +1,7 @@
+schema_version: 1
+framework: humanio-ceo
+framework_version: "1.1.0"
+project: "AgriSales Pro - CasasGrandes"
+profile: "software"
+risk: "R3"
+status: active

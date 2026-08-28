@@ -1,6 +1,13 @@
 import os
 import csv
+import re
 import sqlite3
+
+initial_advisor_password_hash = os.environ.get("INITIAL_ADVISOR_PASSWORD_HASH", "").strip()
+if not re.fullmatch(r"\$2[aby]\$\d{2}\$.{53}", initial_advisor_password_hash):
+    raise RuntimeError(
+        "INITIAL_ADVISOR_PASSWORD_HASH must contain a valid bcrypt hash before migration."
+    )
 
 db_path = "database.sqlite"
 if os.path.exists(db_path):
@@ -20,6 +27,7 @@ CREATE TABLE IF NOT EXISTS asesores (
     telefono TEXT,
     cumpleanos TEXT,
     password_hash TEXT NOT NULL,
+    session_version INTEGER NOT NULL DEFAULT 1,
     activo INTEGER DEFAULT 1,
     calificacion REAL DEFAULT 5.0
 )
@@ -153,9 +161,6 @@ CREATE TABLE IF NOT EXISTS crm_visitas (
 
 conn.commit()
 
-# Default bcrypt hash for 'password123'
-default_password_hash = "$2b$10$Ly0wcxrAZmfzIOSLPRzwdO3YxJQ2dPT6osFpn0j0hlAT9uK7ojTKm"
-
 # 1. Populate Cuentas Clave
 cursor.execute("INSERT INTO cuentas_clave (tier_name, descuento_mxn) VALUES ('Ninguno / General', 0.0)")
 with open("Cuenta clave.csv", "r", encoding="utf-8") as f:
@@ -183,7 +188,7 @@ with open("Asesores.csv", "r", encoding="utf-8") as f:
             cursor.execute("""
             INSERT OR IGNORE INTO asesores (nombre, usuario, nivel_rol, email, telefono, cumpleanos, password_hash)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (nombre, usuario, nivel, email, telefono, cumpleanos, default_password_hash))
+            """, (nombre, usuario, nivel, email, telefono, cumpleanos, initial_advisor_password_hash))
 conn.commit()
 
 # 3. Populate Temporadas

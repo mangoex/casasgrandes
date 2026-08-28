@@ -2,8 +2,7 @@
 const API_URL = ''; // Relative path since served on same host
 
 // State Variables
-let token = localStorage.getItem('token');
-let user = JSON.parse(localStorage.getItem('user'));
+let user = null;
 
 // Global fetch interceptor for handling session expiration (401/403)
 const originalFetch = window.fetch;
@@ -20,13 +19,10 @@ window.fetch = async function(...args) {
         // A non-JSON failure must not be treated as an expired session.
       }
 
-      const invalidSession = ['Access token required', 'Invalid or expired token'].includes(errorMessage);
+      const invalidSession = ['Access token required', 'Invalid or expired token', 'Session revoked'].includes(errorMessage);
       if (!urlStr.includes('/api/auth/login') && invalidSession) {
         console.warn('Session expired or invalid. Redirecting to login...', urlStr);
-        token = null;
         user = null;
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
         showLoginView();
       }
     }
@@ -147,10 +143,15 @@ async function loadAllCycles() {
 }
 
 // Initialize App Check Auth
-function initApp() {
-  if (token && user) {
-    showAppView();
-  } else {
+async function initApp() {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/me`, { headers: getHeaders() });
+    if (!response.ok) throw new Error('No active session');
+    const data = await response.json();
+    user = data.user;
+    await showAppView();
+  } catch {
+    user = null;
     showLoginView();
   }
 }
@@ -455,8 +456,7 @@ function openMobileAgenda() {
 // Helper headers loader
 function getHeaders() {
   return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+    'Content-Type': 'application/json'
   };
 }
 
@@ -486,13 +486,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       throw new Error(data.error || 'Login failed');
     }
     
-    // Save login credentials
-    token = data.token;
     user = data.user;
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    
-    showAppView();
+    await showAppView();
   } catch (err) {
     errorBox.textContent = err.message;
     errorBox.style.display = 'block';
@@ -500,15 +495,20 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 });
 
 // LOG OUT
-document.getElementById('logout-btn').addEventListener('click', (e) => {
+document.getElementById('logout-btn').addEventListener('click', async (e) => {
   e.preventDefault();
-  token = null;
+  try {
+    await fetch(`${API_URL}/api/auth/logout`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+  } catch (error) {
+    console.warn('No fue posible confirmar el cierre de sesión con el servidor.', error);
+  }
   user = null;
   allMatchingMetrics = null;
   allUnassignedClients = [];
   allActiveBids = [];
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
   showLoginView();
 });
 
@@ -2125,8 +2125,12 @@ function addQuoteItemRow() {
         <small class="mobile-quantity-hint">Toca el número para escribir</small>
       </div>
       <div class="form-group item-price-group">
-        <label>Precio Base</label>
+        <label>Precio del mes</label>
         <input type="text" class="form-input item-calc-unit-price" style="background-color: var(--bg);" value="-" readonly>
+        <div class="item-monthly-discount-summary" style="font-size:10px; color:var(--text-light); margin-top:4px; line-height:1.4;">
+          <span>Descuento incluido por programación: <strong class="item-monthly-discount">$0.00 MXN</strong></span><br>
+          <span>Descuento adicional disponible: <strong class="item-advisor-available">$0.00 MXN</strong></span>
+        </div>
         <span class="mobile-item-subtotal">Subtotal —</span>
       </div>
       <button type="button" class="btn-remove" aria-label="Eliminar producto" onclick="removeQuoteItemRow(${rowNum})">
@@ -2142,9 +2146,9 @@ function addQuoteItemRow() {
         <div class="item-key-account-amount" style="font-weight:700; font-size:15px; color:#2563eb;">-$0.00 MXN</div>
       </div>
       <div class="item-advisor-discount-control">
-        <label>🎚️ Descuento Asesor</label>
+        <label>🎚️ Descuento adicional</label>
         <input type="range" class="discount-slider item-discount-slider"
-               min="0" max="0" step="1" value="0"
+               min="0" max="0" step="0.01" value="0"
                data-row="${rowNum}"
                oninput="onDiscountSliderChange(this)">
       </div>
@@ -2329,7 +2333,7 @@ function debouncedLiveCalculation() {
       
       // Update individual unit prices and discount sliders in the form
       const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
-      wrappers.forEach(wrapper => {
+      wrappers.forEach((wrapper, itemIndex) => {
         const select = wrapper.querySelector('.item-product-select');
         const unitPriceInput = wrapper.querySelector('.item-calc-unit-price');
         const discountRow = wrapper.querySelector('.item-discount-row');
@@ -2340,17 +2344,27 @@ function debouncedLiveCalculation() {
         const advisorAmount = wrapper.querySelector('.item-advisor-discount-amount');
         const slider = wrapper.querySelector('.item-discount-slider');
         const maxLabel = wrapper.querySelector('.item-discount-max-label');
+        const monthlyDiscountLabel = wrapper.querySelector('.item-monthly-discount');
+        const advisorAvailableLabel = wrapper.querySelector('.item-advisor-available');
         
         if (select && select.value && unitPriceInput) {
-          const calcItem = calc.items.find(i => i.producto_id === Number(select.value));
+          const calcItem = calc.items[itemIndex]?.producto_id === Number(select.value)
+            ? calc.items[itemIndex]
+            : calc.items.find(i => i.producto_id === Number(select.value));
           if (calcItem) {
             const keyAccountDiscount = Number(calcItem.descuento_cuenta_clave_mxn || 0);
             const maxDisc = Number(calcItem.max_discount_mxn || 0);
             const hasKeyAccountDiscount = keyAccountDiscount > 0;
             const hasAdvisorDiscount = maxDisc > 0;
 
-            // Base is shown before Cuenta Clave, then the advisor slider continues from the reduced price.
-            unitPriceInput.value = `$${Number(calcItem.precio_antes_cuenta_clave || calcItem.precio_neto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            // El precio visible parte de Programación; beneficios y descuento adicional continúan debajo.
+            unitPriceInput.value = `$${Number(calcItem.precio_lista).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            if (monthlyDiscountLabel) {
+              monthlyDiscountLabel.textContent = `$${Number(calcItem.descuento_mensual_mxn || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            }
+            if (advisorAvailableLabel) {
+              advisorAvailableLabel.textContent = `$${maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            }
             const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
             const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
             if (mobileSubtotal) {
@@ -2376,7 +2390,7 @@ function debouncedLiveCalculation() {
                 slider.value = 0;
                 slider.setAttribute('data-max-prev', maxDisc);
               }
-              if (maxLabel) maxLabel.textContent = maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 0 });
+              if (maxLabel) maxLabel.textContent = maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 2 });
               // Store base net price for slider calculations
               slider.setAttribute('data-base-price', calcItem.precio_neto);
               // Update slider display
@@ -2540,23 +2554,20 @@ function updateVirtualSheet(calc, payload) {
   
   // Build preview items rows
   // Read any advisor discounts currently set in the sliders
-  const sliderDiscounts = {};
+  const sliderDiscounts = [];
   document.querySelectorAll('#items-builder-container .item-row-wrapper').forEach(wrapper => {
-    const select = wrapper.querySelector('.item-product-select');
     const slider = wrapper.querySelector('.item-discount-slider');
-    if (select && select.value && slider) {
-      sliderDiscounts[Number(select.value)] = parseFloat(slider.value) || 0;
-    }
+    sliderDiscounts.push(slider ? (parseFloat(slider.value) || 0) : 0);
   });
   
   const tbody = document.getElementById('preview-table-body');
   tbody.innerHTML = '';
   let grandTotalWithDiscounts = 0;
   
-  calc.items.forEach(i => {
+  calc.items.forEach((i, itemIndex) => {
     const listPrice = i.precio_lista;
     const netPrice = i.precio_neto;
-    const advisorDiscount = sliderDiscounts[i.producto_id] || 0;
+    const advisorDiscount = sliderDiscounts[itemIndex] || 0;
     const finalPrice = netPrice - advisorDiscount;
     const totalVolumeDiscount = listPrice - netPrice;
     const subtotalFinal = finalPrice * i.cantidad;
@@ -4907,7 +4918,9 @@ if (document.getElementById('btn-open-asesor-modal')) {
     document.getElementById('asesor-modal-title').textContent = 'Registrar Nuevo Asesor';
     document.getElementById('asesor-submit-btn').textContent = 'Registrar Asesor';
     document.getElementById('asesor-password-label').textContent = 'Contraseña';
-    document.getElementById('asesor-password').placeholder = 'Dejar vacío para usar "password123"';
+    document.getElementById('asesor-password').placeholder = 'Mínimo 12 caracteres';
+    document.getElementById('asesor-password').required = true;
+    document.getElementById('asesor-password').minLength = 12;
     document.getElementById('asesor-status').value = '1';
     document.getElementById('asesor-calificacion').value = '5.0';
     
@@ -4934,6 +4947,8 @@ window.openEditAsesorModal = function(id) {
   document.getElementById('asesor-submit-btn').textContent = 'Guardar Cambios';
   document.getElementById('asesor-password-label').textContent = 'Nueva Contraseña (Opcional)';
   document.getElementById('asesor-password').placeholder = 'Dejar vacío para no modificar';
+  document.getElementById('asesor-password').required = false;
+  document.getElementById('asesor-password').minLength = 12;
   
   openModal('add-asesor-modal');
 };
@@ -6434,20 +6449,11 @@ const ADVISOR_STAGE_DEFINITIONS = [
 ];
 
 function escapeAttribute(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return SecurityUtils.escapeHtml(value);
 }
 
 function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  return SecurityUtils.escapeHtml(value);
 }
 
 function normalizeStageText(stage) {
@@ -8846,12 +8852,20 @@ async function loadIAViewData() {
     // Set API Keys and Model
     const geminiInput = document.getElementById('ia-gemini-key');
     if (geminiInput) {
-      geminiInput.value = data.maskedGeminiKey || '';
+      geminiInput.value = '';
+      geminiInput.disabled = true;
+      geminiInput.placeholder = data.hasGeminiKey
+        ? 'Configurada de forma segura en el entorno'
+        : 'Configurar GEMINI_API_KEY en el entorno';
     }
 
     const openrouterInput = document.getElementById('ia-openrouter-key');
     if (openrouterInput) {
-      openrouterInput.value = data.maskedOpenRouterKey || '';
+      openrouterInput.value = '';
+      openrouterInput.disabled = true;
+      openrouterInput.placeholder = data.hasOpenRouterKey
+        ? 'Configurada de forma segura en el entorno'
+        : 'Configurar OPENROUTER_API_KEY en el entorno';
     }
 
     const modelInput = document.getElementById('ia-openrouter-model');
@@ -9258,67 +9272,7 @@ function toggleLogDetail(btn) {
 
 // Simple Markdown parser for proposal presentation
 function simpleMarkdownToHtml(md) {
-  if (!md) return '';
-  let html = md;
-  
-  // Headers
-  html = html.replace(/^### (.*$)/gim, '<h5 style="margin-top: 12px; margin-bottom: 6px; font-size: 15px; font-weight: 600;">$1</h5>');
-  html = html.replace(/^## (.*$)/gim, '<h4 style="margin-top: 16px; margin-bottom: 8px; font-size: 16px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 4px;">$1</h4>');
-  html = html.replace(/^# (.*$)/gim, '<h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 18px; font-weight: 800;">$1</h3>');
-  
-  // Bold
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  
-  // Tables
-  // Simple check if markdown table is present and replace it with a styled table
-  const lines = html.split('\n');
-  let inTable = false;
-  let tableRows = [];
-  let parsedLines = [];
-  
-  lines.forEach(line => {
-    if (line.trim().startsWith('|')) {
-      inTable = true;
-      // skip separators
-      if (!line.includes('---')) {
-        const cells = line.split('|').map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1);
-        tableRows.push(cells);
-      }
-    } else {
-      if (inTable) {
-        // construct HTML table
-        let tableHtml = '<table class="data-table" style="margin: 15px 0; font-size: 13px;"><thead><tr>';
-        // Header row
-        tableRows[0].forEach(cell => {
-          tableHtml += `<th>${cell}</th>`;
-        });
-        tableHtml += '</tr></thead><tbody>';
-        // Body rows
-        for (let r = 1; r < tableRows.length; r++) {
-          tableHtml += '<tr>';
-          tableRows[r].forEach(cell => {
-            tableHtml += `<td>${cell}</td>`;
-          });
-          tableHtml += '</tr>';
-        }
-        tableHtml += '</tbody></table>';
-        parsedLines.push(tableHtml);
-        inTable = false;
-        tableRows = [];
-      }
-      parsedLines.push(line);
-    }
-  });
-  
-  html = parsedLines.join('\n');
-  
-  // Bullet lists
-  html = html.replace(/^\s*\-\s*(.*$)/gim, '<li style="margin-left: 20px; list-style-type: disc;">$1</li>');
-  
-  // Paragraphs
-  html = html.replace(/\n\n/g, '<br><br>');
-  
-  return html;
+  return SecurityUtils.renderSafeMarkdown(md);
 }
 
 // Bind event listeners for the system config buttons
@@ -9341,8 +9295,6 @@ function bindIAViewEventListeners() {
       
       const payload = {
         provider: document.getElementById('ia-provider').value,
-        gemini_api_key: document.getElementById('ia-gemini-key').value,
-        openrouter_api_key: document.getElementById('ia-openrouter-key').value,
         openrouter_model: document.getElementById('ia-openrouter-model').value,
         configs: [
           {

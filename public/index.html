@@ -24,11 +24,11 @@
       <form id="login-form">
         <div class="form-group">
           <label for="login-username">Usuario o Correo Electrónico</label>
-          <input type="text" id="login-username" class="form-input" placeholder="ej. miguel.g o correo@casasgrandes.mx" required value="miguel.gonzalez@mobimuebles.com">
+          <input type="text" id="login-username" class="form-input" placeholder="ej. miguel.g o correo@casasgrandes.mx" required autocomplete="username">
         </div>
         <div class="form-group">
           <label for="login-password">Contraseña</label>
-          <input type="password" id="login-password" class="form-input" placeholder="••••••••" required value="password123">
+          <input type="password" id="login-password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
         </div>
         <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Iniciar Sesión</button>
       </form>
@@ -1873,10 +1873,9 @@
             <div id="container-gemini-config">
               <label for="ia-gemini-key" style="display: block; margin-bottom: 8px; font-weight: 500;">Google Gemini API Key:</label>
               <div style="display: flex; gap: 8px;">
-                <input type="password" id="ia-gemini-key" placeholder="Ingresa tu GEMINI_API_KEY..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text); font-size: 14px;">
-                <button id="btn-toggle-gemini-key-visibility" class="btn btn-secondary btn-toggle-key" style="width: auto; padding: 0 16px;" data-target="ia-gemini-key">👁️</button>
+                <input type="password" id="ia-gemini-key" disabled placeholder="Configurar GEMINI_API_KEY en el entorno" style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text); font-size: 14px;">
               </div>
-              <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Esta llave se usa para llamar directamente a Google Gemini (gemini-1.5-flash).</p>
+              <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Las credenciales se administran únicamente como secretos del entorno.</p>
             </div>
 
             <!-- OpenRouter config container -->
@@ -1884,10 +1883,9 @@
               <div>
                 <label for="ia-openrouter-key" style="display: block; margin-bottom: 8px; font-weight: 500;">OpenRouter API Key:</label>
                 <div style="display: flex; gap: 8px;">
-                  <input type="password" id="ia-openrouter-key" placeholder="sk-or-v1-..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text); font-size: 14px;">
-                  <button id="btn-toggle-openrouter-key-visibility" class="btn btn-secondary btn-toggle-key" style="width: auto; padding: 0 16px;" data-target="ia-openrouter-key">👁️</button>
+                  <input type="password" id="ia-openrouter-key" disabled placeholder="Configurar OPENROUTER_API_KEY en el entorno" style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--input-bg); color: var(--text); font-size: 14px;">
                 </div>
-                <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Tu clave de API de OpenRouter.</p>
+                <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">Las credenciales se administran únicamente como secretos del entorno.</p>
               </div>
               <div>
                 <label for="ia-openrouter-model" style="display: block; margin-bottom: 8px; font-weight: 500;">Modelo de OpenRouter:</label>
@@ -2724,7 +2722,7 @@
             </div>
             <div class="form-group">
               <label for="asesor-password" id="asesor-password-label">Contraseña</label>
-              <input type="password" id="asesor-password" class="form-input" placeholder="Dejar vacío para usar 'password123'">
+              <input type="password" id="asesor-password" class="form-input" placeholder="Mínimo 12 caracteres" minlength="12">
             </div>
           </div>
           <button type="submit" class="btn btn-primary" style="margin-top: 10px;" id="asesor-submit-btn">Registrar Asesor</button>
@@ -3102,6 +3100,7 @@
   </div>
 
   <!-- Load script -->
-  <script src="js/app.js?v=20260821-v5"></script>
+  <script src="js/security.js?v=20260726-p0"></script>
+  <script src="js/app.js?v=20260827-chg009"></script>
 </body>
 </html>

@@ -1,5 +1,7 @@
 # Especificación: edición de productos y precios efectivos por mes
 
+> Estado: antecedente absorbido por `CHG-009`. La autoridad vigente es `ADR-009` y la cadena canónica `docs/02-PRD.md` → `docs/03-SDD.md` → `docs/04-BDD.md` → `docs/05-TDD.md`. Ante cualquier diferencia prevalece esa cadena.
+
 ## Objetivo
 
 Convertir el Catálogo de Productos en la fuente del precio base anual y a Programación en la fuente única del precio y promoción efectivos para una cotización. El Cotizador debe usar siempre la programación del producto para el mes de la cotización; nunca debe tomar como precio de venta el precio base del catálogo.
@@ -59,11 +61,13 @@ Como Asesor, quiero que el Cotizador use el precio y la promoción configurados 
 1. Para cada producto de una cotización, el servidor consulta `crm_precios_mensuales` usando el mes local de la fecha de creación de la cotización.
 2. `precio` de ese registro es el precio de lista efectivo que debe mostrarse y guardarse en `cotizacion_detalles.precio_lista_unitario`.
 3. Las reglas actuales de temporada, escala de volumen, cuenta clave y descuento fijo siguen existiendo, pero deben calcularse a partir del precio mensual efectivo cuando corresponda. No se crea un segundo motor de precios: se adapta y reutiliza `utils/pricing.js`.
-4. La promoción mensual limita el descuento comercial que el asesor puede aplicar:
-   - `promo_dinero`: tope en MXN por unidad.
-   - `promo_porcentaje`: tope porcentual del precio mensual efectivo.
+4. La promoción mensual es el presupuesto total de descuento desde el precio anual:
+   - `promo_dinero`: tope total en MXN por unidad.
+   - `promo_porcentaje`: tope porcentual calculado sobre el precio anual.
+   - La reducción `max(precio anual - precio mensual, 0)` consume el tope y solo la diferencia queda disponible al asesor.
+   - Volumen, temporada y Cuenta Clave permanecen separados y no consumen este saldo.
    - Para evitar descuentos ambiguos, si ambos son mayores a cero en un mismo mes, el servidor rechaza la configuración y la interfaz marca el conflicto. No se suman.
-5. El descuento aplicado por el asesor no puede exceder el tope mensual configurado.
+5. El descuento aplicado por el asesor no puede exceder el saldo mensual restante. Una reducción mensual mayor al tope se rechaza.
 6. Si no existe programación mensual por un producto de legado, el servidor usa temporalmente `list_price_mxn` como compatibilidad y crea los doce registros al siguiente guardado administrativo. El camino normal no debe usar este fallback.
 7. Previsualización, alta de cotización, edición de cotización y conversión de una planificación a cotización deben compartir la misma consulta y cálculo de precio mensual.
 8. Las cotizaciones anteriores no se recalculan cuando cambie el catálogo o Programación.
