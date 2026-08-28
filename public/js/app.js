@@ -2073,8 +2073,12 @@ function addQuoteItemRow() {
         <small class="mobile-quantity-hint">Toca el número para escribir</small>
       </div>
       <div class="form-group item-price-group">
-        <label>Precio Base</label>
+        <label>Precio del mes</label>
         <input type="text" class="form-input item-calc-unit-price" style="background-color: var(--bg);" value="-" readonly>
+        <div class="item-monthly-discount-summary" style="font-size:10px; color:var(--text-light); margin-top:4px; line-height:1.4;">
+          <span>Descuento incluido por programación: <strong class="item-monthly-discount">$0.00 MXN</strong></span><br>
+          <span>Descuento adicional disponible: <strong class="item-advisor-available">$0.00 MXN</strong></span>
+        </div>
         <span class="mobile-item-subtotal">Subtotal —</span>
       </div>
       <button type="button" class="btn-remove" aria-label="Eliminar producto" onclick="removeQuoteItemRow(${rowNum})">
@@ -2090,9 +2094,9 @@ function addQuoteItemRow() {
         <div class="item-key-account-amount" style="font-weight:700; font-size:15px; color:#2563eb;">-$0.00 MXN</div>
       </div>
       <div class="item-advisor-discount-control">
-        <label>🎚️ Descuento Asesor</label>
+        <label>🎚️ Descuento adicional</label>
         <input type="range" class="discount-slider item-discount-slider"
-               min="0" max="0" step="1" value="0"
+               min="0" max="0" step="0.01" value="0"
                data-row="${rowNum}"
                oninput="onDiscountSliderChange(this)">
       </div>
@@ -2256,7 +2260,7 @@ function debouncedLiveCalculation() {
       
       // Update individual unit prices and discount sliders in the form
       const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
-      wrappers.forEach(wrapper => {
+      wrappers.forEach((wrapper, itemIndex) => {
         const select = wrapper.querySelector('.item-product-select');
         const unitPriceInput = wrapper.querySelector('.item-calc-unit-price');
         const discountRow = wrapper.querySelector('.item-discount-row');
@@ -2267,17 +2271,27 @@ function debouncedLiveCalculation() {
         const advisorAmount = wrapper.querySelector('.item-advisor-discount-amount');
         const slider = wrapper.querySelector('.item-discount-slider');
         const maxLabel = wrapper.querySelector('.item-discount-max-label');
+        const monthlyDiscountLabel = wrapper.querySelector('.item-monthly-discount');
+        const advisorAvailableLabel = wrapper.querySelector('.item-advisor-available');
         
         if (select && select.value && unitPriceInput) {
-          const calcItem = calc.items.find(i => i.producto_id === Number(select.value));
+          const calcItem = calc.items[itemIndex]?.producto_id === Number(select.value)
+            ? calc.items[itemIndex]
+            : calc.items.find(i => i.producto_id === Number(select.value));
           if (calcItem) {
             const keyAccountDiscount = Number(calcItem.descuento_cuenta_clave_mxn || 0);
             const maxDisc = Number(calcItem.max_discount_mxn || 0);
             const hasKeyAccountDiscount = keyAccountDiscount > 0;
             const hasAdvisorDiscount = maxDisc > 0;
 
-            // Base is shown before Cuenta Clave, then the advisor slider continues from the reduced price.
-            unitPriceInput.value = `$${Number(calcItem.precio_antes_cuenta_clave || calcItem.precio_neto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            // El precio visible parte de Programación; beneficios y descuento adicional continúan debajo.
+            unitPriceInput.value = `$${Number(calcItem.precio_lista).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            if (monthlyDiscountLabel) {
+              monthlyDiscountLabel.textContent = `$${Number(calcItem.descuento_mensual_mxn || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            }
+            if (advisorAvailableLabel) {
+              advisorAvailableLabel.textContent = `$${maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            }
             const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
             const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
             if (mobileSubtotal) {
@@ -2303,7 +2317,7 @@ function debouncedLiveCalculation() {
                 slider.value = 0;
                 slider.setAttribute('data-max-prev', maxDisc);
               }
-              if (maxLabel) maxLabel.textContent = maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 0 });
+              if (maxLabel) maxLabel.textContent = maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 2 });
               // Store base net price for slider calculations
               slider.setAttribute('data-base-price', calcItem.precio_neto);
               // Update slider display
@@ -2467,23 +2481,20 @@ function updateVirtualSheet(calc, payload) {
   
   // Build preview items rows
   // Read any advisor discounts currently set in the sliders
-  const sliderDiscounts = {};
+  const sliderDiscounts = [];
   document.querySelectorAll('#items-builder-container .item-row-wrapper').forEach(wrapper => {
-    const select = wrapper.querySelector('.item-product-select');
     const slider = wrapper.querySelector('.item-discount-slider');
-    if (select && select.value && slider) {
-      sliderDiscounts[Number(select.value)] = parseFloat(slider.value) || 0;
-    }
+    sliderDiscounts.push(slider ? (parseFloat(slider.value) || 0) : 0);
   });
   
   const tbody = document.getElementById('preview-table-body');
   tbody.innerHTML = '';
   let grandTotalWithDiscounts = 0;
   
-  calc.items.forEach(i => {
+  calc.items.forEach((i, itemIndex) => {
     const listPrice = i.precio_lista;
     const netPrice = i.precio_neto;
-    const advisorDiscount = sliderDiscounts[i.producto_id] || 0;
+    const advisorDiscount = sliderDiscounts[itemIndex] || 0;
     const finalPrice = netPrice - advisorDiscount;
     const totalVolumeDiscount = listPrice - netPrice;
     const subtotalFinal = finalPrice * i.cantidad;

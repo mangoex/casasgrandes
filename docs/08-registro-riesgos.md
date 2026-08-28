@@ -20,12 +20,14 @@
 | RSK-008 | DoS y manipulación por dependencias vulnerables | alta | crítico | CHG-005 actualiza transitivas compatibles y exige auditoría reproducible | responsable técnico | mitigated-local |
 | RSK-009 | Fuerza bruta y consumo HTTP no acotado | alta | alto | CHG-006 limita login, payloads, proxy y scripts inline; store distribuido pendiente para múltiples réplicas | responsable técnico | partially-mitigated |
 | RSK-010 | Fallos de dependencia invisibles o apagado abrupto deja trabajo incompleto | media | alto | CHG-008 añade sondas, correlación y cierre ordenado; falta validar orquestador real | responsable técnico | partially-mitigated |
+| RSK-011 | Precio mensual consume presupuesto pero el asesor recibe nuevamente el tope completo | alta | alto | CHG-009 centraliza saldo, rechaza configuración/payload inválidos y prueba todos los canales | responsable técnico | mitigated-local |
+| RSK-012 | Flotantes o motores divergentes producen diferencias de centavos | media | alto | centavos en runtime, oráculo Python Decimal y fixtures compartidos; falta PostgreSQL real | responsable técnico | partially-mitigated |
 
 ## Riesgo residual
 
 - Riesgos aceptados: ninguno en este incremento.
 - Aprobador: pendiente del gate de producción; no bloquea implementación local.
-- Condiciones: no desplegar hasta resetear cuentas existentes, probar transacciones y cierre con PostgreSQL/staging, aprobar privacidad IA y ensayar rollback.
+- Condiciones: no desplegar hasta resetear cuentas existentes, probar transacciones y cierre con PostgreSQL/staging, validar configuraciones mensuales heredadas, aprobar privacidad IA y ensayar rollback.
 
 ## Readiness CHG-002
 

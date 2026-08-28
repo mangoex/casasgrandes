@@ -10,6 +10,7 @@
 | CHG-006 | 2026-07-27 | Limitar fuerza bruta, payloads y confianza HTTP con aislamiento de navegador | PROJECT-PR-015, ADR-006, PRD-FR-018..020 | TDD-TC-042..045; EVD-005 | implemented-local |
 | CHG-007 | 2026-07-27 | Confirmar creación, edición y conversión comercial como unidades atómicas | PROJECT-PR-016, ADR-007, PRD-FR-021..023 | TDD-TC-046..049; EVD-006 | implemented-local |
 | CHG-008 | 2026-07-27 | Exponer salud, correlacionar solicitudes y cerrar recursos de forma ordenada | PROJECT-PR-017, ADR-008, PRD-FR-024..027 | TDD-TC-050..054; EVD-007 | implemented-local |
+| CHG-009 | 2026-08-27 | Usar precio mensual como base y restar su reducción del presupuesto total disponible al asesor | PROJECT-PR-018, ADR-009, PRD-FR-028..031 | TDD-TC-055..062; EVD-008 | implemented-local |
 
 ## Reglas
 

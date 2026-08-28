@@ -185,3 +185,27 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 
 - Cubre: PRD-FR-027, PRD-NFR-009
 - El cierre es idempotente, detiene aceptación y scheduler, espera actividad y cierra PostgreSQL antes del límite.
+
+## Diseño CHG-009
+
+### SDD-CMP-026 — Presupuesto monetario determinista
+
+- Cubre: PRD-FR-029, PRD-NFR-010
+- `utils/pricing.js` expone una función pura que normaliza importes a centavos, calcula reducción mensual, tope total y saldo del asesor, y valida exclusividad de promociones.
+- El porcentaje usa el precio anual y redondeo de centavo `half-up`.
+- `pricing_reference.py` evalúa los mismos fixtures con `Decimal`; no participa en el runtime HTTP.
+
+### SDD-CMP-027 — Resolvedor mensual único
+
+- Cubre: PRD-FR-028, PRD-FR-030
+- El resolvedor carga precio anual y fila mensual para una fecha explícita, ejecuta SDD-CMP-026 y entrega el producto mensual al motor existente.
+- Previsualización, alta y edición llaman al resolvedor; Outreach recibe el mismo contrato mediante una dependencia compartida.
+- Configuración inválida produce error de dominio y ninguna cotización se persiste.
+
+### SDD-CMP-028 — Snapshot y presentación
+
+- Cubre: PRD-FR-031, PRD-NFR-011
+- `cotizacion_detalles` añade columnas nullable para catálogo, mensual, reducción, tope, descuento asesor y versión de contrato.
+- `precio_lista_unitario` continúa siendo compatible y para CHG-009 contiene el precio mensual.
+- El frontend muestra precio mensual, reducción incluida y saldo adicional; el slider nunca supera el valor devuelto por el servidor.
+- Las filas legadas conservan columnas nuevas nulas y se presentan con el desglose disponible, sin recalcularse.

@@ -221,3 +221,37 @@ Ante `SIGTERM` o `SIGINT`, el proceso deja de aceptar conexiones, detiene nuevas
 ### PRD-NFR-009 — Degradación acotada
 
 La disponibilidad falla cerrada dentro del timeout configurado y el apagado tiene un límite explícito para evitar procesos colgados.
+
+## Incremento CHG-009 — Precio mensual y presupuesto de descuento
+
+### OBJ-011 — Evitar que la reducción mensual duplique la facultad de descuento
+
+### PRD-FR-028 — Precio mensual operativo
+
+El Cotizador usa `crm_precios_mensuales.precio` del mes contractual como precio base operativo, visible y persistido. El catálogo anual permanece como referencia para medir la reducción mensual.
+
+Criterio de aceptación: para catálogo `7,015` y agosto `6,300`, Cotizador y PDF muestran `6,300` como precio de lista antes de beneficios automáticos.
+
+### PRD-FR-029 — Presupuesto total y saldo del asesor
+
+La promoción mensual es el presupuesto total desde el precio anual. La reducción mensual lo consume y solo la diferencia no negativa queda disponible al asesor. Una promoción porcentual se calcula sobre el precio anual; volumen, temporada y Cuenta Clave no consumen este saldo.
+
+Criterio de aceptación: catálogo `7,015`, mensual `6,300` y tope `1,089` producen reducción `715` y saldo adicional `374`.
+
+### PRD-FR-030 — Autoridad única del servidor
+
+Previsualización, creación, edición, conversión desde planificación y Outreach usan el mismo contrato. El servidor rechaza descuentos superiores al saldo y configuraciones donde la reducción mensual exceda el tope.
+
+Criterio de aceptación: alterar el payload del navegador no incrementa el descuento permitido y responde `400` sin persistir.
+
+### PRD-FR-031 — Histórico auditable
+
+Las nuevas partidas conservan los importes que explican su precio: catálogo, mensual, reducción mensual, tope total y descuento del asesor. Cambios posteriores de catálogo o Programación no recalculan cotizaciones existentes.
+
+### PRD-NFR-010 — Aritmética monetaria determinista
+
+El runtime calcula importes en centavos y redondea mitades hacia arriba. Casos dorados generados con Python `Decimal` deben coincidir con JavaScript.
+
+### PRD-NFR-011 — Compatibilidad gobernada
+
+Partidas anteriores permanecen legibles como contrato legado y no se infieren desgloses imposibles desde la diferencia entre lista y neto.

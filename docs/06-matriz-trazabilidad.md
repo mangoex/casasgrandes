@@ -32,6 +32,10 @@
 | OBJ-010 | PRD-FR-024, PRD-FR-025 | SDD-CMP-023, ADR-008 | BDD-SC-034, BDD-SC-035, BDD-SC-036 | TDD-TC-050, TDD-TC-051 | `server.js`, `db.js` | EVD-007: sondas HTTP 200/503 | verified-local |
 | OBJ-010 | PRD-FR-026 | SDD-CMP-024 | BDD-SC-037 | TDD-TC-052 | `utils/observability.js`, `server.js` | EVD-007: ID y log mínimo | verified-local |
 | OBJ-010 | PRD-FR-027, PRD-NFR-009 | SDD-CMP-025 | BDD-SC-038, BDD-SC-039 | TDD-TC-053, TDD-TC-054 | `utils/serverLifecycle.js`, `agentsService.js`, `db.js`, `server.js` | EVD-007: cierre idempotente y 55/55 | Gate 4 passed |
+| OBJ-011 | PRD-FR-028, PRD-FR-029 | SDD-CMP-026, SDD-CMP-027, ADR-009 | BDD-SC-040, BDD-SC-041, BDD-SC-046, BDD-SC-047 | TDD-TC-055, TDD-TC-056, TDD-TC-058 | `utils/pricing.js`, `utils/monthlyPricing.js`, `pricing_reference.py`, `server.js` | EVD-008: oráculo, unidad y HTTP aprobados | verified-local |
+| OBJ-011 | PRD-FR-030 | SDD-CMP-027 | BDD-SC-042, BDD-SC-043, BDD-SC-044 | TDD-TC-057, TDD-TC-058, TDD-TC-059 | `server.js`, `agentsService.js`, `public/js/app.js` | EVD-008: payload 375 rechazado; 12 meses atómicos simulados | verified-local |
+| OBJ-011 | PRD-FR-031, PRD-NFR-011 | SDD-CMP-028 | BDD-SC-045 | TDD-TC-060, TDD-TC-061 | `db.js`, `server.js`, `agentsService.js`, `public/js/app.js` | EVD-008: snapshot aditivo; PostgreSQL real pendiente | implemented-tested-local |
+| OBJ-011 | PRD-NFR-010 | SDD-CMP-026 | BDD-SC-040, BDD-SC-041, BDD-SC-046 | TDD-TC-055, TDD-TC-056, TDD-TC-062 | CHG-009 | EVD-008: Python 1/1, Node 65/65, npm audit 0 | Gate 4 local conditional |
 
 ## Huecos
 
@@ -119,3 +123,17 @@
 - Humanio estricto sobre fuente, excluyendo `.git`, `node_modules` y artefactos visuales ajenos: 0 errores, 0 advertencias.
 - Política readiness: 5/5 casos aprobados; sintaxis Node y `git diff --check`: exit 0.
 - Alcance no ejecutado: señal y drenado contra PostgreSQL/orquestador de staging, retención central de logs y despliegue.
+
+## EVD-008 — Evidencia local CHG-009
+
+- Fecha: 2026-08-27.
+- RED: `node --test test/pricingDiscountBudget.test.js`, exit 1 por ausencia de `utils/monthlyPricing.js` antes de la implementación.
+- Oráculo: `PYTHONPYCACHEPREFIX=/private/tmp/casasgrandes-chg009-pycache python3 -m unittest test.test_pricing_reference -v`, exit 0, 1/1.
+- GREEN focalizado HTTP y unidad: `node --test test/pricingDiscountBudget.test.js test/pricingRoutes.test.js`, exit 0, 10/10.
+- Regresión: `npm test`, exit 0, 65/65.
+- Auditoría: `npm audit --omit=dev`, exit 0, cero vulnerabilidades.
+- Sintaxis: `node --check` sobre motor, resolvedor, servidor, agentes y frontend; exit 0.
+- Humanio estricto sobre espejo de fuente sin `.git`, `node_modules` ni artefactos visuales ajenos: 0 errores y 0 advertencias. La validación inicial del checkout completo detectó un falso positivo de secreto en `node_modules/simple-get/README.md`; no pertenece a la fuente del incremento.
+- Política readiness: 5/5 casos del marco aprobados; `git diff --check`, exit 0.
+- No ejecutado: DDL y transacciones contra PostgreSQL real aislado, navegador autenticado de escritorio/móvil, Outreach contra proveedor, despliegue, rollback o datos productivos.
+- Decisión: Gate 4 local condicionado; Gate 5 producción `NOT READY`.

@@ -345,3 +345,69 @@ Given un apagado ya iniciado
 When llega otra solicitud de apagado
 Then reutiliza el mismo resultado sin cerrar recursos por segunda vez
 ```
+
+## Feature: CHG-009 — Precio mensual y presupuesto total
+
+### BDD-SC-040 — Saldo después de reducción mensual
+
+```gherkin
+Given un producto con precio anual 7015, precio mensual 6300 y promoción de 1089 MXN
+When el asesor abre una cotización del mes configurado
+Then el precio de lista es 6300, la reducción incluida es 715 y el saldo adicional es 374
+```
+
+### BDD-SC-041 — Promoción porcentual y beneficios separados
+
+```gherkin
+Given una promoción porcentual y beneficios de temporada, volumen o Cuenta Clave
+When se calcula la partida
+Then el tope porcentual usa el precio anual y los otros beneficios no consumen el saldo del asesor
+```
+
+### BDD-SC-042 — Programación inconsistente
+
+```gherkin
+Given una reducción mensual mayor al tope promocional total
+When Administrador o Coordinador intenta guardar Programación
+Then el servidor responde 400 y no modifica ninguno de los doce meses
+```
+
+### BDD-SC-043 — Descuento cliente manipulado
+
+```gherkin
+Given un saldo adicional autorizado de 374 MXN
+When el cliente envía un descuento de 375 MXN
+Then el servidor responde 400 y no crea ni edita la cotización
+```
+
+### BDD-SC-044 — Canales consistentes
+
+```gherkin
+Given el mismo producto, fecha y contexto comercial
+When se cotiza por previsualización, alta, edición, planificación u Outreach
+Then todos usan el mismo precio mensual y presupuesto de descuento
+```
+
+### BDD-SC-045 — Histórico inmutable
+
+```gherkin
+Given una cotización persistida con snapshot CHG-009
+When cambia el catálogo o la Programación
+Then sus importes y desglose permanecen sin recalcularse
+```
+
+### BDD-SC-046 — Precio mensual superior al catálogo
+
+```gherkin
+Given un precio mensual mayor al anual
+When se calcula el presupuesto
+Then la reducción consumida es cero y el tope completo queda disponible
+```
+
+### BDD-SC-047 — Límite de mes contractual
+
+```gherkin
+Given una cotización creada o editada cerca de un cambio de mes en America/Mazatlan
+When se resuelve Programación
+Then se usa el mes de la fecha contractual y no la zona horaria accidental del proceso
+```

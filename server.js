@@ -5,7 +5,22 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 const agentsService = require('./agentsService');
-const { getVolumeMultiplier, getNetPrice, getSeasonPrice, calculateItemPricing } = require('./utils/pricing');
+const {
+  PricingDomainError,
+  getVolumeMultiplier,
+  getNetPrice,
+  getSeasonPrice,
+  calculateItemPricing,
+  roundMoney,
+  validateAdvisorDiscount
+} = require('./utils/pricing');
+const {
+  BUSINESS_TIME_ZONE,
+  getContractDate,
+  getContractMonth,
+  resolveMonthlyProductPricing,
+  validateMonthlyPricingRows
+} = require('./utils/monthlyPricing');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
 const { authenticateToken, requireProgramacionManager } = require('./middleware/auth');
 const {
@@ -111,6 +126,24 @@ function normalizeProductCode(value) {
 }
 
 async function syncMonthlyBasePrice(client, productId, price) {
+  const existingResult = await client.query(
+    'SELECT mes, promo_dinero, promo_porcentaje FROM crm_precios_mensuales WHERE producto_id = $1 ORDER BY mes',
+    [productId]
+  );
+  const existingByMonth = new Map(existingResult.rows.map(row => [Number(row.mes), row]));
+  validateMonthlyPricingRows(
+    Array.from({ length: 12 }, (_, index) => {
+      const mes = index + 1;
+      const existing = existingByMonth.get(mes);
+      return {
+        mes,
+        precio: price,
+        promo_dinero: Number(existing?.promo_dinero || 0),
+        promo_porcentaje: Number(existing?.promo_porcentaje || 0)
+      };
+    }),
+    price
+  );
   for (let mes = 1; mes <= 12; mes += 1) {
     await client.query(
       `INSERT INTO crm_precios_mensuales (producto_id, mes, precio, promo_dinero, promo_porcentaje)
@@ -122,23 +155,17 @@ async function syncMonthlyBasePrice(client, productId, price) {
   }
 }
 
-async function getMonthlyProductPricing(prod, month, store = db) {
-  const monthly = await store.get(
-    'SELECT precio, promo_dinero, promo_porcentaje FROM crm_precios_mensuales WHERE producto_id = ? AND mes = ?',
-    [prod.id, month]
-  );
-  const listPrice = monthly ? Number(monthly.precio) : Number(prod.list_price_mxn);
-  const promoMoney = monthly ? Number(monthly.promo_dinero || 0) : 0;
-  const promoPercent = monthly ? Number(monthly.promo_porcentaje || 0) : 0;
-  const maxDiscountMxn = promoMoney > 0 ? promoMoney : Math.round((listPrice * promoPercent / 100) * 100) / 100;
-
-  return {
-    product: { ...prod, list_price_mxn: listPrice, precio_programado_mxn: listPrice },
-    listPrice,
-    maxDiscountMxn,
-    promoMoney,
-    promoPercent
+function pricingErrorMessage(error) {
+  const messages = {
+    ambiguous_monthly_promotion: 'Use promoción en dinero o porcentaje, no ambas.',
+    invalid_monthly_pricing_rows: 'Cada mes del 1 al 12 debe aparecer exactamente una vez.',
+    invalid_pricing_amount: 'Precios y promociones deben ser importes no negativos.',
+    invalid_promotion_percent: 'La promoción porcentual debe estar entre 0 y 100.',
+    promotion_cap_exceeds_catalog_price: 'El tope promocional no puede exceder el precio anual.',
+    monthly_discount_exceeds_promotion_cap: 'La reducción del precio mensual excede el tope promocional total.',
+    advisor_discount_exceeds_available: 'El descuento solicitado excede el saldo autorizado para el mes.'
   };
+  return messages[error.code] || error.message || 'Configuración de precios inválida.';
 }
 
 app.get('/api/productos', authenticateToken, async (req, res) => {
@@ -214,6 +241,9 @@ app.post('/api/productos', authenticateToken, async (req, res) => {
     res.status(201).json({ id: newProdId, message: 'Product created successfully' });
   } catch (err) {
     await client?.query('ROLLBACK');
+    if (err instanceof PricingDomainError) {
+      return res.status(err.statusCode || 400).json({ error: pricingErrorMessage(err), code: err.code });
+    }
     console.error(err);
     res.status(500).json({ error: 'Failed to create product' });
   } finally {
@@ -282,6 +312,9 @@ app.put('/api/productos/:id', authenticateToken, async (req, res) => {
     res.json({ message: 'Product updated successfully' });
   } catch (err) {
     await client?.query('ROLLBACK');
+    if (err instanceof PricingDomainError) {
+      return res.status(err.statusCode || 400).json({ error: pricingErrorMessage(err), code: err.code });
+    }
     console.error(err);
     res.status(500).json({ error: 'Failed to update product' });
   } finally {
@@ -684,7 +717,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     if (!activeSeason) return res.status(400).json({ error: 'Temporada no disponible.' });
       
     // Calculate total quantity of discountable seeds first to get correct volume scale
-    const currentMonth = new Date().getMonth() + 1;
+    const currentMonth = getContractMonth(new Date());
     let totalDiscountableSeeds = 0;
     const dbItems = [];
     
@@ -692,7 +725,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
       const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
       if (!prod) return res.status(400).json({ error: `El producto seleccionado ya no está disponible para cotizar.` });
       
-      const monthlyPricing = await getMonthlyProductPricing(prod, currentMonth);
+      const monthlyPricing = await resolveMonthlyProductPricing(db, prod, currentMonth);
       dbItems.push({ item, prod: monthlyPricing.product, monthlyPricing });
       if (monthlyPricing.product.descontar === 1) {
         totalDiscountableSeeds += item.cantidad;
@@ -704,7 +737,6 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     let grandTotal = 0.0;
     
     for (const { item, prod, monthlyPricing } of dbItems) {
-      const maxDiscountMxn = monthlyPricing.maxDiscountMxn;
       const { netPrice: priceBeforeKeyAccount } = calculateItemPricing(
         prod,
         item.cantidad,
@@ -713,15 +745,18 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
         activeSeason
       );
       
-      const { netPrice, subtotal } = calculateItemPricing(
+      const { netPrice } = calculateItemPricing(
         prod,
         item.cantidad,
         volMultiplier,
         keyAccountDesc,
         activeSeason
       );
-      
-      grandTotal += subtotal;
+      const maxDiscountMxn = Math.min(monthlyPricing.advisorDiscountAvailableMxn, netPrice);
+      const discountApplied = validateAdvisorDiscount(item.descuento_aplicado, maxDiscountMxn);
+      const finalPrice = roundMoney(Math.max(netPrice - discountApplied, 0));
+      const subtotal = roundMoney(finalPrice * item.cantidad);
+      grandTotal = roundMoney(grandTotal + subtotal);
       
       calculatedItems.push({
         producto_id: prod.id,
@@ -732,6 +767,12 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
         precio_temporada: getSeasonPrice(prod.list_price_mxn, prod.tipo_categoria, activeSeason),
         precio_antes_cuenta_clave: priceBeforeKeyAccount,
         precio_neto: netPrice,
+        precio_catalogo: monthlyPricing.catalogPrice,
+        descuento_mensual_mxn: monthlyPricing.embeddedDiscountMxn,
+        tope_descuento_total_mxn: monthlyPricing.totalPromotionCapMxn,
+        descuento_asesor_disponible_mxn: monthlyPricing.advisorDiscountAvailableMxn,
+        descuento_asesor_aplicado_mxn: discountApplied,
+        precio_final: finalPrice,
         descuento_cuenta_clave_mxn: Math.max(priceBeforeKeyAccount - netPrice, 0),
         max_discount_mxn: maxDiscountMxn,
         subtotal
@@ -753,6 +794,9 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     });
     
   } catch (err) {
+    if (err instanceof PricingDomainError) {
+      return res.status(err.statusCode || 400).json({ error: pricingErrorMessage(err), code: err.code });
+    }
     console.error(err);
     res.status(500).json({ error: 'Pricing calculation failed' });
   }
@@ -776,8 +820,8 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     // Generate unique Folio
     const date = new Date();
     const prefix = `CG-${date.getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-    const mesShort = date.toLocaleString('es-MX', { month: 'short' }).toUpperCase().slice(0, 3);
-    const now = date.toISOString().slice(0, 10);
+    const mesShort = date.toLocaleString('es-MX', { month: 'short', timeZone: BUSINESS_TIME_ZONE }).toUpperCase().slice(0, 3);
+    const now = getContractDate(date);
     
     // Manual local function call logic to compute pricing safely
     const client = await db.get('SELECT * FROM clientes WHERE id = ? AND activo = 1', [cliente_id]);
@@ -827,7 +871,7 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
       await db.get("SELECT * FROM temporadas WHERE actividad = 'Temporada (Precio Lleno)'");
     if (!activeSeason) return res.status(400).json({ error: 'Temporada no disponible.' });
 
-    const currentMonth = new Date().getMonth() + 1;
+    const currentMonth = getContractMonth(now);
     let totalDiscountableSeeds = 0;
     const calculatedItems = [];
     let grandTotal = 0.0;
@@ -835,7 +879,7 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     for (const item of quoteItems) {
       const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
       if (!prod) return res.status(400).json({ error: `El producto seleccionado ya no está disponible para cotizar.` });
-      const monthlyPricing = await getMonthlyProductPricing(prod, currentMonth);
+      const monthlyPricing = await resolveMonthlyProductPricing(db, prod, currentMonth);
       if (monthlyPricing.product.descontar === 1) totalDiscountableSeeds += item.cantidad;
       calculatedItems.push({ item, prod: monthlyPricing.product, monthlyPricing });
     }
@@ -855,16 +899,17 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
       );
       
       // Look up and apply advisor discount safely
-      const maxDiscountMxn = row.monthlyPricing.maxDiscountMxn;
-      const discountApplied = Math.min(Math.max(Number(item.descuento_aplicado) || 0, 0), maxDiscountMxn);
+      const maxDiscountMxn = Math.min(row.monthlyPricing.advisorDiscountAvailableMxn, baseNetPrice);
+      const discountApplied = validateAdvisorDiscount(item.descuento_aplicado, maxDiscountMxn);
       
-      const netPrice = Math.max(baseNetPrice - discountApplied, 0);
-      const subtotal = netPrice * item.cantidad;
+      const netPrice = roundMoney(Math.max(baseNetPrice - discountApplied, 0));
+      const subtotal = roundMoney(netPrice * item.cantidad);
       
       row.netPrice = netPrice;
       row.subtotal = subtotal;
       row.listPrice = row.monthlyPricing.listPrice;
-      grandTotal += subtotal;
+      row.discountApplied = discountApplied;
+      grandTotal = roundMoney(grandTotal + subtotal);
     }
     
     const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000.0 : 0.0;
@@ -917,9 +962,26 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
 
       for (const row of calculatedItems) {
         await tx.run(`
-          INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
-          VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-        `, [cotId, row.item.producto_id, temporada_id || activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
+          INSERT INTO cotizacion_detalles (
+            cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada,
+            precio_lista_unitario, precio_neto_unitario, subtotal_mxn,
+            precio_catalogo_unitario, precio_mensual_unitario, descuento_mensual_unitario,
+            tope_descuento_unitario, descuento_asesor_unitario, contrato_precio_version
+          ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'CHG-009')
+        `, [
+          cotId,
+          row.item.producto_id,
+          temporada_id || activeSeason.id,
+          row.item.cantidad,
+          row.listPrice,
+          row.netPrice,
+          row.subtotal,
+          row.monthlyPricing.catalogPrice,
+          row.monthlyPricing.listPrice,
+          row.monthlyPricing.embeddedDiscountMxn,
+          row.monthlyPricing.totalPromotionCapMxn,
+          row.discountApplied
+        ]);
       }
 
       let persistedProspectId = prospectId;
@@ -958,6 +1020,9 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     res.status(201).json({ id: persisted.cotId, folio: prefix, total_mxn: grandTotal, status: defaultStatus, message: 'Quotation submitted successfully' });
     
   } catch (err) {
+    if (err instanceof PricingDomainError) {
+      return res.status(err.statusCode || 400).json({ error: pricingErrorMessage(err), code: err.code });
+    }
     console.error(err);
     res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Failed to create quotation' });
   }
@@ -1303,14 +1368,14 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
         : await tx.get("SELECT * FROM temporadas WHERE actividad = 'Temporada (Precio Lleno)'");
       if (!activeSeason) return { status: 400, body: { error: 'Temporada no disponible.' } };
 
-      const currentMonth = new Date().getMonth() + 1;
+      const currentMonth = getContractMonth(q.fecha_creacion);
       let totalDiscountableSeeds = 0;
       const calculatedRows = [];
       for (const item of quoteItems) {
-        const monthlyPricing = await getMonthlyProductPricing(
+        const monthlyPricing = await resolveMonthlyProductPricing(
+          tx,
           lockedProducts.get(item.producto_id),
-          currentMonth,
-          tx
+          currentMonth
         );
         if (monthlyPricing.product.descontar === 1) totalDiscountableSeeds += item.cantidad;
         calculatedRows.push({ item, prod: monthlyPricing.product, monthlyPricing });
@@ -1326,11 +1391,13 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
           keyAccount ? keyAccount.descuento_mxn : 0,
           activeSeason
         );
-        const discountApplied = Math.min(row.item.descuento_aplicado, row.monthlyPricing.maxDiscountMxn);
-        row.netPrice = Math.max(baseNetPrice - discountApplied, 0);
-        row.subtotal = row.netPrice * row.item.cantidad;
+        const maxDiscountMxn = Math.min(row.monthlyPricing.advisorDiscountAvailableMxn, baseNetPrice);
+        const discountApplied = validateAdvisorDiscount(row.item.descuento_aplicado, maxDiscountMxn);
+        row.netPrice = roundMoney(Math.max(baseNetPrice - discountApplied, 0));
+        row.subtotal = roundMoney(row.netPrice * row.item.cantidad);
         row.listPrice = row.monthlyPricing.listPrice;
-        grandTotal += row.subtotal;
+        row.discountApplied = discountApplied;
+        grandTotal = roundMoney(grandTotal + row.subtotal);
       }
 
       const lastStockMovement = await tx.get(
@@ -1388,9 +1455,26 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       await tx.run('DELETE FROM cotizacion_detalles WHERE cotizacion_id = ?', [id]);
       for (const row of calculatedRows) {
         await tx.run(`
-          INSERT INTO cotizacion_detalles (cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada, precio_lista_unitario, precio_neto_unitario, subtotal_mxn)
-          VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-        `, [id, row.item.producto_id, activeSeason.id, row.item.cantidad, row.listPrice, row.netPrice, row.subtotal]);
+          INSERT INTO cotizacion_detalles (
+            cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada,
+            precio_lista_unitario, precio_neto_unitario, subtotal_mxn,
+            precio_catalogo_unitario, precio_mensual_unitario, descuento_mensual_unitario,
+            tope_descuento_unitario, descuento_asesor_unitario, contrato_precio_version
+          ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'CHG-009')
+        `, [
+          id,
+          row.item.producto_id,
+          activeSeason.id,
+          row.item.cantidad,
+          row.listPrice,
+          row.netPrice,
+          row.subtotal,
+          row.monthlyPricing.catalogPrice,
+          row.monthlyPricing.listPrice,
+          row.monthlyPricing.embeddedDiscountMxn,
+          row.monthlyPricing.totalPromotionCapMxn,
+          row.discountApplied
+        ]);
       }
 
       const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000 : 0;
@@ -1423,6 +1507,9 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
     });
     res.status(outcome.status).json(outcome.body);
   } catch (err) {
+    if (err instanceof PricingDomainError) {
+      return res.status(err.statusCode || 400).json({ error: pricingErrorMessage(err), code: err.code });
+    }
     console.error(err);
     res.status(500).json({ error: 'Failed to update quotation' });
   }
@@ -2507,7 +2594,7 @@ app.post('/api/planificacion/:id/convertir-cotizacion', authenticateToken, async
     if (plan.pronostico_bolsas > 0) {
       const defaultProduct = await db.get("SELECT * FROM productos WHERE tipo_categoria = 'Híbrido' AND activo = 1 ORDER BY id ASC LIMIT 1");
       if (defaultProduct) {
-        const monthlyPricing = await getMonthlyProductPricing(defaultProduct, new Date().getMonth() + 1);
+        const monthlyPricing = await resolveMonthlyProductPricing(db, defaultProduct, getContractMonth(new Date()));
         const precioLista = monthlyPricing.listPrice;
         const precioNeto = plan.pronostico_monto_mxn
           ? Math.round((plan.pronostico_monto_mxn / plan.pronostico_bolsas) * 100) / 100
@@ -3440,12 +3527,6 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
     if (![precio, promoDinero, promoPorcentaje].every(Number.isFinite) || precio < 0 || promoDinero < 0 || promoPorcentaje < 0) {
       return res.status(400).json({ error: 'Prices and promotions must be non-negative numbers' });
     }
-    if (promoDinero > precio || promoPorcentaje > 100) {
-      return res.status(400).json({ error: 'Promotions cannot exceed the monthly price or 100 percent' });
-    }
-    if (promoDinero > 0 && promoPorcentaje > 0) {
-      return res.status(400).json({ error: 'Use either a money promotion or a percentage promotion for each month, not both' });
-    }
     rowsByMonth.set(mes, { mes, precio, promo_dinero: promoDinero, promo_porcentaje: promoPorcentaje });
   }
   if (rowsByMonth.size !== 12) {
@@ -3461,8 +3542,9 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
   }
   let pricingClient;
   try {
-    const product = await db.get('SELECT id FROM productos WHERE id = ?', [producto_id]);
+    const product = await db.get('SELECT id, list_price_mxn FROM productos WHERE id = ?', [producto_id]);
     if (!product) return res.status(404).json({ error: 'Product not found' });
+    validateMonthlyPricingRows(Array.from(rowsByMonth.values()), product.list_price_mxn);
     pricingClient = await db.pool.connect();
     await pricingClient.query('BEGIN');
     for (let mes = 1; mes <= 12; mes += 1) {
@@ -3480,6 +3562,9 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
     res.json({ success: true, message: 'Monthly pricing saved successfully' });
   } catch (err) {
     await pricingClient?.query('ROLLBACK');
+    if (err instanceof PricingDomainError) {
+      return res.status(err.statusCode || 400).json({ error: pricingErrorMessage(err), code: err.code });
+    }
     console.error(err);
     res.status(500).json({ error: 'Failed to save monthly pricing' });
   } finally {

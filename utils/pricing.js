@@ -18,6 +18,114 @@
 
 const EXCHANGE_RATE = 18.70;   // Tipo de cambio USD/MXN fijo en el negocio
 const USD_FACTOR    = 4.00;    // Factor de conversión base Asgrow (constante de negocio)
+const PERCENT_SCALE_DIGITS = 4;
+
+class PricingDomainError extends Error {
+  constructor(code, message = code) {
+    super(message);
+    this.name = 'PricingDomainError';
+    this.code = code;
+    this.statusCode = 400;
+  }
+}
+
+function parseScaledInteger(value, scaleDigits, errorCode) {
+  let text = String(value ?? '').trim();
+  if (!/^\d+(?:\.\d+)?$/.test(text)) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0) throw new PricingDomainError(errorCode);
+    text = numeric.toFixed(scaleDigits + 4);
+  }
+  const [whole, fraction = ''] = text.split('.');
+  const kept = fraction.padEnd(scaleDigits, '0').slice(0, scaleDigits);
+  const nextDigit = fraction.length > scaleDigits ? Number(fraction[scaleDigits]) : 0;
+  const scale = 10n ** BigInt(scaleDigits);
+  let scaled = BigInt(whole) * scale + BigInt(kept || '0');
+  if (nextDigit >= 5) scaled += 1n;
+  return scaled;
+}
+
+function toMoneyCents(value) {
+  const cents = parseScaledInteger(value, 2, 'invalid_pricing_amount');
+  if (cents > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new PricingDomainError('invalid_pricing_amount');
+  }
+  return Number(cents);
+}
+
+function formatMoneyCents(cents) {
+  const value = BigInt(cents);
+  const whole = value / 100n;
+  const fraction = String(value % 100n).padStart(2, '0');
+  return `${whole}.${fraction}`;
+}
+
+function roundMoney(value) {
+  return toMoneyCents(value) / 100;
+}
+
+function roundHalfUpDivision(numerator, denominator) {
+  return (numerator + denominator / 2n) / denominator;
+}
+
+function calculateDiscountBudget({
+  catalog_price,
+  monthly_price,
+  promo_money = 0,
+  promo_percent = 0
+}) {
+  const catalogCents = toMoneyCents(catalog_price);
+  const monthlyCents = toMoneyCents(monthly_price);
+  const promoMoneyCents = toMoneyCents(promo_money);
+  const promoPercentScaled = parseScaledInteger(
+    promo_percent,
+    PERCENT_SCALE_DIGITS,
+    'invalid_promotion_percent'
+  );
+  const percentDenominator = 100n * (10n ** BigInt(PERCENT_SCALE_DIGITS));
+  if (promoPercentScaled > percentDenominator) {
+    throw new PricingDomainError('invalid_promotion_percent');
+  }
+  if (promoMoneyCents > 0 && promoPercentScaled > 0n) {
+    throw new PricingDomainError('ambiguous_monthly_promotion');
+  }
+
+  const capCents = promoMoneyCents > 0
+    ? promoMoneyCents
+    : Number(roundHalfUpDivision(
+      BigInt(catalogCents) * promoPercentScaled,
+      percentDenominator
+    ));
+  if (capCents > catalogCents) {
+    throw new PricingDomainError('promotion_cap_exceeds_catalog_price');
+  }
+
+  const embeddedCents = Math.max(catalogCents - monthlyCents, 0);
+  if (embeddedCents > capCents) {
+    throw new PricingDomainError('monthly_discount_exceeds_promotion_cap');
+  }
+  const availableCents = capCents - embeddedCents;
+
+  return {
+    catalog_price: formatMoneyCents(catalogCents),
+    monthly_price: formatMoneyCents(monthlyCents),
+    embedded_discount: formatMoneyCents(embeddedCents),
+    total_promotion_cap: formatMoneyCents(capCents),
+    advisor_discount_available: formatMoneyCents(availableCents)
+  };
+}
+
+function validateAdvisorDiscount(requestedDiscount, availableDiscount) {
+  const requestedCents = toMoneyCents(requestedDiscount || 0);
+  const availableCents = toMoneyCents(availableDiscount || 0);
+  if (requestedCents > availableCents) {
+    throw new PricingDomainError(
+      'advisor_discount_exceeds_available',
+      'El descuento solicitado excede el saldo autorizado para el mes.'
+    );
+  }
+  return requestedCents / 100;
+}
 
 /**
  * Devuelve el multiplicador de descuento por volumen para semillas con descuento.
@@ -110,14 +218,19 @@ function getNetPrice(prod, volMultiplier, keyAccountDiscount, activeSeason) {
  * @returns {{ netPrice: number, subtotal: number }} Precio neto unitario y subtotal
  */
 function calculateItemPricing(prod, quantity, volMultiplier, keyAccountDiscount, activeSeason) {
-  const netPrice = getNetPrice(prod, volMultiplier, keyAccountDiscount, activeSeason);
+  const netPrice = roundMoney(getNetPrice(prod, volMultiplier, keyAccountDiscount, activeSeason));
   return {
     netPrice,
-    subtotal: netPrice * quantity
+    subtotal: roundMoney(netPrice * quantity)
   };
 }
 
 module.exports = {
+  PricingDomainError,
+  calculateDiscountBudget,
+  roundMoney,
+  validateAdvisorDiscount,
+  toMoneyCents,
   getVolumeMultiplier,
   getSeasonPrice,
   getNetPrice,

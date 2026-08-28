@@ -1,6 +1,7 @@
 const db = require('./db');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { getVolumeMultiplier, calculateItemPricing } = require('./utils/pricing');
+const { getContractDate, getContractMonth, resolveMonthlyProductPricing } = require('./utils/monthlyPricing');
 const {
   assertExternalAIEnabled,
   buildCEOAdvisorProfile,
@@ -108,7 +109,7 @@ async function updateLastExecution(agentId) {
  * @param {number|null} clientKeyAccountTierId
  * @returns {Promise<{netPrice: number, subtotal: number}>}
  */
-async function calculateQuotePrice(productId, quantity, seasonId, clientKeyAccountTierId) {
+async function calculateQuotePrice(productId, quantity, seasonId, clientKeyAccountTierId, contractDate = new Date()) {
   const prod = await db.get('SELECT * FROM productos WHERE id = ?', [productId]);
   const cc = clientKeyAccountTierId
     ? await db.get('SELECT * FROM cuentas_clave WHERE id = ?', [clientKeyAccountTierId])
@@ -119,12 +120,20 @@ async function calculateQuotePrice(productId, quantity, seasonId, clientKeyAccou
 
   if (!prod) return { netPrice: 0, subtotal: 0 };
 
+  const monthlyPricing = await resolveMonthlyProductPricing(
+    db,
+    prod,
+    getContractMonth(contractDate)
+  );
   const keyAccountDiscount = cc ? cc.descuento_mxn : 0.0;
   // Volume multiplier needs the total quantity for seeds; here we use the single item quantity
   // as the outreach agent creates single-item quotes for simplicity
-  const volMultiplier = getVolumeMultiplier(prod.descontar === 1 ? quantity : 0);
+  const volMultiplier = getVolumeMultiplier(monthlyPricing.product.descontar === 1 ? quantity : 0);
 
-  return calculateItemPricing(prod, quantity, volMultiplier, keyAccountDiscount, season);
+  return {
+    ...calculateItemPricing(monthlyPricing.product, quantity, volMultiplier, keyAccountDiscount, season),
+    monthlyPricing
+  };
 }
 
 // -------------------------------------------------------------
@@ -488,7 +497,7 @@ Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos e
       }
 
       const folio = `OUT-${Date.now().toString().slice(-6)}-${client.id}`;
-      const today = new Date().toISOString().split('T')[0];
+      const today = getContractDate(new Date());
       const pricedItems = [];
       for (const item of quoteSpec.items) {
         const productId = Number(item.producto_id);
@@ -498,7 +507,13 @@ Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos e
         }
         const prodData = products.find(p => p.id === productId);
         if (!prodData) throw new Error('La recomendación de Outreach contiene un producto inexistente');
-        const pricing = await calculateQuotePrice(productId, quantity, quoteSpec.temporada_id, client.cuenta_clave_id);
+        const pricing = await calculateQuotePrice(
+          productId,
+          quantity,
+          quoteSpec.temporada_id,
+          client.cuenta_clave_id,
+          today
+        );
         pricedItems.push({ item: { producto_id: productId, cantidad: quantity }, prodData, pricing });
       }
 
@@ -527,16 +542,22 @@ Asegúrate de mapear "temporada_id" y "producto_id" a los IDs reales provistos e
           await tx.run(`
             INSERT INTO cotizacion_detalles (
               cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada,
-              precio_lista_unitario, precio_neto_unitario, subtotal_mxn
-            ) VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+              precio_lista_unitario, precio_neto_unitario, subtotal_mxn,
+              precio_catalogo_unitario, precio_mensual_unitario, descuento_mensual_unitario,
+              tope_descuento_unitario, descuento_asesor_unitario, contrato_precio_version
+            ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 0, 'CHG-009')
           `, [
             quoteId,
             item.producto_id,
             quoteSpec.temporada_id,
             item.cantidad,
-            prodData.list_price_mxn,
+            pricing.monthlyPricing.listPrice,
             pricing.netPrice,
-            pricing.subtotal
+            pricing.subtotal,
+            pricing.monthlyPricing.catalogPrice,
+            pricing.monthlyPricing.listPrice,
+            pricing.monthlyPricing.embeddedDiscountMxn,
+            pricing.monthlyPricing.totalPromotionCapMxn
           ]);
           grandTotal += pricing.subtotal;
         }

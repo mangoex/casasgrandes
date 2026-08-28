@@ -74,6 +74,10 @@ Creación y edición de cotizaciones, conversión de planeación y movimientos d
 
 El proceso expondrá salud sin divulgar secretos, correlacionará solicitudes sin registrar PII y cerrará servidor, tareas y PostgreSQL de forma ordenada.
 
+### PROJECT-PR-018
+
+Todo precio y descuento cotizado se resolverá en el servidor mediante un único contrato monetario versionado: el precio mensual será la base operativa, la reducción frente al catálogo consumirá el tope promocional y ninguna entrada cliente podrá ampliar el saldo autorizado.
+
 ## Fuentes canónicas
 
 | Fuente | Autoridad | Responsable |
@@ -88,11 +92,12 @@ El proceso expondrá salud sin divulgar secretos, correlacionará solicitudes si
 | `docs/adr/ADR-006.md` | Controles contra abuso HTTP | Responsable técnico |
 | `docs/adr/ADR-007.md` | Unidad transaccional comercial | Responsable técnico |
 | `docs/adr/ADR-008.md` | Salud, observabilidad y ciclo de vida | Responsable técnico |
+| `docs/adr/ADR-009.md` | Precio mensual y presupuesto total de descuento | Responsable de producto y técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: CHG-001..008; CHG-008 cubre salud operativa y apagado ordenado.
+- Incluye: CHG-001..009; CHG-009 cubre precio mensual efectivo y presupuesto total de descuento.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios

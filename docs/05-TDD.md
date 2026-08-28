@@ -255,3 +255,51 @@
 - Cubre: PRD-NFR-009
 - Aserciones: suite, auditoría de dependencias y gates Humanio permanecen verdes
 - Estado: passed
+
+## TDD-TC-055 — Oráculo Python
+
+- Cubre: BDD-SC-040, BDD-SC-041, BDD-SC-046, PRD-NFR-010
+- Aserciones: `Decimal` produce reducción, tope, saldo y redondeo esperados para todos los fixtures
+- Estado: passed-local
+
+## TDD-TC-056 — Paridad del motor productivo
+
+- Cubre: BDD-SC-040, BDD-SC-041, BDD-SC-046, PRD-FR-029
+- Aserciones: JavaScript en centavos coincide exactamente con los fixtures del oráculo y rechaza promociones ambiguas
+- Estado: passed-local
+
+## TDD-TC-057 — Validación atómica de Programación
+
+- Cubre: BDD-SC-042, PRD-FR-030
+- Aserciones: reducción superior al tope responde 400 antes de abrir transacción; doce meses válidos conservan propagación y promociones
+- Estado: passed-local
+
+## TDD-TC-058 — Autoridad del servidor en cotización
+
+- Cubre: BDD-SC-040, BDD-SC-043, PRD-FR-028..030
+- Aserciones: resolver devuelve precio mensual y saldo; descuento superior produce error en previsualización, alta y edición
+- Estado: passed-local
+
+## TDD-TC-059 — Cobertura de canales
+
+- Cubre: BDD-SC-044, PRD-FR-030
+- Aserciones: creación, edición, planificación y Outreach invocan el resolvedor mensual compartido
+- Estado: passed-local
+
+## TDD-TC-060 — Snapshot histórico
+
+- Cubre: BDD-SC-045, PRD-FR-031, PRD-NFR-011
+- Aserciones: partidas nuevas persisten el desglose CHG-009 y filas legadas quedan nulas sin backfill inferido
+- Estado: passed-local
+
+## TDD-TC-061 — Contrato frontend
+
+- Cubre: BDD-SC-040, BDD-SC-043
+- Aserciones: interfaz etiqueta precio mensual, reducción incluida y saldo; slider usa exclusivamente el máximo del servidor
+- Estado: passed-local
+
+## TDD-TC-062 — Regresión CHG-009
+
+- Cubre: PRD-NFR-010, PRD-NFR-011
+- Aserciones: pruebas Python y Node, suite completa, auditoría, Humanio estricto y diff check permanecen verdes
+- Estado: passed-local

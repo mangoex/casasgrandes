@@ -85,3 +85,12 @@
 | 2 | Probar sondas, correlación y cierre | TDD-TC-050..054 | completed |
 | 3 | Implementar controles operativos | SDD-CMP-023..025 | completed |
 | 4 | Ejecutar regresión y gates | EVD-007 | completed |
+
+## Incremento 9 — CHG-009
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar precio mensual y presupuesto total | ADR-009, PRD-FR-028..031 | completed |
+| 2 | Crear oráculo y pruebas inicialmente rojas | TDD-TC-055..062 | completed |
+| 3 | Implementar resolvedor, snapshot, canales y UI | SDD-CMP-026..028 | completed-local |
+| 4 | Ejecutar regresión, PostgreSQL aislado y gates | EVD-008 | partial-no-postgresql-browser |
