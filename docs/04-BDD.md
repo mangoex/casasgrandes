@@ -1,0 +1,447 @@
+# Behavior-Driven Development
+
+## Feature: PRD-FR-001 — Arranque no destructivo
+
+### BDD-SC-001 — Base sin cotizaciones
+
+```gherkin
+Given una base con planeación y cero cotizaciones
+When el servidor inicializa el esquema
+Then conserva toda la planeación
+```
+
+## Feature: PRD-FR-002 — Sesión protegida
+
+### BDD-SC-002 — Login web
+
+```gherkin
+Given credenciales válidas de un usuario activo
+When inicia sesión desde el navegador
+Then recibe una cookie HttpOnly y el cuerpo no expone el JWT
+```
+
+### BDD-SC-003 — Restauración y cierre
+
+```gherkin
+Given una cookie de sesión válida
+When el navegador carga o solicita cerrar sesión
+Then restaura el usuario con /api/auth/me o elimina la cookie respectivamente
+```
+
+## Feature: PRD-FR-003 — Renderizado seguro
+
+### BDD-SC-004 — Contenido hostil
+
+```gherkin
+Given contenido persistido o generado por IA con etiquetas HTML
+When la interfaz lo presenta
+Then las etiquetas se muestran como texto y no se ejecutan
+```
+
+## Feature: PRD-FR-004 — Credenciales explícitas
+
+### BDD-SC-005 — Alta sin contraseña
+
+```gherkin
+Given un administrador autenticado
+When intenta crear un asesor sin una contraseña de al menos 12 caracteres
+Then la API rechaza la solicitud sin crear la cuenta
+```
+
+### BDD-SC-006 — Importación sin credencial
+
+```gherkin
+Given una importación que no puede conservar una credencial previa
+When INITIAL_ADVISOR_PASSWORD_HASH no contiene un hash bcrypt válido
+Then la migración se detiene antes de crear usuarios
+```
+
+## Escenarios diferidos
+
+- Revocación inmediata de sesiones al desactivar usuarios.
+- Autorización horizontal completa.
+- Fallos concurrentes de inventario y pujas.
+
+## Feature: PRD-FR-005 — Identidad vigente
+
+### BDD-SC-007 — Cuenta desactivada
+
+```gherkin
+Given un token válido de una cuenta posteriormente desactivada
+When intenta usar una ruta protegida
+Then recibe 403 y el controlador no se ejecuta
+```
+
+### BDD-SC-008 — Rol actualizado
+
+```gherkin
+Given un token emitido antes de un cambio de rol
+When intenta reutilizarlo
+Then recibe 403 por versión revocada
+```
+
+## Feature: PRD-FR-006 — Propiedad comercial
+
+### BDD-SC-009 — Lectura horizontal
+
+```gherkin
+Given un Asesor autenticado
+When solicita por ID un agricultor de otro Asesor
+Then recibe 403 sin datos personales
+```
+
+### BDD-SC-010 — Mutación horizontal
+
+```gherkin
+Given un Asesor autenticado
+When intenta desasociar o disolver un grupo ajeno
+Then recibe 403 y ninguna fila cambia
+```
+
+## Feature: PRD-FR-007 — Roles explícitos
+
+### BDD-SC-011 — Rol de almacén en cartera
+
+```gherkin
+Given una cuenta con rol Almacen o Acopio
+When solicita una ruta de clientes
+Then recibe 403
+```
+
+## Feature: PRD-FR-008 — Logout revocable
+
+### BDD-SC-012 — Reutilización posterior al logout
+
+```gherkin
+Given una sesión válida
+When ejecuta logout y reutiliza el token anterior
+Then recibe 403
+```
+
+## Feature: CHG-003 — Integridad transaccional
+
+### BDD-SC-013 — Fallo intermedio
+
+```gherkin
+Given una operación con dos escrituras
+When la segunda falla
+Then PostgreSQL ejecuta ROLLBACK y no confirma la primera
+```
+
+### BDD-SC-014 — Salidas concurrentes
+
+```gherkin
+Given dos salidas sobre el mismo producto
+When se procesan simultáneamente
+Then ambas bloquean el producto y ninguna calcula desde un saldo obsoleto
+```
+
+### BDD-SC-015 — Producción atómica
+
+```gherkin
+Given una conversión UAN-32
+When falla la entrada del producto terminado
+Then tampoco se descuenta la materia prima
+```
+
+### BDD-SC-016 — Puja concurrente
+
+```gherkin
+Given dos decisiones sobre el mismo cliente
+When compiten por aprobar una puja
+Then solo la primera asignación confirmada produce efectos
+```
+
+### BDD-SC-017 — Entrega repetida
+
+```gherkin
+Given una cotización ya entregada
+When otra petición intenta aplicar la misma transición
+Then no genera una segunda salida de inventario
+```
+
+## Feature: CHG-004 — Privacidad IA
+
+### BDD-SC-018 — IA sin opt-in
+
+```gherkin
+Given una instalación sin consentimiento externo
+When CEO u Outreach intenta invocar el modelo
+Then falla antes de realizar la solicitud
+```
+
+### BDD-SC-019 — Contexto CEO
+
+```gherkin
+Given asesores y agricultores productivos
+When se construye el contexto CEO
+Then incluye métricas por ID y excluye nombres, correos y detalle de agricultores
+```
+
+### BDD-SC-020 — Contexto Outreach
+
+```gherkin
+Given un agricultor con historial
+When se construye la recomendación externa
+Then usa alias interno y no incluye nombre ni contacto
+```
+
+### BDD-SC-021 — Coordinador local
+
+```gherkin
+Given una agenda pendiente
+When se genera un recordatorio
+Then no se llama a proveedor IA
+```
+
+### BDD-SC-022 — Clave en interfaz
+
+```gherkin
+Given una solicitud para guardar una clave IA
+When llega a la API de configuración
+Then se rechaza y PostgreSQL no recibe la clave
+```
+
+### BDD-SC-023 — Log sensible
+
+```gherkin
+Given un error o resultado con email, teléfono o token
+When se registra
+Then el detalle persistido contiene marcadores redactados
+```
+
+## Feature: CHG-005 — Dependencias seguras
+
+### BDD-SC-024 — Vulnerabilidad conocida
+
+```gherkin
+Given un lockfile con vulnerabilidades críticas o altas conocidas
+When se aplican actualizaciones transitivas compatibles
+Then la auditoría reporta cero vulnerabilidades y la regresión funcional permanece verde
+```
+
+## Feature: CHG-006 — Resistencia a abuso HTTP
+
+### BDD-SC-025 — Fuerza bruta por cuenta
+
+```gherkin
+Given intentos fallidos repetidos para el mismo identificador
+When se supera el máximo de la ventana
+Then login responde 429 sin consultar credenciales nuevamente
+```
+
+### BDD-SC-026 — Ventana expirada
+
+```gherkin
+Given un actor temporalmente limitado
+When vence la ventana configurada
+Then puede volver a intentar y el contador inicia de nuevo
+```
+
+### BDD-SC-027 — JSON general excesivo
+
+```gherkin
+Given una petición JSON general mayor a 1 MiB
+When el servidor intenta procesarla
+Then responde 413 con JSON y no ejecuta el controlador
+```
+
+### BDD-SC-028 — Anexo sin sesión
+
+```gherkin
+Given un anexo potencial de hasta 12 MiB sin sesión válida
+When llega al endpoint de adjuntos
+Then autenticación lo rechaza antes de parsear el cuerpo
+```
+
+### BDD-SC-029 — Scripts inline
+
+```gherkin
+Given una respuesta HTML
+When el navegador aplica CSP
+Then solo carga archivos script del mismo origen y bloquea bloques inline
+```
+
+## Feature: CHG-007 — Atomicidad comercial
+
+### BDD-SC-030 — Detalle de cotización falla
+
+```gherkin
+Given una nueva cotización con varias escrituras
+When falla la inserción de un detalle
+Then no existen cabecera, transición de prospecto ni reporte parcial
+```
+
+### BDD-SC-031 — Conversión repetida
+
+```gherkin
+Given dos solicitudes para convertir la misma planificación
+When ambas compiten
+Then solo se crea un prospecto y la segunda reutiliza el confirmado
+```
+
+### BDD-SC-032 — Edición entregada sin saldo
+
+```gherkin
+Given una cotización entregada y productos bloqueados
+When los nuevos detalles requieren más saldo del disponible tras la reversión
+Then toda la edición revierte sin reemplazar detalles ni movimientos
+```
+
+### BDD-SC-033 — Edición interrumpida
+
+```gherkin
+Given una edición que ya insertó una reversión
+When falla el reemplazo de detalles
+Then PostgreSQL revierte la reversión y conserva la cotización original
+```
+
+## Feature: CHG-008 — Salud operativa y ciclo de vida
+
+### BDD-SC-034 — Proceso vivo
+
+```gherkin
+Given el servidor HTTP está aceptando solicitudes
+When se consulta /health/live aunque PostgreSQL esté degradado
+Then responde 200 con estado alive
+```
+
+### BDD-SC-035 — Dependencia disponible
+
+```gherkin
+Given PostgreSQL responde dentro del límite
+When se consulta /health/ready
+Then responde 200 con estado ready
+```
+
+### BDD-SC-036 — Dependencia degradada
+
+```gherkin
+Given PostgreSQL falla o excede el límite
+When se consulta /health/ready
+Then responde 503 con estado degraded y sin detalle interno
+```
+
+### BDD-SC-037 — Solicitud correlacionada
+
+```gherkin
+Given una solicitud con ID válido o malicioso
+When termina la respuesta
+Then devuelve un ID seguro y registra solo metadatos operativos sin query ni PII
+```
+
+### BDD-SC-038 — Terminación ordenada
+
+```gherkin
+Given servidor, scheduler y pool activos
+When el proceso recibe una señal de terminación
+Then deja de aceptar, espera actividad y cierra cada recurso
+```
+
+### BDD-SC-039 — Señal repetida
+
+```gherkin
+Given un apagado ya iniciado
+When llega otra solicitud de apagado
+Then reutiliza el mismo resultado sin cerrar recursos por segunda vez
+```
+
+## Feature: CHG-009 — Precio mensual y presupuesto total
+
+### BDD-SC-040 — Saldo después de reducción mensual
+
+```gherkin
+Given un producto con precio anual 7015, precio mensual 6300 y promoción de 1089 MXN
+When el asesor abre una cotización del mes configurado
+Then el precio de lista es 6300, la reducción incluida es 715 y el saldo adicional es 374
+```
+
+### BDD-SC-041 — Promoción porcentual y beneficios separados
+
+```gherkin
+Given una promoción porcentual y beneficios de temporada, volumen o Cuenta Clave
+When se calcula la partida
+Then el tope porcentual usa el precio anual y los otros beneficios no consumen el saldo del asesor
+```
+
+### BDD-SC-042 — Programación inconsistente
+
+```gherkin
+Given una reducción mensual mayor al tope promocional total
+When Administrador o Coordinador intenta guardar Programación
+Then el servidor responde 400 y no modifica ninguno de los doce meses
+```
+
+### BDD-SC-043 — Descuento cliente manipulado
+
+```gherkin
+Given un saldo adicional autorizado de 374 MXN
+When el cliente envía un descuento de 375 MXN
+Then el servidor responde 400 y no crea ni edita la cotización
+```
+
+### BDD-SC-044 — Canales consistentes
+
+```gherkin
+Given el mismo producto, fecha y contexto comercial
+When se cotiza por previsualización, alta, edición, planificación u Outreach
+Then todos usan el mismo precio mensual y presupuesto de descuento
+```
+
+### BDD-SC-045 — Histórico inmutable
+
+```gherkin
+Given una cotización persistida con snapshot CHG-009
+When cambia el catálogo o la Programación
+Then sus importes y desglose permanecen sin recalcularse
+```
+
+### BDD-SC-046 — Precio mensual superior al catálogo
+
+```gherkin
+Given un precio mensual mayor al anual
+When se calcula el presupuesto
+Then la reducción consumida es cero y el tope completo queda disponible
+```
+
+### BDD-SC-047 — Límite de mes contractual
+
+```gherkin
+Given una cotización creada o editada cerca de un cambio de mes en America/Mazatlan
+When se resuelve Programación
+Then se usa el mes de la fecha contractual y no la zona horaria accidental del proceso
+```
+
+## Feature: CHG-010 — Precio y descuento vinculados en Programación
+
+### BDD-SC-048 — Editar precio mensual
+
+```gherkin
+Given un producto con precio anual conocido
+When Administrador o Coordinador cambia el precio mensual
+Then la interfaz recalcula el descuento total en MXN y su porcentaje sobre el precio anual
+```
+
+### BDD-SC-049 — Editar descuento en dinero
+
+```gherkin
+Given un producto con precio anual conocido
+When Administrador o Coordinador cambia el descuento total en MXN
+Then la interfaz recalcula el precio mensual y el porcentaje equivalente
+```
+
+### BDD-SC-050 — Editar descuento porcentual
+
+```gherkin
+Given un producto con precio anual conocido
+When Administrador o Coordinador cambia el porcentaje de descuento
+Then la interfaz recalcula el descuento en MXN y el precio mensual
+```
+
+### BDD-SC-051 — Representaciones consistentes
+
+```gherkin
+Given una fila mensual con descuento en MXN y porcentaje
+When se guarda Programación
+Then el servidor acepta ambos valores si equivalen al mismo centavo y rechaza cualquier discrepancia
+```

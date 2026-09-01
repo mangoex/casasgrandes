@@ -39,7 +39,11 @@ function request(url, options = {}, body = null) {
 }
 
 async function login(email, password) {
-  const res = await request(`${BASE_URL}/api/auth/login`, { method: 'POST' }, { usernameOrEmail: email, password });
+  const res = await request(
+    `${BASE_URL}/api/auth/login`,
+    { method: 'POST', headers: { 'X-Auth-Mode': 'bearer' } },
+    { usernameOrEmail: email, password }
+  );
   if (res.status !== 200) {
     throw new Error(`Login failed for ${email}: ${JSON.stringify(res.body)}`);
   }

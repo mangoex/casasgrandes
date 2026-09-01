@@ -1,5 +1,7 @@
 const { Pool, types } = require('pg');
 const dotenv = require('dotenv');
+const { createTransactionRunner } = require('./utils/databaseTransaction');
+const { createReadinessCheck } = require('./utils/observability');
 dotenv.config();
 
 // Force PostgreSQL DATE columns (OID 1082) to be returned as simple strings (YYYY-MM-DD)
@@ -30,6 +32,7 @@ async function initSchema() {
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS disponible_para_puja INTEGER DEFAULT 0');
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cliente_principal_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL');
     await pool.query('ALTER TABLE asesores ADD COLUMN IF NOT EXISTS calificacion REAL DEFAULT 5.0');
+    await pool.query('ALTER TABLE asesores ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 1');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_faena REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_clavis REAL DEFAULT 0.0');
     await pool.query('ALTER TABLE metas_ventas ADD COLUMN IF NOT EXISTS meta_cropprotection REAL DEFAULT 0.0');
@@ -71,16 +74,13 @@ async function initSchema() {
          OR producto_id IN (SELECT id FROM productos WHERE tipo_categoria = 'Híbrido' OR tipo_categoria = 'Semilla')
     `);
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS prospecto_id INTEGER');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS precio_catalogo_unitario NUMERIC(14,2)');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS precio_mensual_unitario NUMERIC(14,2)');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS descuento_mensual_unitario NUMERIC(14,2)');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS tope_descuento_unitario NUMERIC(14,2)');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS descuento_asesor_unitario NUMERIC(14,2)');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS contrato_precio_version TEXT');
     await pool.query('ALTER TABLE cuentas_clave ADD COLUMN IF NOT EXISTS descripcion TEXT');
-    // The original import stored this hash while documenting password123 as the default,
-    // but it does not validate that password. Repair only accounts that still have it.
-    await pool.query(
-      'UPDATE asesores SET password_hash = $1 WHERE password_hash = $2',
-      [
-        '$2b$10$fgcwgOeS3gyws4l95smgDOBhuagB/mIxKZmg5UgJLAfE5BFXBN0Vq',
-        '$2b$10$Ly0wcxrAZmfzIOSLPRzwdO3YxJQ2dPT6osFpn0j0hlAT9uK7ojTKm'
-      ]
-    );
     for (const tierName of ['Adquirir', 'Desarrollar', 'Retener', 'Retener GOLD']) {
       await pool.query(
         'INSERT INTO cuentas_clave (tier_name, descripcion, descuento_mxn) SELECT $1, NULL, 0 WHERE NOT EXISTS (SELECT 1 FROM cuentas_clave WHERE LOWER(tier_name) = LOWER($1))',
@@ -207,6 +207,18 @@ async function initSchema() {
         ('coordinador', 'Coordinador Agent', 0, '{"prompt_adicional": "", "frecuencia_horas": 12}'),
         ('outreach', 'Outreach Agent', 0, '{"prompt_adicional": "", "frecuencia_horas": 12}')
       ON CONFLICT (agente_id) DO NOTHING
+    `);
+    // Legacy versions stored provider credentials in this JSON field. Runtime
+    // credentials now come exclusively from the environment, so remove any
+    // persisted copies during schema initialization.
+    await pool.query(`
+      UPDATE crm_agentes_config
+      SET configuracion = (
+        COALESCE(NULLIF(configuracion, ''), '{}')::jsonb
+        - 'gemini_api_key'
+        - 'openrouter_api_key'
+      )::text
+      WHERE agente_id = 'global'
     `);
 
     // Create crm_etapas_programacion table
@@ -462,7 +474,6 @@ async function initSchema() {
         END IF;
       END $$;
     `);
-
     console.log('PostgreSQL schema auto-updates checked/applied successfully.');
   } catch (err) {
     console.error('Error checking/applying PostgreSQL schema updates:', err.message);
@@ -498,7 +509,31 @@ function ensureSchema() {
   }
   return initSchemaPromise;
 }
-ensureSchema();
+const runTransaction = createTransactionRunner(pool, rewriteQuery);
+const transaction = async callback => {
+  await ensureSchema();
+  return runTransaction(callback);
+};
+let closePromise = null;
+
+function parseReadinessTimeout(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 100 && parsed <= 10_000 ? parsed : 2_000;
+}
+
+const readinessTimeoutMs = parseReadinessTimeout(process.env.READINESS_TIMEOUT_MS);
+const checkReadiness = createReadinessCheck({
+  timeoutMs: readinessTimeoutMs,
+  query: () => pool.query({
+    text: 'SELECT 1',
+    query_timeout: readinessTimeoutMs
+  })
+});
+
+function close() {
+  if (!closePromise) closePromise = pool.end();
+  return closePromise;
+}
 
 module.exports = {
   initSchema: ensureSchema,
@@ -539,43 +574,11 @@ module.exports = {
     }
   },
   
-  transaction: async (callback) => {
-    await ensureSchema();
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const tx = {
-        get: async (sql, params = []) => {
-          const rewritten = rewriteQuery(sql);
-          const result = await client.query(rewritten, params);
-          return result.rows[0];
-        },
-        all: async (sql, params = []) => {
-          const rewritten = rewriteQuery(sql);
-          const result = await client.query(rewritten, params);
-          return result.rows;
-        },
-        run: async (sql, params = []) => {
-          const rewritten = rewriteQuery(sql);
-          const result = await client.query(rewritten, params);
-          const id = result.rows[0]?.id || null;
-          return { id, changes: result.rowCount };
-        },
-        query: (text, params) => client.query(text, params)
-      };
-      const res = await callback(tx);
-      await client.query('COMMIT');
-      return res;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  },
-
+  transaction,
   rewriteQuery,
   initSchemaPromise,
-  initSchema,
-  pool // Expose raw pool in case direct operations are needed
+  pool, // Expose raw pool in case direct operations are needed
+  initSchema: ensureSchema,
+  checkReadiness,
+  close
 };

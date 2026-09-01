@@ -7,20 +7,8 @@
   const roundPercent = value => Math.round((Number(value) + Number.EPSILON) * 10000) / 10000;
   const nonNegative = value => Math.max(Number(value) || 0, 0);
 
-  function getReferencePrice(price, discountAmount, discountPercent) {
-    const currentPrice = nonNegative(price);
-    const currentAmount = nonNegative(discountAmount);
-    const currentPercent = Math.min(nonNegative(discountPercent), 100);
-
-    if (currentAmount > 0) return roundMoney(currentPrice + currentAmount);
-    if (currentPercent > 0 && currentPercent < 100) {
-      return roundMoney(currentPrice / (1 - currentPercent / 100));
-    }
-    return roundMoney(currentPrice);
-  }
-
   function calculateLinkedPricing(referencePrice, changedField, rawValue) {
-    let reference = nonNegative(referencePrice);
+    const reference = nonNegative(referencePrice);
     const value = nonNegative(rawValue);
     let price;
     let discountAmount;
@@ -28,11 +16,9 @@
 
     if (changedField === 'precio') {
       price = value;
-      if (price > reference) reference = price;
       discountAmount = Math.max(reference - price, 0);
       discountPercent = reference > 0 ? (discountAmount / reference) * 100 : 0;
     } else if (changedField === 'promo_dinero') {
-      if (reference === 0 && value > 0) reference = value;
       discountAmount = Math.min(value, reference);
       price = reference - discountAmount;
       discountPercent = reference > 0 ? (discountAmount / reference) * 100 : 0;
@@ -52,5 +38,15 @@
     };
   }
 
-  return { getReferencePrice, calculateLinkedPricing };
+  function normalizeLinkedPricing(referencePrice, price, discountAmount, discountPercent) {
+    if (nonNegative(discountAmount) > 0) {
+      return calculateLinkedPricing(referencePrice, 'promo_dinero', discountAmount);
+    }
+    if (nonNegative(discountPercent) > 0) {
+      return calculateLinkedPricing(referencePrice, 'promo_porcentaje', discountPercent);
+    }
+    return calculateLinkedPricing(referencePrice, 'precio', price);
+  }
+
+  return { calculateLinkedPricing, normalizeLinkedPricing };
 }));

@@ -1,5 +1,7 @@
 # Especificación: edición de productos y precios efectivos por mes
 
+> Estado: antecedente absorbido por `CHG-009`. La autoridad vigente es `ADR-009` y la cadena canónica `docs/02-PRD.md` → `docs/03-SDD.md` → `docs/04-BDD.md` → `docs/05-TDD.md`. Ante cualquier diferencia prevalece esa cadena.
+
 ## Objetivo
 
 Convertir el Catálogo de Productos en la fuente del precio base anual y a Programación en la fuente única del precio y promoción efectivos para una cotización. El Cotizador debe usar siempre la programación del producto para el mes de la cotización; nunca debe tomar como precio de venta el precio base del catálogo.
@@ -59,11 +61,13 @@ Como Asesor, quiero que el Cotizador use el precio y la promoción configurados 
 1. Para cada producto de una cotización, el servidor consulta `crm_precios_mensuales` usando el mes local de la fecha de creación de la cotización.
 2. `precio` de ese registro es el precio de lista efectivo que debe mostrarse y guardarse en `cotizacion_detalles.precio_lista_unitario`.
 3. Las reglas actuales de temporada, escala de volumen, cuenta clave y descuento fijo siguen existiendo, pero deben calcularse a partir del precio mensual efectivo cuando corresponda. No se crea un segundo motor de precios: se adapta y reutiliza `utils/pricing.js`.
-4. La promoción mensual limita el descuento comercial que el asesor puede aplicar:
-   - `promo_dinero`: tope en MXN por unidad.
-   - `promo_porcentaje`: tope porcentual del precio mensual efectivo.
-   - Ambos valores se guardan como representaciones equivalentes del mismo descuento; no se suman. El servidor rechaza configuraciones donde los dos importes no coinciden matemáticamente.
-5. El descuento aplicado por el asesor no puede exceder el tope mensual configurado.
+4. La promoción mensual es el presupuesto total de descuento desde el precio anual:
+   - `promo_dinero`: tope total en MXN por unidad.
+   - `promo_porcentaje`: tope porcentual calculado sobre el precio anual.
+   - La reducción `max(precio anual - precio mensual, 0)` consume el tope y solo la diferencia queda disponible al asesor.
+   - Volumen, temporada y Cuenta Clave permanecen separados y no consumen este saldo.
+   - Dinero y porcentaje son representaciones vinculadas del mismo presupuesto. Cuando ambos son mayores a cero deben producir el mismo importe al centavo; no se suman.
+5. El descuento aplicado por el asesor no puede exceder el saldo mensual restante. Una reducción mensual mayor al tope se rechaza.
 6. Si no existe programación mensual por un producto de legado, el servidor usa temporalmente `list_price_mxn` como compatibilidad y crea los doce registros al siguiente guardado administrativo. El camino normal no debe usar este fallback.
 7. Previsualización, alta de cotización, edición de cotización y conversión de una planificación a cotización deben compartir la misma consulta y cálculo de precio mensual.
 8. Las cotizaciones anteriores no se recalculan cuando cambie el catálogo o Programación.
@@ -97,7 +101,7 @@ Como Asesor, quiero que el Cotizador use el precio y la promoción configurados 
 4. Al cotizar Hipopótamo en julio, el precio de lista persistido en la cotización es el valor de julio; al cotizarlo en agosto, es `2,500`.
 5. Una promoción en agosto no altera los topes de descuento de julio o septiembre.
 6. Un Asesor recibe `403` al intentar editar producto o guardar Programación directamente por API.
-7. Un precio negativo, mes fuera de 1-12, producto inexistente o ambas promociones activas devuelve `400` con un mensaje claro.
+7. Un precio negativo, mes fuera de 1-12, producto inexistente o representaciones de promoción inconsistentes devuelve `400` con un mensaje claro.
 8. Cambiar un producto hoy no modifica `precio_lista_unitario`, `precio_neto_unitario` ni `subtotal_mxn` de cotizaciones existentes.
 9. El catálogo sigue permitiendo `Agregar a Cotización` sin abrir el modal de edición.
 10. La experiencia funciona con productos importados que no tengan clave o descripción, sin eliminar información existente.

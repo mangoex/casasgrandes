@@ -1,0 +1,118 @@
+[
+  {
+    "name": "ejemplo_aprobado_dinero",
+    "input": {
+      "catalog_price": "7015.00",
+      "monthly_price": "6300.00",
+      "promo_money": "1089.00",
+      "promo_percent": "0"
+    },
+    "expected": {
+      "catalog_price": "7015.00",
+      "monthly_price": "6300.00",
+      "embedded_discount": "715.00",
+      "total_promotion_cap": "1089.00",
+      "advisor_discount_available": "374.00"
+    }
+  },
+  {
+    "name": "sin_reduccion_conserva_tope",
+    "input": {
+      "catalog_price": "7015.00",
+      "monthly_price": "7015.00",
+      "promo_money": "1089.00",
+      "promo_percent": "0"
+    },
+    "expected": {
+      "catalog_price": "7015.00",
+      "monthly_price": "7015.00",
+      "embedded_discount": "0.00",
+      "total_promotion_cap": "1089.00",
+      "advisor_discount_available": "1089.00"
+    }
+  },
+  {
+    "name": "precio_mensual_superior_no_consume",
+    "input": {
+      "catalog_price": "7015.00",
+      "monthly_price": "7200.00",
+      "promo_money": "500.00",
+      "promo_percent": "0"
+    },
+    "expected": {
+      "catalog_price": "7015.00",
+      "monthly_price": "7200.00",
+      "embedded_discount": "0.00",
+      "total_promotion_cap": "500.00",
+      "advisor_discount_available": "500.00"
+    }
+  },
+  {
+    "name": "porcentaje_sobre_catalogo",
+    "input": {
+      "catalog_price": "1000.00",
+      "monthly_price": "950.00",
+      "promo_money": "0",
+      "promo_percent": "10"
+    },
+    "expected": {
+      "catalog_price": "1000.00",
+      "monthly_price": "950.00",
+      "embedded_discount": "50.00",
+      "total_promotion_cap": "100.00",
+      "advisor_discount_available": "50.00"
+    }
+  },
+  {
+    "name": "redondeo_half_up_a_centavo",
+    "input": {
+      "catalog_price": "100.50",
+      "monthly_price": "100.50",
+      "promo_money": "0",
+      "promo_percent": "1"
+    },
+    "expected": {
+      "catalog_price": "100.50",
+      "monthly_price": "100.50",
+      "embedded_discount": "0.00",
+      "total_promotion_cap": "1.01",
+      "advisor_discount_available": "1.01"
+    }
+  },
+  {
+    "name": "reduccion_supera_tope",
+    "input": {
+      "catalog_price": "1000.00",
+      "monthly_price": "800.00",
+      "promo_money": "150.00",
+      "promo_percent": "0"
+    },
+    "error": "monthly_discount_exceeds_promotion_cap"
+  },
+  {
+    "name": "representaciones_equivalentes",
+    "input": {
+      "catalog_price": "1000.00",
+      "monthly_price": "900.00",
+      "promo_money": "100.00",
+      "promo_percent": "10"
+    },
+    "expected": {
+      "catalog_price": "1000.00",
+      "monthly_price": "900.00",
+      "embedded_discount": "100.00",
+      "total_promotion_cap": "100.00",
+      "advisor_discount_available": "0.00"
+    }
+  },
+  {
+    "name": "representaciones_inconsistentes",
+    "input": {
+      "catalog_price": "1000.00",
+      "monthly_price": "900.00",
+      "promo_money": "100.00",
+      "promo_percent": "9"
+    },
+    "error": "inconsistent_monthly_promotion"
+  }
+]
