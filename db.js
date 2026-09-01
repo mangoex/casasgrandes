@@ -74,11 +74,15 @@ async function initSchema() {
          OR producto_id IN (SELECT id FROM productos WHERE tipo_categoria = 'Híbrido' OR tipo_categoria = 'Semilla')
     `);
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS prospecto_id INTEGER');
+    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS nucle_aplicado INTEGER NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS nucle_porcentaje NUMERIC(7,4) NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS descuento_nucle_mxn NUMERIC(14,2) NOT NULL DEFAULT 0');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS precio_catalogo_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS precio_mensual_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS descuento_mensual_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS tope_descuento_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS descuento_asesor_unitario NUMERIC(14,2)');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS descuento_nucle_unitario NUMERIC(14,2) NOT NULL DEFAULT 0');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS contrato_precio_version TEXT');
     await pool.query('ALTER TABLE cuentas_clave ADD COLUMN IF NOT EXISTS descripcion TEXT');
     for (const tierName of ['Adquirir', 'Desarrollar', 'Retener', 'Retener GOLD']) {
@@ -343,6 +347,20 @@ async function initSchema() {
         AND pm.tope_descuento_mxn IS NULL
     `);
     await pool.query('ALTER TABLE crm_precios_mensuales ALTER COLUMN tope_descuento_mxn SET DEFAULT 0.0');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_nucle_mensual (
+        mes INTEGER PRIMARY KEY CHECK (mes >= 1 AND mes <= 12),
+        porcentaje NUMERIC(7,4) NOT NULL DEFAULT 0 CHECK (porcentaje >= 0 AND porcentaje <= 100),
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      INSERT INTO crm_nucle_mensual (mes, porcentaje)
+      SELECT mes, 0
+      FROM generate_series(1, 12) AS mes
+      ON CONFLICT (mes) DO NOTHING
+    `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS crm_respaldos_limpieza_operacion (

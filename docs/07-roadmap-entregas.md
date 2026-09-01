@@ -130,3 +130,12 @@
 | 2 | Probar derivación, HTTP y contrato visual | TDD-TC-075..078 | completed |
 | 3 | Ajustar Programación y Cotizador | SDD-CMP-032 | completed-local |
 | 4 | Ejecutar regresión y desplegar | EVD-012 | in-progress |
+
+## Incremento 14 — CHG-014
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar catálogo y regla Nucle | ADR-014, PRD-FR-036 | completed |
+| 2 | Probar rango, categorías, HTTP y administración | TDD-TC-079..085 | completed |
+| 3 | Implementar cálculo, snapshot e interfaz | SDD-CMP-033 | completed-local |
+| 4 | Ejecutar regresión y desplegar | EVD-013 | in-progress |

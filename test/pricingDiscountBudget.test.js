@@ -137,8 +137,8 @@ test('TDD-TC-073: frontend convierte la barra acumulada a descuento adicional', 
   assert.match(frontend, /data-discount-floor/);
   assert.match(frontend, /sliderTotal\s*-\s*discountFloor/);
   assert.match(frontend, /slider\.disabled\s*=\s*sliderMaxTotal\s*<=\s*embeddedDiscount/);
-  assert.match(index, /app\.js\?v=20260901-chg013/);
-  assert.match(index, /style\.css\?v=20260901-chg013/);
+  assert.match(index, /app\.js\?v=20260901-chg014/);
+  assert.match(index, /style\.css\?v=20260901-chg014/);
 });
 
 test('TDD-TC-074: esquema y endpoints conservan un tope independiente', () => {

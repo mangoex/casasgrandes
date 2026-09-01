@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>AgriSales Pro - Gestión de Ventas</title>
-  <link rel="stylesheet" href="css/style.css?v=20260901-chg013">
+  <link rel="stylesheet" href="css/style.css?v=20260901-chg014">
 </head>
 <body>
 
@@ -682,6 +682,11 @@
                 <input type="hidden" id="quote-financiera" value="">
               </div>
 
+              <label for="quote-nucle" style="display: inline-flex; align-items: center; gap: 9px; margin-top: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-weight: 700;">
+                <input type="checkbox" id="quote-nucle" style="width: 18px; height: 18px; accent-color: var(--success);">
+                <span>Nucle <small id="quote-nucle-percentage" style="font-weight: 500; color: var(--text-light);"></small></span>
+              </label>
+
               <!-- Quick client info -->
               <div id="client-quick-details" class="client-quick-details-card" style="display: none;">
                 <div class="quick-details-title">Resumen del Agricultor</div>
@@ -843,6 +848,10 @@
                     <div class="totals-row" id="preview-row-anticipo" style="display: none; color: var(--accent);">
                       <span>Anticipo Apartado ($2k/bolsa):</span>
                       <strong id="preview-anticipo-val">$0.00</strong>
+                    </div>
+                    <div class="totals-row" id="preview-row-nucle" style="display: none; color: var(--success);">
+                      <span>Descuento Nucle:</span>
+                      <strong id="preview-nucle-val">-$0.00 MXN</strong>
                     </div>
                     <div class="totals-row total">
                       <span>Costo Total:</span>
@@ -1646,6 +1655,7 @@
           <button id="tab-admin-metas" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🎯 Metas Comerciales</button>
           <button id="tab-admin-ciclos" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">📅 Ciclos Agrícolas</button>
           <button id="tab-admin-cuentas" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🔑 Cuentas Clave</button>
+          <button id="tab-admin-nucle" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🌱 Nucle</button>
           <button id="tab-admin-mantenimiento" class="btn btn-secondary" style="width: auto; padding: 8px 20px; font-size: 14px;">🛠️ Mantenimiento</button>
         </div>
 
@@ -1834,6 +1844,24 @@
                 <tbody id="admin-cuentas-clave-tbody">
                   <tr><td colspan="4" style="text-align:center; color:var(--text-light);">Cargando...</td></tr>
                 </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-admin-nucle" class="admin-panel" style="display: none;">
+          <div class="card" style="max-width: 720px;">
+            <div class="flex-header" style="margin-bottom: 16px;">
+              <div>
+                <h3 style="margin: 0;">Catálogo Nucle</h3>
+                <p style="margin: 4px 0 0; color: var(--text-light); font-size: 13px;">Porcentaje mensual aplicable únicamente a Híbridos y Semillas.</p>
+              </div>
+              <button id="btn-save-nucle" class="btn btn-primary" type="button" style="width: auto;">💾 Guardar Nucle</button>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Mes</th><th style="text-align: right; width: 220px;">Descuento Nucle (%)</th></tr></thead>
+                <tbody id="admin-nucle-tbody"><tr><td colspan="2" style="text-align:center; color:var(--text-light);">Cargando...</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -2397,6 +2425,7 @@
             <div><strong>Fecha Creación:</strong> <span id="quote-detail-fecha">-</span></div>
             <div><strong>Ciclo Agrícola:</strong> <span id="quote-detail-ciclo">-</span></div>
             <div><strong>Condiciones de Pago:</strong> <span id="quote-detail-condiciones">-</span></div>
+            <div><strong>Nucle:</strong> <span id="quote-detail-nucle">No aplicado</span></div>
             <div><strong>Estatus:</strong> <span id="quote-detail-estatus" class="badge">-</span></div>
             <div><strong>Financiera:</strong> <span id="quote-detail-financiera">-</span></div>
           </div>
@@ -2474,6 +2503,10 @@
                 <input type="text" id="edit-quote-financiera" class="form-input" placeholder="ej. Ninguna, FIRA, etc.">
               </div>
             </div>
+            <label for="edit-quote-nucle" style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 700;">
+              <input type="checkbox" id="edit-quote-nucle" style="width: 18px; height: 18px; accent-color: var(--success);">
+              Aplicar Nucle
+            </label>
 
             <h4 style="margin: 15px 0 10px 0; border-bottom: 1px solid var(--border); padding-bottom: 6px;">Editar Productos</h4>
             <div id="edit-quote-items-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; margin-bottom: 12px; padding-right: 5px;">
@@ -3105,7 +3138,7 @@
 
   <!-- Load script -->
   <script src="js/security.js?v=20260726-p0"></script>
-  <script src="js/programacion-pricing.js?v=20260901-chg013"></script>
-  <script src="js/app.js?v=20260901-chg013"></script>
+  <script src="js/programacion-pricing.js?v=20260901-chg014"></script>
+  <script src="js/app.js?v=20260901-chg014"></script>
 </body>
 </html>

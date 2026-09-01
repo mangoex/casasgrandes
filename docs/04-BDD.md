@@ -523,3 +523,37 @@ Given la programación del escenario anterior
 When el asesor selecciona el producto en Cotizador
 Then ve Precio base 7015 y una barra que inicia en 89 y termina en 1089
 ```
+
+## Feature: CHG-014 — Nucle mensual
+
+### BDD-SC-061 — Configurar doce meses
+
+```gherkin
+Given un Administrador en el catálogo Nucle
+When guarda un porcentaje válido para cada mes de enero a diciembre
+Then los doce porcentajes quedan disponibles para cotizaciones de su mes contractual
+```
+
+### BDD-SC-062 — Acumular Nucle con descuento del asesor
+
+```gherkin
+Given un Híbrido con precio mensual 900, descuento asesor 100 y Nucle de 10 por ciento
+When el usuario marca Nucle
+Then el descuento Nucle es 90 y el precio final unitario es 710
+```
+
+### BDD-SC-063 — Excluir Agroquímicos
+
+```gherkin
+Given una cotización mixta con Híbridos y Agroquímicos
+When se aplica Nucle
+Then solo las partidas Híbrido o Semilla reciben el descuento
+```
+
+### BDD-SC-064 — Conservar histórico
+
+```gherkin
+Given una cotización creada con Nucle
+When cambia posteriormente el catálogo mensual
+Then la cotización conserva la bandera, porcentaje e importes Nucle originales
+```
