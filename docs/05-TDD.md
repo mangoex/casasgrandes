@@ -327,3 +327,27 @@
 - Cubre: BDD-SC-051, PRD-FR-032
 - Aserciones: el motor acepta dinero y porcentaje equivalentes y rechaza discrepancias
 - Estado: passed-local
+
+## TDD-TC-067 — Presupuesto mensual completo
+
+- Cubre: BDD-SC-052, PRD-FR-033
+- Aserciones: la disponibilidad del asesor equivale al tope mensual completo aunque exista diferencia contra catálogo
+- Estado: passed-local
+
+## TDD-TC-068 — Contrato HTTP del Cotizador
+
+- Cubre: BDD-SC-052, BDD-SC-053, PRD-FR-033
+- Aserciones: la previsualización devuelve máximo 1089 desde precio 6300 y precio final 5211 al aplicarlo
+- Estado: passed-local
+
+## TDD-TC-069 — Rechazo sobre el límite
+
+- Cubre: BDD-SC-054, PRD-FR-033
+- Aserciones: previsualización, alta y edición rechazan un descuento superior al tope
+- Estado: passed-local
+
+## TDD-TC-070 — Contrato visual de la barra
+
+- Cubre: BDD-SC-052, BDD-SC-053
+- Aserciones: la interfaz etiqueta el límite mensual y asigna `max_discount_mxn` al máximo de la barra
+- Estado: passed-local

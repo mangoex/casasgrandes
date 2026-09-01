@@ -37,6 +37,7 @@
 | OBJ-011 | PRD-FR-031, PRD-NFR-011 | SDD-CMP-028 | BDD-SC-045 | TDD-TC-060, TDD-TC-061 | `db.js`, `server.js`, `agentsService.js`, `public/js/app.js` | EVD-008: snapshot aditivo; PostgreSQL real pendiente | implemented-tested-local |
 | OBJ-011 | PRD-NFR-010 | SDD-CMP-026 | BDD-SC-040, BDD-SC-041, BDD-SC-046 | TDD-TC-055, TDD-TC-056, TDD-TC-062 | CHG-009 | EVD-008: Python 1/1, Node 65/65, npm audit 0 | Gate 4 local conditional |
 | OBJ-012 | PRD-FR-032 | SDD-CMP-029, ADR-010 | BDD-SC-048..051 | TDD-TC-063..066 | `public/js/programacion-pricing.js`, `public/js/app.js`, `utils/pricing.js`, `server.js` | EVD-009: Node 104/104, Python 1/1, auditoría 0 | verified-local |
+| OBJ-013 | PRD-FR-033 | SDD-CMP-030, ADR-011 | BDD-SC-052..054 | TDD-TC-067..070 | `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-010: Node 104/104, Python 1/1, sintaxis y diff aprobados | verified-local |
 
 ## Huecos
 
@@ -149,3 +150,13 @@
 - Sintaxis Node y `git diff --check`: exit 0.
 - Ajuste de portabilidad: la prueba de límites de endpoint normaliza CRLF para ejecutarse también en Windows.
 - Pendiente al registrar esta evidencia: merge commit, push y verificación del redeploy.
+
+## EVD-010 — Evidencia local CHG-011
+
+- Fecha: 2026-09-01.
+- Rojo controlado: las pruebas focalizadas fallaron 5 casos antes del cambio por descontar la diferencia contra catálogo del tope mensual.
+- Pruebas focalizadas: `node --test test/pricingDiscountBudget.test.js test/pricingRoutes.test.js`, exit 0, 11/11.
+- Oráculo: Python `-m unittest test.test_pricing_reference -v`, exit 0, 1/1.
+- Regresión: `npm test`, exit 0, 104/104.
+- Sintaxis Node y `git diff --check`: exit 0.
+- Pendiente al registrar esta evidencia: verificación visual en navegador y despliegue.

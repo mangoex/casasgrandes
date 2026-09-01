@@ -445,3 +445,29 @@ Given una fila mensual con descuento en MXN y porcentaje
 When se guarda Programación
 Then el servidor acepta ambos valores si equivalen al mismo centavo y rechaza cualquier discrepancia
 ```
+
+## Feature: CHG-011 — Tope mensual completo en Cotizador
+
+### BDD-SC-052 — Barra desde precio mensual
+
+```gherkin
+Given un precio mensual de 6300 y un tope configurado de 1089
+When el asesor agrega el producto al Cotizador
+Then la barra inicia en cero, muestra máximo 1089 y el precio inicial es 6300
+```
+
+### BDD-SC-053 — Aplicar el máximo
+
+```gherkin
+Given una barra con precio mensual 6300 y máximo 1089
+When el asesor mueve la barra al límite
+Then el descuento aplicado es 1089 y el precio final es 5211
+```
+
+### BDD-SC-054 — Límite autoritativo
+
+```gherkin
+Given un tope mensual de 1089
+When un cliente manipulado envía 1089.01
+Then el servidor responde 400 y no persiste la cotización
+```

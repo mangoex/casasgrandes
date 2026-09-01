@@ -100,10 +100,9 @@ function calculateDiscountBudget({
   }
 
   const embeddedCents = Math.max(catalogCents - monthlyCents, 0);
-  if (embeddedCents > capCents) {
-    throw new PricingDomainError('monthly_discount_exceeds_promotion_cap');
-  }
-  const availableCents = capCents - embeddedCents;
+  // La diferencia contra catálogo es informativa. La cotización inicia en el
+  // precio mensual y puede aplicar el tope mensual completo.
+  const availableCents = capCents;
 
   return {
     catalog_price: formatMoneyCents(catalogCents),

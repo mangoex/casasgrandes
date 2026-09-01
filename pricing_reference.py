@@ -54,10 +54,9 @@ def calculate_discount_budget(
     promotion_cap = promotion_money if promotion_money > 0 else percent_cap
 
     embedded_discount = max(catalog - monthly, Decimal("0.00"))
-    if embedded_discount > promotion_cap:
-        raise PricingReferenceError("monthly_discount_exceeds_promotion_cap")
-
-    available = promotion_cap - embedded_discount
+    # La diferencia contra catálogo es informativa. La cotización inicia en el
+    # precio mensual y puede aplicar el tope mensual completo.
+    available = promotion_cap
     return {
         "catalog_price": f"{catalog:.2f}",
         "monthly_price": f"{monthly:.2f}",

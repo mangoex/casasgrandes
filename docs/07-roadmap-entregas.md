@@ -103,3 +103,12 @@
 | 2 | Probar cálculo desde cada campo | TDD-TC-063..066 | completed |
 | 3 | Integrar control frontend y validación monetaria | SDD-CMP-029 | completed |
 | 4 | Ejecutar regresión y desplegar | EVD-009 | in-progress |
+
+## Incremento 11 — CHG-011
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar el rango completo del Cotizador | ADR-011, PRD-FR-033 | completed |
+| 2 | Probar presupuesto, rutas y barra | TDD-TC-067..070 | completed |
+| 3 | Ajustar motor, servidor e interfaz | SDD-CMP-030 | completed-local |
+| 4 | Ejecutar regresión y desplegar | EVD-010 | in-progress |

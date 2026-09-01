@@ -218,3 +218,12 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - El servidor devuelve el precio anual junto a cada fila mensual como referencia inmutable del cálculo.
 - Una función pura del frontend recalcula precio mensual, descuento monetario y porcentaje a partir del último campo editado, con dinero a dos decimales y porcentaje a cuatro.
 - El motor monetario acepta ambas representaciones solo cuando producen el mismo tope al centavo.
+
+## Diseño CHG-011
+
+### SDD-CMP-030 — Rango comercial desde precio mensual
+
+- Cubre: PRD-FR-033
+- `calculateDiscountBudget` conserva la diferencia catálogo-mes como dato informativo y devuelve el tope promocional completo como disponibilidad del asesor.
+- Previsualización, creación y edición limitan el descuento por `min(tope_mensual, precio_neto_antes_del_asesor)`.
+- El frontend usa `max_discount_mxn` como atributo `max` de la barra y lo etiqueta como límite configurado del mes.

@@ -34,18 +34,20 @@ test('TDD-TC-056: motor JS coincide con casos dorados de Python', () => {
   }
 });
 
-test('TDD-TC-057: Programación rechaza reducción superior al tope antes de persistir', () => {
+test('TDD-TC-067: la diferencia contra catálogo no consume el tope mensual', () => {
   const rows = Array.from({ length: 12 }, (_, index) => ({
     mes: index + 1,
     precio: index === 7 ? 800 : 1000,
     promo_dinero: index === 7 ? 150 : 0,
     promo_porcentaje: 0
   }));
-  assert.throws(
-    () => validateMonthlyPricingRows(rows, 1000),
-    error => error instanceof PricingDomainError
-      && error.code === 'monthly_discount_exceeds_promotion_cap'
-  );
+  const validated = validateMonthlyPricingRows(rows, 1000);
+  assert.equal(validated.get(8).precio, 800);
+  assert.equal(calculateDiscountBudget({
+    catalog_price: 1000,
+    monthly_price: 800,
+    promo_money: 150
+  }).advisor_discount_available, '150.00');
 });
 
 test('TDD-TC-066: acepta representaciones equivalentes y rechaza discrepancias', () => {
@@ -84,14 +86,14 @@ test('TDD-TC-058: resolvedor devuelve mensual, reducción, tope y saldo', async 
   assert.equal(result.listPrice, 6300);
   assert.equal(result.embeddedDiscountMxn, 715);
   assert.equal(result.totalPromotionCapMxn, 1089);
-  assert.equal(result.advisorDiscountAvailableMxn, 374);
+  assert.equal(result.advisorDiscountAvailableMxn, 1089);
   assert.equal(result.product.list_price_mxn, 6300);
 });
 
-test('TDD-TC-058: servidor rechaza descuento que excede el saldo', () => {
-  assert.equal(validateAdvisorDiscount(374, 374), 374);
+test('TDD-TC-069: servidor acepta el tope completo y rechaza excederlo', () => {
+  assert.equal(validateAdvisorDiscount(1089, 1089), 1089);
   assert.throws(
-    () => validateAdvisorDiscount(375, 374),
+    () => validateAdvisorDiscount(1089.01, 1089),
     error => error instanceof PricingDomainError
       && error.code === 'advisor_discount_exceeds_available'
   );
@@ -110,10 +112,10 @@ test('TDD-TC-059/060: todos los canales usan resolvedor y persisten snapshot', (
   assert.match(dbSource, /contrato_precio_version/);
 });
 
-test('TDD-TC-061: frontend muestra contrato y usa el máximo del servidor', () => {
+test('TDD-TC-070: frontend muestra el límite mensual y usa el máximo del servidor', () => {
   const frontend = fs.readFileSync(path.join(__dirname, '..', 'public/js/app.js'), 'utf8');
   assert.match(frontend, /Descuento incluido por programación/);
-  assert.match(frontend, /Descuento adicional disponible/);
+  assert.match(frontend, /Límite configurado del mes/);
   assert.match(frontend, /max_discount_mxn/);
 });
 
