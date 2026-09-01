@@ -9,6 +9,7 @@ const {
 
 test('TDD-TC-079: Nucle solo acepta porcentajes entre cero y cien', () => {
   assert.equal(validateNuclePercentage(12.5), 12.5);
+  assert.equal(validateNuclePercentage(1.205), 1.21);
   assert.throws(() => validateNuclePercentage(-0.01), /invalid_nucle_percentage/);
   assert.throws(() => validateNuclePercentage(100.01), /invalid_nucle_percentage/);
 });

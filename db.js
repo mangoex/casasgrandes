@@ -75,7 +75,8 @@ async function initSchema() {
     `);
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS prospecto_id INTEGER');
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS nucle_aplicado INTEGER NOT NULL DEFAULT 0');
-    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS nucle_porcentaje NUMERIC(7,4) NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS nucle_porcentaje NUMERIC(5,2) NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE cotizaciones ALTER COLUMN nucle_porcentaje TYPE NUMERIC(5,2) USING ROUND(nucle_porcentaje::numeric, 2)');
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS descuento_nucle_mxn NUMERIC(14,2) NOT NULL DEFAULT 0');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS precio_catalogo_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS precio_mensual_unitario NUMERIC(14,2)');
@@ -351,9 +352,14 @@ async function initSchema() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS crm_nucle_mensual (
         mes INTEGER PRIMARY KEY CHECK (mes >= 1 AND mes <= 12),
-        porcentaje NUMERIC(7,4) NOT NULL DEFAULT 0 CHECK (porcentaje >= 0 AND porcentaje <= 100),
+        porcentaje NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (porcentaje >= 0 AND porcentaje <= 100),
         actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    await pool.query(`
+      ALTER TABLE crm_nucle_mensual
+      ALTER COLUMN porcentaje TYPE NUMERIC(5,2)
+      USING ROUND(porcentaje::numeric, 2)
     `);
     await pool.query(`
       INSERT INTO crm_nucle_mensual (mes, porcentaje)

@@ -235,6 +235,7 @@ app.put('/api/admin/nucle', authenticateToken, requireAdmin, async (req, res) =>
           VALUES (?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT (mes)
           DO UPDATE SET porcentaje = EXCLUDED.porcentaje, actualizado_en = CURRENT_TIMESTAMP
+          RETURNING mes
         `, [month, normalized.get(month)]);
       }
     });

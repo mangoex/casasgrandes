@@ -5,7 +5,7 @@ function validateNuclePercentage(value) {
   if (!Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
     throw new PricingDomainError('invalid_nucle_percentage');
   }
-  return Math.round((percentage + Number.EPSILON) * 10000) / 10000;
+  return Math.round((percentage + Number.EPSILON) * 100) / 100;
 }
 
 function isNucleEligibleCategory(category) {

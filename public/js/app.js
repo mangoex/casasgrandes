@@ -4155,7 +4155,7 @@ async function loadAdminNucle() {
     tbody.innerHTML = rows.map(row => `
       <tr>
         <td style="font-weight: 600;">${names[Number(row.mes) - 1]}</td>
-        <td><input type="number" min="0" max="100" step="0.0001" class="form-input nucle-month-input" data-month="${Number(row.mes)}" value="${Number(row.porcentaje || 0)}" style="text-align:right; margin:0;"></td>
+        <td><input type="number" min="0" max="100" step="0.01" class="form-input nucle-month-input" data-month="${Number(row.mes)}" value="${Number(row.porcentaje || 0).toFixed(2)}" style="text-align:right; margin:0;"></td>
       </tr>
     `).join('');
   } catch (err) {
@@ -4167,7 +4167,7 @@ async function saveAdminNucle() {
   const inputs = Array.from(document.querySelectorAll('.nucle-month-input'));
   const meses = inputs.map(input => ({
     mes: Number(input.dataset.month),
-    porcentaje: Number(input.value)
+    porcentaje: Number(Number(input.value).toFixed(2))
   }));
   const button = document.getElementById('btn-save-nucle');
   if (button) button.disabled = true;
