@@ -39,6 +39,7 @@
 | OBJ-012 | PRD-FR-032 | SDD-CMP-029, ADR-010 | BDD-SC-048..051 | TDD-TC-063..066 | `public/js/programacion-pricing.js`, `public/js/app.js`, `utils/pricing.js`, `server.js` | EVD-009: Node 104/104, Python 1/1, auditoría 0 | verified-local |
 | OBJ-013 | PRD-FR-033 | SDD-CMP-030, ADR-011 | BDD-SC-052..054 | TDD-TC-067..070 | `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-010: Node 104/104, Python 1/1, sintaxis y diff aprobados | verified-local |
 | OBJ-014 | PRD-FR-034 | SDD-CMP-031, ADR-012 | BDD-SC-055..057 | TDD-TC-071..074 | `db.js`, `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-011: Node 106/106, Python 1/1, casos 89/1089 y 1089/1089 aprobados | verified-local |
+| OBJ-015 | PRD-FR-035 | SDD-CMP-032, ADR-013 | BDD-SC-058..060 | TDD-TC-075..078 | `public/index.html`, `public/js/programacion-pricing.js`, `public/js/app.js`, `utils/monthlyPricing.js`, `server.js` | EVD-012: Node 110/110, derivación 7015/6926/1000 aprobada | verified-local |
 
 ## Huecos
 
@@ -172,3 +173,14 @@
 - Regresión: `npm test`, exit 0, 106/106.
 - Sintaxis Node, cache busting de assets y `git diff --check`: exit 0.
 - Pendiente al registrar esta evidencia: verificación visual posterior al redeploy.
+
+## EVD-012 — Evidencia local CHG-013
+
+- Fecha: 2026-09-01.
+- Rojo controlado: 4 fallos focalizados confirmaron la ausencia del saldo Asesor explícito, el contrato HTTP y las nuevas etiquetas.
+- Pruebas focalizadas: `node --test test/programacionPricing.test.js test/pricingDiscountBudget.test.js test/pricingRoutes.test.js`, exit 0, 22/22.
+- Caso de negocio: base `7,015`, mensual `6,926` y Asesor `1,000` derivan descuento incorporado `89`, porcentaje histórico `1.2687` y tope acumulado `1,089`.
+- Regresión: `npm test`, exit 0, 110/110.
+- Sintaxis Node y `git diff --check`: exit 0.
+- Oráculo Python no ejecutado porque este host no expone `python` ni `py`; el motor monetario no cambió y su espejo continúa cubierto por la prueba Node de casos dorados.
+- Pendiente: commit, despliegue y verificación visual autenticada.

@@ -375,3 +375,27 @@
 - Cubre: PRD-FR-034, SDD-CMP-031
 - Aserciones: esquema, lectura y guardado conservan `tope_descuento_mxn` separado de las representaciones vinculadas
 - Estado: passed-local
+
+## TDD-TC-075 — Derivación canónica por fila
+
+- Cubre: BDD-SC-059, PRD-FR-035
+- Aserciones: precio base 7015, mensual 6926 y Asesor 1000 producen incorporado 89 y tope 1089
+- Estado: passed-local
+
+## TDD-TC-076 — Independencia del saldo Asesor
+
+- Cubre: BDD-SC-059
+- Aserciones: cambiar precio del mes recalcula el descuento incorporado sin cambiar el dinero capturado para Asesor
+- Estado: passed-local
+
+## TDD-TC-077 — Canonicalización HTTP
+
+- Cubre: BDD-SC-059, SDD-CMP-032
+- Aserciones: la API recibe solo precio mensual y Asesor y persiste las representaciones derivadas exactas
+- Estado: passed-local
+
+## TDD-TC-078 — Contrato visual
+
+- Cubre: BDD-SC-058, BDD-SC-060
+- Aserciones: Programación muestra precio base fijo, Precio del mes, Descuento del mes y Asesor en dinero; Cotizador muestra precio base del catálogo
+- Estado: passed-local

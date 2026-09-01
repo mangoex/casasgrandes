@@ -220,3 +220,48 @@ test('TDD-TC-057: Programación válida persiste doce meses en una transacción'
   assert.equal(statements.at(-1), 'COMMIT');
   assert.equal(released, true);
 });
+
+test('TDD-TC-077: Programación deriva descuento incorporado y tope desde precio del mes y Asesor', async t => {
+  const originalGet = db.get;
+  const originalConnect = db.pool.connect;
+  const params = [];
+  db.get = async query => quoteRecord(query);
+  db.pool.connect = async () => ({
+    async query(sql, values) {
+      if (String(sql).includes('INSERT INTO crm_precios_mensuales')) params.push(values);
+      return { rows: [] };
+    },
+    release() {}
+  });
+  t.after(() => {
+    db.get = originalGet;
+    db.pool.connect = originalConnect;
+  });
+
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+
+  const token = jwt.sign(
+    { id: 1, nivel_rol: 'Administrador', session_version: 1 },
+    process.env.JWT_SECRET
+  );
+  const rows = Array.from({ length: 12 }, (_, index) => ({
+    mes: index + 1,
+    precio: index === 7 ? 6926 : 7015,
+    asesor_dinero: index === 7 ? 1000 : 0
+  }));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/programacion/precios`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ producto_id: 7, precios: rows })
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(params[7].map(Number), [7, 8, 6926, 89, 1.2687, 1089]);
+});

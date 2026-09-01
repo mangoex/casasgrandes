@@ -288,5 +288,17 @@ Si el descuento incorporado ya equivale al tope, la barra aparece al cien por ci
 
 Criterios de aceptación:
 
+## Incremento CHG-013 — Precio base, precio del mes y saldo Asesor
+
+### OBJ-015 — Capturar el margen comercial con términos operativos
+
+### PRD-FR-035 — Contrato visible de Programación y Cotizador
+
+Programación muestra junto al producto su precio base inmutable, tomado de `productos.list_price_mxn`. Por mes permite capturar `Precio del mes`, su `Descuento del mes ($)` vinculado y `Asesor ($)`, donde Asesor es el dinero adicional que todavía puede otorgarse. El descuento incorporado se deriva como precio base menos precio del mes y el tope acumulado se deriva como descuento incorporado más Asesor.
+
+Cotizador etiqueta y muestra el precio base. Su barra inicia en el descuento incorporado del precio del mes y termina después de agregar el saldo Asesor configurado; al servidor solo se envía la parte adicional elegida.
+
+Criterio de aceptación: con precio base `7,015`, precio del mes `6,926` y Asesor `1,000`, Programación deriva descuento incorporado `89` y tope acumulado `1,089`; Cotizador muestra precio base `7,015`, inicia la barra en `89` y permite llevarla hasta `1,089`.
+
 - catálogo `7,015`, precio mensual `5,926`, descuento incorporado `1,089` y tope `1,089`: la barra inicia y termina en `1,089`, el precio inicial/final es `5,926` y el saldo adicional es cero;
 - catálogo `7,015`, precio mensual `6,926`, descuento incorporado `89` y tope `1,089`: la barra inicia visualmente en `89`, puede llegar a `1,089` y en el extremo descuenta únicamente `1,000` adicionales del precio mensual.

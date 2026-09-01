@@ -48,5 +48,15 @@
     return calculateLinkedPricing(referencePrice, 'precio', price);
   }
 
-  return { calculateLinkedPricing, normalizeLinkedPricing };
+  function calculateProgramacionRow(referencePrice, monthlyPrice, advisorMoney = 0) {
+    const linked = calculateLinkedPricing(referencePrice, 'precio', monthlyPrice);
+    const advisor = roundMoney(nonNegative(advisorMoney));
+    return {
+      ...linked,
+      asesor_dinero: advisor,
+      tope_descuento_mxn: roundMoney(linked.promo_dinero + advisor)
+    };
+  }
+
+  return { calculateLinkedPricing, normalizeLinkedPricing, calculateProgramacionRow };
 }));

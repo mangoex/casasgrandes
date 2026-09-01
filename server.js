@@ -4373,7 +4373,13 @@ app.get('/api/programacion/precios', authenticateToken, requireProgramacionManag
     for (let m = 1; m <= 12; m++) {
       const existing = rows.find(r => r.mes === m);
       if (existing) {
-        prices.push({ ...existing, precio_catalogo: Number(listPrice) });
+        const embeddedDiscount = Math.max(Number(existing.promo_dinero || 0), 0);
+        const totalCap = Math.max(Number(existing.tope_descuento_mxn ?? embeddedDiscount), embeddedDiscount);
+        prices.push({
+          ...existing,
+          asesor_dinero: Math.max(totalCap - embeddedDiscount, 0),
+          precio_catalogo: Number(listPrice)
+        });
       } else {
         prices.push({
           producto_id: parseInt(producto_id),
@@ -4381,6 +4387,7 @@ app.get('/api/programacion/precios', authenticateToken, requireProgramacionManag
           precio: listPrice,
           promo_dinero: 0.0,
           promo_porcentaje: 0.0,
+          asesor_dinero: 0.0,
           tope_descuento_mxn: 0.0,
           precio_catalogo: Number(listPrice)
         });
@@ -4402,22 +4409,21 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
   for (const row of precios) {
     const mes = Number(row.mes);
     const precio = Number(row.precio);
-    const promoDinero = Number(row.promo_dinero || 0);
-    const promoPorcentaje = Number(row.promo_porcentaje || 0);
-    const promotionCap = Number(row.tope_descuento_mxn ?? promoDinero);
     if (!Number.isInteger(mes) || mes < 1 || mes > 12 || rowsByMonth.has(mes)) {
       return res.status(400).json({ error: 'Each month from 1 to 12 must appear exactly once' });
     }
-    if (![precio, promoDinero, promoPorcentaje, promotionCap].every(Number.isFinite)
-      || precio < 0 || promoDinero < 0 || promoPorcentaje < 0 || promotionCap < 0) {
-      return res.status(400).json({ error: 'Prices and promotions must be non-negative numbers' });
+    const advisorMoney = row.asesor_dinero === undefined || row.asesor_dinero === null
+      ? null
+      : Number(row.asesor_dinero);
+    if (!Number.isFinite(precio) || precio < 0
+      || (advisorMoney !== null && (!Number.isFinite(advisorMoney) || advisorMoney < 0))) {
+      return res.status(400).json({ error: 'El precio del mes y el saldo Asesor deben ser importes no negativos.' });
     }
     rowsByMonth.set(mes, {
+      ...row,
       mes,
       precio,
-      promo_dinero: promoDinero,
-      promo_porcentaje: promoPorcentaje,
-      tope_descuento_mxn: promotionCap
+      asesor_dinero: advisorMoney
     });
   }
   if (rowsByMonth.size !== 12) {
@@ -4435,11 +4441,11 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
   try {
     const product = await db.get('SELECT id, list_price_mxn FROM productos WHERE id = ?', [producto_id]);
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    validateMonthlyPricingRows(Array.from(rowsByMonth.values()), product.list_price_mxn);
+    const canonicalRows = validateMonthlyPricingRows(Array.from(rowsByMonth.values()), product.list_price_mxn);
     pricingClient = await db.pool.connect();
     await pricingClient.query('BEGIN');
     for (let mes = 1; mes <= 12; mes += 1) {
-      const row = rowsByMonth.get(mes);
+      const row = canonicalRows.get(mes);
       const { precio, promo_dinero, promo_porcentaje, tope_descuento_mxn } = row;
       await pricingClient.query(
         `INSERT INTO crm_precios_mensuales (producto_id, mes, precio, promo_dinero, promo_porcentaje, tope_descuento_mxn)
@@ -4449,11 +4455,7 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
            precio = EXCLUDED.precio,
            promo_dinero = EXCLUDED.promo_dinero,
            promo_porcentaje = EXCLUDED.promo_porcentaje,
-           tope_descuento_mxn = GREATEST(
-             COALESCE(crm_precios_mensuales.tope_descuento_mxn, 0),
-             EXCLUDED.tope_descuento_mxn,
-             EXCLUDED.promo_dinero
-           )`,
+           tope_descuento_mxn = EXCLUDED.tope_descuento_mxn`,
         [producto_id, mes, precio, promo_dinero, promo_porcentaje, tope_descuento_mxn]
       );
     }

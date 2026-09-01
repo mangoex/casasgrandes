@@ -238,3 +238,13 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - El resolvedor devuelve precio mensual, descuento incorporado, tope total y saldo adicional `max(tope - incorporado, 0)`.
 - El navegador muestra una barra acumulada de cero al tope, la inicializa en el descuento incorporado, impide bajar de ese piso y envía al servidor únicamente la diferencia adicional.
 - Si piso y tope coinciden, la barra queda completa y deshabilitada; el precio final permanece en el precio mensual.
+
+## Diseño CHG-013
+
+### SDD-CMP-032 — Captura canónica de precio mensual y saldo Asesor
+
+- Cubre: PRD-FR-035.
+- La API de Programación acepta por mes `precio` y `asesor_dinero`; deriva en servidor `promo_dinero`, `promo_porcentaje` y `tope_descuento_mxn` para no confiar en representaciones redundantes del cliente.
+- La respuesta conserva compatibilidad con los campos históricos y añade `asesor_dinero = max(tope_descuento_mxn - promo_dinero, 0)`.
+- El frontend retira el control porcentual, muestra el precio base del catálogo junto al selector, mantiene vinculados Precio del mes y Descuento del mes ($), y conserva independiente el saldo Asesor.
+- Cotizador muestra `precio_catalogo` como Precio base, mantiene el piso acumulado y presenta como disponible el saldo adicional del asesor.
