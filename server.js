@@ -4109,11 +4109,15 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
     if (![precio, promoDinero, promoPorcentaje].every(Number.isFinite) || precio < 0 || promoDinero < 0 || promoPorcentaje < 0) {
       return res.status(400).json({ error: 'Prices and promotions must be non-negative numbers' });
     }
-    if (promoDinero > precio || promoPorcentaje > 100) {
-      return res.status(400).json({ error: 'Promotions cannot exceed the monthly price or 100 percent' });
+    if (promoPorcentaje > 100) {
+      return res.status(400).json({ error: 'Percentage promotions cannot exceed 100 percent' });
     }
     if (promoDinero > 0 && promoPorcentaje > 0) {
-      return res.status(400).json({ error: 'Use either a money promotion or a percentage promotion for each month, not both' });
+      const referencePrice = precio + promoDinero;
+      const linkedPercentage = referencePrice > 0 ? (promoDinero / referencePrice) * 100 : 0;
+      if (Math.abs(linkedPercentage - promoPorcentaje) > 0.01) {
+        return res.status(400).json({ error: 'The money and percentage discounts must represent the same promotion' });
+      }
     }
     rowsByMonth.set(mes, { mes, precio, promo_dinero: promoDinero, promo_porcentaje: promoPorcentaje });
   }

@@ -9740,20 +9740,27 @@ function renderProgramacionTableContent(prices) {
   monthNames.forEach((monthName, idx) => {
     const monthNum = idx + 1;
     const priceData = prices.find(p => p.mes === monthNum) || { precio: 0.0, promo_dinero: 0.0, promo_porcentaje: 0.0 };
+    const referencePrice = ProgramacionPricing.getReferencePrice(
+      priceData.precio,
+      priceData.promo_dinero,
+      priceData.promo_porcentaje
+    );
+    const linkedPriceData = ProgramacionPricing.calculateLinkedPricing(referencePrice, 'precio', priceData.precio);
 
     const tr = document.createElement('tr');
+    tr.dataset.referencePrice = linkedPriceData.referencePrice;
     
     // Base month and inputs cells
     tr.innerHTML = `
       <td style="font-weight: 600; color: var(--text);">${monthName}</td>
       <td>
-        <input type="number" step="0.01" class="form-input pricing-input" data-month="${monthNum}" data-field="precio" value="${priceData.precio}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; width: 100%;">
+        <input type="number" min="0" step="0.01" aria-label="Precio programado de ${monthName}" class="form-input pricing-input" data-month="${monthNum}" data-field="precio" value="${linkedPriceData.precio}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; width: 100%;">
       </td>
       <td>
-        <input type="number" step="0.01" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_dinero" value="${priceData.promo_dinero}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--accent); width: 100%;">
+        <input type="number" min="0" step="0.01" aria-label="Descuento en pesos de ${monthName}" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_dinero" value="${linkedPriceData.promo_dinero}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--accent); width: 100%;">
       </td>
       <td>
-        <input type="number" step="0.01" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_porcentaje" value="${priceData.promo_porcentaje}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--success); width: 100%;">
+        <input type="number" min="0" max="100" step="0.01" aria-label="Descuento porcentual de ${monthName}" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_porcentaje" value="${linkedPriceData.promo_porcentaje}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--success); width: 100%;">
       </td>
     `;
 
@@ -9781,13 +9788,29 @@ function renderProgramacionTableContent(prices) {
     tbody.appendChild(tr);
   });
 
-  tbody.querySelectorAll('.pricing-input[data-field="precio"]').forEach(input => {
+  const syncPricingRow = (input, value = input.value) => {
+    const row = input.closest('tr');
+    const result = ProgramacionPricing.calculateLinkedPricing(
+      Number(row.dataset.referencePrice),
+      input.dataset.field,
+      value
+    );
+    row.dataset.referencePrice = result.referencePrice;
+    row.querySelector('[data-field="precio"]').value = result.precio;
+    row.querySelector('[data-field="promo_dinero"]').value = result.promo_dinero;
+    row.querySelector('[data-field="promo_porcentaje"]').value = result.promo_porcentaje;
+  };
+
+  tbody.querySelectorAll('.pricing-input').forEach(input => {
     input.addEventListener('input', () => {
+      syncPricingRow(input);
+      if (input.dataset.field !== 'precio') return;
+
       const startMonth = Number(input.dataset.month);
-      const value = input.value;
+      const propagatedPrice = input.closest('tr').querySelector('[data-field="precio"]').value;
       monthlyPricePropagationStart = startMonth;
       tbody.querySelectorAll('.pricing-input[data-field="precio"]').forEach(target => {
-        if (Number(target.dataset.month) >= startMonth) target.value = value;
+        if (Number(target.dataset.month) > startMonth) syncPricingRow(target, propagatedPrice);
       });
     });
   });
