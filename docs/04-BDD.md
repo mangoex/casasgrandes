@@ -497,3 +497,29 @@ Given una barra acumulada que inicia en 89 y termina en 1089 sobre precio mensua
 When el asesor mueve la barra a 1089
 Then el servidor recibe 1000 de descuento adicional y el precio final es 5926
 ```
+
+## Feature: CHG-013 — Precio base y margen Asesor explícito
+
+### BDD-SC-058 — Programación muestra el precio base fijo
+
+```gherkin
+Given un producto con precio base 7015 configurado en Productos
+When el coordinador lo selecciona en Programación
+Then ve 7015 junto al nombre y no puede modificarlo desde la tabla mensual
+```
+
+### BDD-SC-059 — Precio del mes y Asesor forman el rango
+
+```gherkin
+Given precio base 7015
+When se guarda precio del mes 6926 y Asesor 1000
+Then el servidor deriva descuento incorporado 89 y tope acumulado 1089
+```
+
+### BDD-SC-060 — Cotizador explica el contrato
+
+```gherkin
+Given la programación del escenario anterior
+When el asesor selecciona el producto en Cotizador
+Then ve Precio base 7015 y una barra que inicia en 89 y termina en 1089
+```

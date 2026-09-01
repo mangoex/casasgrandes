@@ -2125,11 +2125,11 @@ function addQuoteItemRow() {
         <small class="mobile-quantity-hint">Toca el número para escribir</small>
       </div>
       <div class="form-group item-price-group">
-        <label>Precio del mes</label>
+        <label>Precio base</label>
         <input type="text" class="form-input item-calc-unit-price" style="background-color: var(--bg);" value="-" readonly>
         <div class="item-monthly-discount-summary" style="font-size:10px; color:var(--text-light); margin-top:4px; line-height:1.4;">
-          <span>Descuento incluido por programación: <strong class="item-monthly-discount">$0.00 MXN</strong></span><br>
-          <span>Límite configurado del mes: <strong class="item-advisor-available">$0.00 MXN</strong></span>
+          <span>Descuento incluido en precio del mes: <strong class="item-monthly-discount">$0.00 MXN</strong></span><br>
+          <span>Disponible para el asesor: <strong class="item-advisor-available">$0.00 MXN</strong></span>
         </div>
         <span class="mobile-item-subtotal">Subtotal —</span>
       </div>
@@ -2367,13 +2367,13 @@ function debouncedLiveCalculation() {
             const hasKeyAccountDiscount = keyAccountDiscount > 0;
             const hasAdvisorDiscount = configuredDiscountCap > 0 || embeddedDiscount > 0;
 
-            // El precio visible parte de Programación; beneficios y descuento adicional continúan debajo.
-            unitPriceInput.value = `$${Number(calcItem.precio_lista).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+            // El precio visible es el precio base de Productos; la barra explica el descuento acumulado.
+            unitPriceInput.value = `$${Number(calcItem.precio_catalogo).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
             if (monthlyDiscountLabel) {
               monthlyDiscountLabel.textContent = `$${embeddedDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
             }
             if (advisorAvailableLabel) {
-              advisorAvailableLabel.textContent = `$${configuredDiscountCap.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+              advisorAvailableLabel.textContent = `$${Number(calcItem.descuento_asesor_disponible_mxn || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
             }
             const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
             const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
@@ -2405,7 +2405,7 @@ function debouncedLiveCalculation() {
               }
               slider.value = Math.min(Math.max(Number(slider.value), embeddedDiscount), sliderMaxTotal);
               slider.disabled = sliderMaxTotal <= embeddedDiscount;
-              if (maxLabel) maxLabel.textContent = configuredDiscountCap.toLocaleString('es-MX', { minimumFractionDigits: 2 });
+              if (maxLabel) maxLabel.textContent = sliderMaxTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 });
               // Store base net price for slider calculations
               slider.setAttribute('data-base-price', calcItem.precio_neto);
               // Update slider display
@@ -9630,12 +9630,21 @@ window.deleteEtapa = async function(id) {
 
 // Pricing programming table loader
 async function loadMonthlyPricingTable(productId) {
+  const baseBadge = document.getElementById('programacion-product-base');
+  const baseValue = document.getElementById('programacion-product-base-value');
   if (!productId) {
+    if (baseBadge) baseBadge.hidden = true;
     const tbody = document.getElementById('programacion-table-tbody');
     if (tbody) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-light); padding: 40px;">Por favor, seleccione un producto para ver su programación mensual.</td></tr>';
     }
     return;
+  }
+
+  const selectedProduct = programacionProducts.find(product => Number(product.id) === Number(productId));
+  if (baseBadge && baseValue && selectedProduct) {
+    baseValue.textContent = `$${Number(selectedProduct.list_price_mxn || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+    baseBadge.hidden = false;
   }
 
   try {
@@ -9714,21 +9723,19 @@ function renderProgramacionTableContent(prices) {
 
   monthNames.forEach((monthName, idx) => {
     const monthNum = idx + 1;
-    const priceData = prices.find(p => p.mes === monthNum) || { precio: 0.0, promo_dinero: 0.0, promo_porcentaje: 0.0 };
+    const priceData = prices.find(p => p.mes === monthNum) || { precio: 0.0, asesor_dinero: 0.0 };
     const referencePrice = Number(priceData.precio_catalogo ?? priceData.precio);
-    const linkedPriceData = ProgramacionPricing.normalizeLinkedPricing(
+    const embeddedDiscount = Math.max(referencePrice - Number(priceData.precio || 0), 0);
+    const advisorMoney = Number(priceData.asesor_dinero
+      ?? Math.max(Number(priceData.tope_descuento_mxn || 0) - embeddedDiscount, 0));
+    const linkedPriceData = ProgramacionPricing.calculateProgramacionRow(
       referencePrice,
       priceData.precio,
-      priceData.promo_dinero,
-      priceData.promo_porcentaje
+      advisorMoney
     );
 
     const tr = document.createElement('tr');
     tr.dataset.referencePrice = linkedPriceData.referencePrice;
-    tr.dataset.discountCap = Math.max(
-      Number(priceData.tope_descuento_mxn ?? priceData.promo_dinero ?? 0),
-      Number(linkedPriceData.promo_dinero || 0)
-    );
     
     // Base month and inputs cells
     tr.innerHTML = `
@@ -9737,10 +9744,10 @@ function renderProgramacionTableContent(prices) {
         <input type="number" min="0" step="0.01" aria-label="Precio programado de ${monthName}" class="form-input pricing-input" data-month="${monthNum}" data-field="precio" value="${linkedPriceData.precio}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; width: 100%;">
       </td>
       <td>
-        <input type="number" min="0" step="0.01" aria-label="Descuento en pesos de ${monthName}" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_dinero" value="${linkedPriceData.promo_dinero}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--accent); width: 100%;">
+        <input type="number" min="0" step="0.01" aria-label="Descuento del mes de ${monthName}" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_dinero" value="${linkedPriceData.promo_dinero}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--success); width: 100%;">
       </td>
       <td>
-        <input type="number" min="0" max="100" step="0.01" aria-label="Descuento porcentual de ${monthName}" class="form-input pricing-input" data-month="${monthNum}" data-field="promo_porcentaje" value="${linkedPriceData.promo_porcentaje}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--success); width: 100%;">
+        <input type="number" min="0" step="0.01" aria-label="Saldo del asesor de ${monthName}" class="form-input pricing-input" data-month="${monthNum}" data-field="asesor_dinero" value="${linkedPriceData.asesor_dinero}" ${isWritable ? '' : 'disabled'} style="text-align: right; padding: 4px 8px; font-size: 13px; color: var(--accent); width: 100%;">
       </td>
     `;
 
@@ -9770,22 +9777,19 @@ function renderProgramacionTableContent(prices) {
 
   const syncPricingRow = (input, value = input.value) => {
     const row = input.closest('tr');
-    const result = ProgramacionPricing.calculateLinkedPricing(
-      Number(row.dataset.referencePrice),
-      input.dataset.field,
-      value
-    );
+    const advisorInput = row.querySelector('[data-field="asesor_dinero"]');
+    const referencePrice = Number(row.dataset.referencePrice);
+    const linked = input.dataset.field === 'promo_dinero'
+      ? ProgramacionPricing.calculateLinkedPricing(referencePrice, 'promo_dinero', value)
+      : ProgramacionPricing.calculateLinkedPricing(referencePrice, 'precio', value);
+    const result = ProgramacionPricing.calculateProgramacionRow(referencePrice, linked.precio, advisorInput?.value || 0);
     row.querySelector('[data-field="precio"]').value = result.precio;
     row.querySelector('[data-field="promo_dinero"]').value = result.promo_dinero;
-    row.querySelector('[data-field="promo_porcentaje"]').value = result.promo_porcentaje;
-    row.dataset.discountCap = Math.max(
-      Number(row.dataset.discountCap || 0),
-      Number(result.promo_dinero || 0)
-    );
   };
 
   tbody.querySelectorAll('.pricing-input').forEach(input => {
     input.addEventListener('input', () => {
+      if (!['precio', 'promo_dinero'].includes(input.dataset.field)) return;
       syncPricingRow(input);
       if (input.dataset.field !== 'precio') return;
 
@@ -9879,28 +9883,19 @@ async function saveMonthlyPricing() {
     return;
   }
 
-  const inputs = document.querySelectorAll('.pricing-input');
-  const preciosMap = {};
-
-  inputs.forEach(input => {
-    const month = parseInt(input.getAttribute('data-month'));
-    const field = input.getAttribute('data-field');
-    const val = parseFloat(input.value) || 0.0;
-
-    if (!preciosMap[month]) {
-      preciosMap[month] = { mes: month };
-    }
-    preciosMap[month][field] = val;
-  });
-
-  document.querySelectorAll('#monthly-pricing-tbody tr').forEach(row => {
-    const monthInput = row.querySelector('.pricing-input[data-month]');
-    const month = Number(monthInput?.dataset.month);
-    if (preciosMap[month]) {
-      preciosMap[month].tope_descuento_mxn = Number(row.dataset.discountCap || preciosMap[month].promo_dinero || 0);
-    }
-  });
-  const preciosArrayConTope = Object.values(preciosMap).sort((a, b) => a.mes - b.mes);
+  const preciosArrayConTope = Array.from(document.querySelectorAll('#programacion-table-tbody tr'))
+    .map(row => {
+      const priceInput = row.querySelector('.pricing-input[data-field="precio"]');
+      const advisorInput = row.querySelector('.pricing-input[data-field="asesor_dinero"]');
+      if (!priceInput || !advisorInput) return null;
+      return {
+        mes: Number(priceInput.dataset.month),
+        precio: Number(priceInput.value) || 0,
+        asesor_dinero: Number(advisorInput.value) || 0
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.mes - b.mes);
 
   const btn = document.getElementById('btn-save-precios');
   btn.disabled = true;

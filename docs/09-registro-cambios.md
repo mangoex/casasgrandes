@@ -14,6 +14,7 @@
 | CHG-010 | 2026-09-01 | Vincular precio mensual, descuento en MXN y porcentaje contra el precio anual | ADR-010, PRD-FR-032 | TDD-TC-063..066; EVD-009 | implemented-local |
 | CHG-011 | 2026-09-01 | Usar el tope mensual completo como rango de descuento desde el precio de Programación | ADR-011, PRD-FR-033 | TDD-TC-067..070; EVD-010 | implemented-local |
 | CHG-012 | 2026-09-01 | Iniciar Cotizador en el precio efectivo y representar en la barra el descuento acumulado hasta un tope independiente | ADR-012, PRD-FR-034 | TDD-TC-071..074; EVD-011 | implemented-local |
+| CHG-013 | 2026-09-01 | Mostrar el precio base fijo, capturar precio del mes y saldo Asesor en dinero, y reflejar ese contrato en Cotizador | ADR-013, PRD-FR-035 | TDD-TC-075..078; EVD-012 | implemented-local |
 
 ## Reglas
 

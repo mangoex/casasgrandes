@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>AgriSales Pro - Gestión de Ventas</title>
-  <link rel="stylesheet" href="css/style.css?v=20260901-chg012">
+  <link rel="stylesheet" href="css/style.css?v=20260901-chg013">
 </head>
 <body>
 
@@ -1440,12 +1440,16 @@
             <div class="flex-header" style="margin-bottom: 20px;">
               <div>
                 <h3 style="margin: 0;">Calendario de Precios y Promociones</h3>
-                <p style="margin: 0; font-size: 13px; color: var(--text-light);">Configure el precio base y las promociones aplicables para cada mes.</p>
+                <p style="margin: 0; font-size: 13px; color: var(--text-light);">Configure el precio del mes y el saldo adicional disponible para el asesor.</p>
               </div>
               <div style="display: flex; gap: 12px; align-items: center;">
                 <select id="programacion-product-select" class="form-input" style="width: 250px;">
                   <option value="">-- Seleccione un Producto --</option>
                 </select>
+                <div id="programacion-product-base" hidden style="min-width: 135px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); line-height: 1.2;">
+                  <span style="display: block; font-size: 10px; color: var(--text-light); text-transform: uppercase; font-weight: 700;">Precio base</span>
+                  <strong id="programacion-product-base-value" style="font-size: 14px; color: var(--text);">$0.00 MXN</strong>
+                </div>
                 <button id="btn-save-precios" class="btn btn-primary" style="width: auto;">💾 Guardar Cambios</button>
               </div>
             </div>
@@ -1455,9 +1459,9 @@
                 <thead>
                   <tr id="programacion-header-row">
                     <th>Mes</th>
-                    <th style="width: 130px;">Precio Base ($)</th>
-                    <th style="width: 130px;">Promoción ($)</th>
-                    <th style="width: 130px;">Promoción (%)</th>
+                    <th style="width: 150px;">Precio del mes ($)</th>
+                    <th style="width: 150px;">Descuento del mes ($)</th>
+                    <th style="width: 150px;">Asesor ($)</th>
                     <!-- Dynamic stage headers will be injected here -->
                   </tr>
                 </thead>
@@ -3101,7 +3105,7 @@
 
   <!-- Load script -->
   <script src="js/security.js?v=20260726-p0"></script>
-  <script src="js/programacion-pricing.js?v=20260901-v2"></script>
-  <script src="js/app.js?v=20260901-chg012"></script>
+  <script src="js/programacion-pricing.js?v=20260901-chg013"></script>
+  <script src="js/app.js?v=20260901-chg013"></script>
 </body>
 </html>

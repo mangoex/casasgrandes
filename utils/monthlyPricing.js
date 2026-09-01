@@ -1,6 +1,7 @@
 const {
   PricingDomainError,
-  calculateDiscountBudget
+  calculateDiscountBudget,
+  roundMoney
 } = require('./pricing');
 
 const BUSINESS_TIME_ZONE = 'America/Mazatlan';
@@ -86,28 +87,35 @@ function validateMonthlyPricingRows(rows, catalogPrice) {
   for (const raw of rows) {
     const mes = Number(raw.mes);
     const precio = Number(raw.precio);
-    const promoDinero = Number(raw.promo_dinero || 0);
-    const promoPorcentaje = Number(raw.promo_porcentaje || 0);
-    const promotionCap = Number(raw.tope_descuento_mxn ?? promoDinero);
+    const embeddedDiscount = Math.max(roundMoney(Number(catalogPrice) - precio), 0);
+    const legacyCap = Number(raw.tope_descuento_mxn ?? embeddedDiscount);
+    const advisorMoney = raw.asesor_dinero === undefined || raw.asesor_dinero === null
+      ? Math.max(roundMoney(legacyCap - embeddedDiscount), 0)
+      : Number(raw.asesor_dinero);
+    const promotionCap = roundMoney(embeddedDiscount + advisorMoney);
+    const promoPorcentaje = Number(catalogPrice) > 0
+      ? Math.round(((embeddedDiscount / Number(catalogPrice)) * 100 + Number.EPSILON) * 10000) / 10000
+      : 0;
     if (!Number.isInteger(mes) || mes < 1 || mes > 12 || rowsByMonth.has(mes)) {
       throw new PricingDomainError('invalid_monthly_pricing_rows');
     }
-    if (![precio, promoDinero, promoPorcentaje, promotionCap].every(Number.isFinite)
-      || precio < 0 || promoDinero < 0 || promoPorcentaje < 0 || promotionCap < 0) {
+    if (![precio, embeddedDiscount, promoPorcentaje, advisorMoney, promotionCap].every(Number.isFinite)
+      || precio < 0 || embeddedDiscount < 0 || advisorMoney < 0 || promotionCap < 0) {
       throw new PricingDomainError('invalid_pricing_amount');
     }
     calculateDiscountBudget({
       catalog_price: catalogPrice,
       monthly_price: precio,
-      promo_money: promoDinero,
+      promo_money: embeddedDiscount,
       promo_percent: promoPorcentaje,
       promotion_cap: promotionCap
     });
     rowsByMonth.set(mes, {
       mes,
       precio,
-      promo_dinero: promoDinero,
+      promo_dinero: embeddedDiscount,
       promo_porcentaje: promoPorcentaje,
+      asesor_dinero: advisorMoney,
       tope_descuento_mxn: promotionCap
     });
   }

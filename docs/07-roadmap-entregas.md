@@ -121,3 +121,12 @@
 | 2 | Probar presupuesto, HTTP, interfaz y migración | TDD-TC-071..074 | completed |
 | 3 | Separar tope, saldo adicional y valor visual | SDD-CMP-031 | completed-local |
 | 4 | Ejecutar regresión y desplegar | EVD-011 | in-progress |
+
+## Incremento 13 — CHG-013
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar precio base, mensual y saldo Asesor | ADR-013, PRD-FR-035 | completed |
+| 2 | Probar derivación, HTTP y contrato visual | TDD-TC-075..078 | completed |
+| 3 | Ajustar Programación y Cotizador | SDD-CMP-032 | completed-local |
+| 4 | Ejecutar regresión y desplegar | EVD-012 | in-progress |

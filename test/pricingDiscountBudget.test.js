@@ -126,8 +126,8 @@ test('TDD-TC-059/060: todos los canales usan resolvedor y persisten snapshot', (
 
 test('TDD-TC-070: frontend muestra el límite mensual y usa el máximo del servidor', () => {
   const frontend = fs.readFileSync(path.join(__dirname, '..', 'public/js/app.js'), 'utf8');
-  assert.match(frontend, /Descuento incluido por programación/);
-  assert.match(frontend, /Límite configurado del mes/);
+  assert.match(frontend, /Descuento incluido en precio del mes/);
+  assert.match(frontend, /Disponible para el asesor/);
   assert.match(frontend, /max_discount_mxn/);
 });
 
@@ -137,8 +137,8 @@ test('TDD-TC-073: frontend convierte la barra acumulada a descuento adicional', 
   assert.match(frontend, /data-discount-floor/);
   assert.match(frontend, /sliderTotal\s*-\s*discountFloor/);
   assert.match(frontend, /slider\.disabled\s*=\s*sliderMaxTotal\s*<=\s*embeddedDiscount/);
-  assert.match(index, /app\.js\?v=20260901-chg012/);
-  assert.match(index, /style\.css\?v=20260901-chg012/);
+  assert.match(index, /app\.js\?v=20260901-chg013/);
+  assert.match(index, /style\.css\?v=20260901-chg013/);
 });
 
 test('TDD-TC-074: esquema y endpoints conservan un tope independiente', () => {
@@ -146,6 +146,19 @@ test('TDD-TC-074: esquema y endpoints conservan un tope independiente', () => {
   const serverSource = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   assert.match(dbSource, /tope_descuento_mxn/);
   assert.match(serverSource, /tope_descuento_mxn/);
+});
+
+test('TDD-TC-078: Programación y Cotizador muestran el nuevo contrato comercial', () => {
+  const frontend = fs.readFileSync(path.join(__dirname, '..', 'public/js/app.js'), 'utf8');
+  const index = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8');
+  assert.match(index, /id="programacion-product-base"/);
+  assert.match(index, />Precio del mes \(\$\)</);
+  assert.match(index, />Descuento del mes \(\$\)</);
+  assert.match(index, />Asesor \(\$\)</);
+  assert.doesNotMatch(index, />Promoción \(%\)</);
+  assert.match(frontend, /<label>Precio base<\/label>/);
+  assert.match(frontend, /calcItem\.precio_catalogo/);
+  assert.match(frontend, /data-field="asesor_dinero"/);
 });
 
 test('TDD-TC-058: fecha contractual conserva su mes y runtime usa Mazatlán', () => {
