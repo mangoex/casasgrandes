@@ -351,3 +351,27 @@
 - Cubre: BDD-SC-052, BDD-SC-053
 - Aserciones: la interfaz etiqueta el límite mensual y asigna `max_discount_mxn` al máximo de la barra
 - Estado: passed-local
+
+## TDD-TC-071 — Presupuesto con tope independiente
+
+- Cubre: BDD-SC-055, BDD-SC-056, PRD-FR-034
+- Aserciones: descuento incorporado 89 y tope 1089 producen saldo adicional 1000; descuento incorporado 1089 produce saldo cero
+- Estado: passed-local
+
+## TDD-TC-072 — Precio mensual autoritativo por HTTP
+
+- Cubre: BDD-SC-055, BDD-SC-057, PRD-FR-034
+- Aserciones: la previsualización inicia en el precio mensual y resta solo el adicional sobre el piso incorporado
+- Estado: passed-local
+
+## TDD-TC-073 — Contrato visual acumulado
+
+- Cubre: BDD-SC-055, BDD-SC-056, BDD-SC-057
+- Aserciones: la barra conserva piso, tope, relleno absoluto y convierte el valor total a descuento adicional antes de enviar
+- Estado: passed-local
+
+## TDD-TC-074 — Migración y persistencia del tope
+
+- Cubre: PRD-FR-034, SDD-CMP-031
+- Aserciones: esquema, lectura y guardado conservan `tope_descuento_mxn` separado de las representaciones vinculadas
+- Estado: passed-local

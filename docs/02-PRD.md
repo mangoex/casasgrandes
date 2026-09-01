@@ -275,3 +275,18 @@ Criterio de aceptación: con catálogo `7,015`, capturar descuento `1,089` produ
 El Cotizador inicia en `crm_precios_mensuales.precio` y permite aplicar de cero hasta el tope promocional completo del mismo mes. La diferencia entre catálogo y precio mensual es informativa y no reduce el rango de la barra.
 
 Criterio de aceptación: con precio mensual `6,300` y tope `1,089`, la barra muestra máximo `1,089`, acepta ese importe y produce precio final `5,211`; rechaza `1,089.01`.
+
+## Incremento CHG-012 — Barra acumulada desde Programación
+
+### OBJ-014 — Representar sin duplicación el descuento mensual ya incorporado
+
+### PRD-FR-034 — Precio efectivo, piso acumulado y tope independiente
+
+El precio inicial del Cotizador es el precio efectivo mostrado en Programación. La barra representa el descuento total acumulado contra catálogo: inicia en la reducción ya incorporada al precio mensual y termina en el tope autorizado independiente. Solo la diferencia entre el valor elegido y el descuento incorporado reduce nuevamente el precio mensual.
+
+Si el descuento incorporado ya equivale al tope, la barra aparece al cien por ciento y queda sin recorrido adicional. El servidor conserva por separado `precio`, descuento incorporado y tope autorizado, y rechaza cualquier descuento adicional que exceda el saldo.
+
+Criterios de aceptación:
+
+- catálogo `7,015`, precio mensual `5,926`, descuento incorporado `1,089` y tope `1,089`: la barra inicia y termina en `1,089`, el precio inicial/final es `5,926` y el saldo adicional es cero;
+- catálogo `7,015`, precio mensual `6,926`, descuento incorporado `89` y tope `1,089`: la barra inicia visualmente en `89`, puede llegar a `1,089` y en el extremo descuenta únicamente `1,000` adicionales del precio mensual.

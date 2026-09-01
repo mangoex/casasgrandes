@@ -130,7 +130,7 @@ function normalizeProductCode(value) {
 
 async function syncMonthlyBasePrice(client, productId, price) {
   const existingResult = await client.query(
-    'SELECT mes, promo_dinero, promo_porcentaje FROM crm_precios_mensuales WHERE producto_id = $1 ORDER BY mes',
+    'SELECT mes, promo_dinero, promo_porcentaje, tope_descuento_mxn FROM crm_precios_mensuales WHERE producto_id = $1 ORDER BY mes',
     [productId]
   );
   const existingByMonth = new Map(existingResult.rows.map(row => [Number(row.mes), row]));
@@ -138,21 +138,32 @@ async function syncMonthlyBasePrice(client, productId, price) {
     Array.from({ length: 12 }, (_, index) => {
       const mes = index + 1;
       const existing = existingByMonth.get(mes);
+      const promoDinero = Math.min(Number(existing?.promo_dinero || 0), price);
       return {
         mes,
-        precio: price,
-        promo_dinero: Number(existing?.promo_dinero || 0),
-        promo_porcentaje: Number(existing?.promo_porcentaje || 0)
+        precio: Math.max(price - promoDinero, 0),
+        promo_dinero: promoDinero,
+        promo_porcentaje: price > 0 ? (promoDinero / price) * 100 : 0,
+        tope_descuento_mxn: Math.max(Number(existing?.tope_descuento_mxn ?? promoDinero), promoDinero)
       };
     }),
     price
   );
   for (let mes = 1; mes <= 12; mes += 1) {
     await client.query(
-      `INSERT INTO crm_precios_mensuales (producto_id, mes, precio, promo_dinero, promo_porcentaje)
-       VALUES ($1, $2, $3, 0, 0)
+      `INSERT INTO crm_precios_mensuales (producto_id, mes, precio, promo_dinero, promo_porcentaje, tope_descuento_mxn)
+       VALUES ($1, $2, $3, 0, 0, 0)
        ON CONFLICT (producto_id, mes)
-       DO UPDATE SET precio = EXCLUDED.precio`,
+       DO UPDATE SET
+         precio = GREATEST(EXCLUDED.precio - crm_precios_mensuales.promo_dinero, 0),
+         promo_porcentaje = CASE
+           WHEN EXCLUDED.precio > 0 THEN (crm_precios_mensuales.promo_dinero / EXCLUDED.precio) * 100
+           ELSE 0
+         END,
+         tope_descuento_mxn = GREATEST(
+           COALESCE(crm_precios_mensuales.tope_descuento_mxn, 0),
+           crm_precios_mensuales.promo_dinero
+         )`,
       [productId, mes, price]
     );
   }
@@ -162,6 +173,7 @@ function pricingErrorMessage(error) {
   const messages = {
     ambiguous_monthly_promotion: 'Use promoción en dinero o porcentaje, no ambas.',
     inconsistent_monthly_promotion: 'El descuento en dinero y el porcentaje deben representar el mismo importe.',
+    inconsistent_monthly_price_discount: 'El precio mensual y el descuento incorporado deben representar el mismo importe contra catálogo.',
     invalid_monthly_pricing_rows: 'Cada mes del 1 al 12 debe aparecer exactamente una vez.',
     invalid_pricing_amount: 'Precios y promociones deben ser importes no negativos.',
     invalid_promotion_percent: 'La promoción porcentual debe estar entre 0 y 100.',
@@ -4369,6 +4381,7 @@ app.get('/api/programacion/precios', authenticateToken, requireProgramacionManag
           precio: listPrice,
           promo_dinero: 0.0,
           promo_porcentaje: 0.0,
+          tope_descuento_mxn: 0.0,
           precio_catalogo: Number(listPrice)
         });
       }
@@ -4391,13 +4404,21 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
     const precio = Number(row.precio);
     const promoDinero = Number(row.promo_dinero || 0);
     const promoPorcentaje = Number(row.promo_porcentaje || 0);
+    const promotionCap = Number(row.tope_descuento_mxn ?? promoDinero);
     if (!Number.isInteger(mes) || mes < 1 || mes > 12 || rowsByMonth.has(mes)) {
       return res.status(400).json({ error: 'Each month from 1 to 12 must appear exactly once' });
     }
-    if (![precio, promoDinero, promoPorcentaje].every(Number.isFinite) || precio < 0 || promoDinero < 0 || promoPorcentaje < 0) {
+    if (![precio, promoDinero, promoPorcentaje, promotionCap].every(Number.isFinite)
+      || precio < 0 || promoDinero < 0 || promoPorcentaje < 0 || promotionCap < 0) {
       return res.status(400).json({ error: 'Prices and promotions must be non-negative numbers' });
     }
-    rowsByMonth.set(mes, { mes, precio, promo_dinero: promoDinero, promo_porcentaje: promoPorcentaje });
+    rowsByMonth.set(mes, {
+      mes,
+      precio,
+      promo_dinero: promoDinero,
+      promo_porcentaje: promoPorcentaje,
+      tope_descuento_mxn: promotionCap
+    });
   }
   if (rowsByMonth.size !== 12) {
     return res.status(400).json({ error: 'Each month from 1 to 12 must appear exactly once' });
@@ -4419,13 +4440,21 @@ app.post('/api/programacion/precios', authenticateToken, requireProgramacionMana
     await pricingClient.query('BEGIN');
     for (let mes = 1; mes <= 12; mes += 1) {
       const row = rowsByMonth.get(mes);
-      const { precio, promo_dinero, promo_porcentaje } = row;
+      const { precio, promo_dinero, promo_porcentaje, tope_descuento_mxn } = row;
       await pricingClient.query(
-        `INSERT INTO crm_precios_mensuales (producto_id, mes, precio, promo_dinero, promo_porcentaje)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO crm_precios_mensuales (producto_id, mes, precio, promo_dinero, promo_porcentaje, tope_descuento_mxn)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (producto_id, mes)
-         DO UPDATE SET precio = EXCLUDED.precio, promo_dinero = EXCLUDED.promo_dinero, promo_porcentaje = EXCLUDED.promo_porcentaje`,
-        [producto_id, mes, precio, promo_dinero, promo_porcentaje]
+         DO UPDATE SET
+           precio = EXCLUDED.precio,
+           promo_dinero = EXCLUDED.promo_dinero,
+           promo_porcentaje = EXCLUDED.promo_porcentaje,
+           tope_descuento_mxn = GREATEST(
+             COALESCE(crm_precios_mensuales.tope_descuento_mxn, 0),
+             EXCLUDED.tope_descuento_mxn,
+             EXCLUDED.promo_dinero
+           )`,
+        [producto_id, mes, precio, promo_dinero, promo_porcentaje, tope_descuento_mxn]
       );
     }
     await pricingClient.query('COMMIT');

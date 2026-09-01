@@ -95,11 +95,12 @@ Todo precio y descuento cotizado se resolverá en el servidor mediante un único
 | `docs/adr/ADR-009.md` | Precio mensual y presupuesto total de descuento | Responsable de producto y técnico |
 | `docs/adr/ADR-010.md` | Representaciones vinculadas en Programación | Responsable de producto y técnico |
 | `docs/adr/ADR-011.md` | Tope mensual completo en Cotizador | Responsable de producto y técnico |
+| `docs/adr/ADR-012.md` | Barra acumulada y separación del tope autorizado | Responsable de producto y técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites
 
-- Incluye: CHG-001..011; CHG-011 aplica el tope mensual completo desde el precio de Programación.
+- Incluye: CHG-001..012; CHG-012 separa el descuento incorporado del tope autorizado y hace que Cotizador use el precio efectivo de Programación.
 - Excluye: despliegue o modificación directa de producción.
 
 ## Seguridad y cambios
