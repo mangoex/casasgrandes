@@ -38,6 +38,7 @@
 | OBJ-011 | PRD-NFR-010 | SDD-CMP-026 | BDD-SC-040, BDD-SC-041, BDD-SC-046 | TDD-TC-055, TDD-TC-056, TDD-TC-062 | CHG-009 | EVD-008: Python 1/1, Node 65/65, npm audit 0 | Gate 4 local conditional |
 | OBJ-012 | PRD-FR-032 | SDD-CMP-029, ADR-010 | BDD-SC-048..051 | TDD-TC-063..066 | `public/js/programacion-pricing.js`, `public/js/app.js`, `utils/pricing.js`, `server.js` | EVD-009: Node 104/104, Python 1/1, auditoría 0 | verified-local |
 | OBJ-013 | PRD-FR-033 | SDD-CMP-030, ADR-011 | BDD-SC-052..054 | TDD-TC-067..070 | `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-010: Node 104/104, Python 1/1, sintaxis y diff aprobados | verified-local |
+| OBJ-014 | PRD-FR-034 | SDD-CMP-031, ADR-012 | BDD-SC-055..057 | TDD-TC-071..074 | `db.js`, `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-011: Node 106/106, Python 1/1, casos 89/1089 y 1089/1089 aprobados | verified-local |
 
 ## Huecos
 
@@ -160,3 +161,14 @@
 - Regresión: `npm test`, exit 0, 104/104.
 - Sintaxis Node y `git diff --check`: exit 0.
 - Pendiente al registrar esta evidencia: verificación visual en navegador y despliegue.
+
+## EVD-011 — Evidencia local CHG-012
+
+- Fecha: 2026-09-01.
+- Rojo controlado: 7 fallos focalizados confirmaron que el motor, HTTP, esquema y frontend mezclaban piso acumulado con tope.
+- Pruebas focalizadas: `node --test test/pricingDiscountBudget.test.js test/pricingRoutes.test.js`, exit 0, 13/13.
+- Casos de negocio: incorporado `1,089`/tope `1,089` produce saldo cero; incorporado `89`/tope `1,089` produce saldo adicional `1,000`.
+- Oráculo: Python `-m unittest test.test_pricing_reference -v`, exit 0, 1/1.
+- Regresión: `npm test`, exit 0, 106/106.
+- Sintaxis Node, cache busting de assets y `git diff --check`: exit 0.
+- Pendiente al registrar esta evidencia: verificación visual posterior al redeploy.

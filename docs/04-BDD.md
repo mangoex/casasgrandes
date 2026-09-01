@@ -471,3 +471,29 @@ Given un tope mensual de 1089
 When un cliente manipulado envía 1089.01
 Then el servidor responde 400 y no persiste la cotización
 ```
+
+## Feature: CHG-012 — Barra acumulada desde Programación
+
+### BDD-SC-055 — Descuento mensual agotado
+
+```gherkin
+Given catálogo 7015, precio mensual 5926, descuento incorporado 1089 y tope 1089
+When el asesor agrega el producto al Cotizador
+Then el precio inicial es 5926 y la barra aparece completa en 1089 sin descuento adicional disponible
+```
+
+### BDD-SC-056 — Descuento mensual parcial
+
+```gherkin
+Given catálogo 7015, precio mensual 6926, descuento incorporado 89 y tope 1089
+When el asesor agrega el producto al Cotizador
+Then la barra inicia visualmente en 89 y permite desplazarse hasta 1089
+```
+
+### BDD-SC-057 — Diferencia adicional sin duplicar el piso
+
+```gherkin
+Given una barra acumulada que inicia en 89 y termina en 1089 sobre precio mensual 6926
+When el asesor mueve la barra a 1089
+Then el servidor recibe 1000 de descuento adicional y el precio final es 5926
+```

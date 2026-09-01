@@ -112,3 +112,12 @@
 | 2 | Probar presupuesto, rutas y barra | TDD-TC-067..070 | completed |
 | 3 | Ajustar motor, servidor e interfaz | SDD-CMP-030 | completed-local |
 | 4 | Ejecutar regresión y desplegar | EVD-010 | in-progress |
+
+## Incremento 12 — CHG-012
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar barra acumulada y tope independiente | ADR-012, PRD-FR-034 | completed |
+| 2 | Probar presupuesto, HTTP, interfaz y migración | TDD-TC-071..074 | completed |
+| 3 | Separar tope, saldo adicional y valor visual | SDD-CMP-031 | completed-local |
+| 4 | Ejecutar regresión y desplegar | EVD-011 | in-progress |

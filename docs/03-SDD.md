@@ -227,3 +227,14 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - `calculateDiscountBudget` conserva la diferencia catálogo-mes como dato informativo y devuelve el tope promocional completo como disponibilidad del asesor.
 - Previsualización, creación y edición limitan el descuento por `min(tope_mensual, precio_neto_antes_del_asesor)`.
 - El frontend usa `max_discount_mxn` como atributo `max` de la barra y lo etiqueta como límite configurado del mes.
+
+## Diseño CHG-012
+
+### SDD-CMP-031 — Contrato separado de descuento incorporado y tope
+
+- Cubre: PRD-FR-034
+- `crm_precios_mensuales.tope_descuento_mxn` conserva el máximo autorizado; `promo_dinero` y `promo_porcentaje` representan la reducción ya incorporada y vinculada con `precio`.
+- La migración aditiva toma el tope previo de `promo_dinero` y alinea el precio efectivo con la representación que Programación ya mostraba, sin modificar cotizaciones históricas.
+- El resolvedor devuelve precio mensual, descuento incorporado, tope total y saldo adicional `max(tope - incorporado, 0)`.
+- El navegador muestra una barra acumulada de cero al tope, la inicializa en el descuento incorporado, impide bajar de ese piso y envía al servidor únicamente la diferencia adicional.
+- Si piso y tope coinciden, la barra queda completa y deshabilitada; el precio final permanece en el precio mensual.

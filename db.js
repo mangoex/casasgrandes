@@ -324,9 +324,25 @@ async function initSchema() {
         precio REAL DEFAULT 0.0,
         promo_dinero REAL DEFAULT 0.0,
         promo_porcentaje REAL DEFAULT 0.0,
+        tope_descuento_mxn REAL DEFAULT 0.0,
         UNIQUE(producto_id, mes)
       )
     `);
+    await pool.query('ALTER TABLE crm_precios_mensuales ADD COLUMN IF NOT EXISTS tope_descuento_mxn REAL');
+    await pool.query(`
+      UPDATE crm_precios_mensuales pm
+      SET
+        tope_descuento_mxn = COALESCE(pm.promo_dinero, 0),
+        precio = CASE
+          WHEN COALESCE(pm.promo_dinero, 0) > 0
+            THEN GREATEST(p.list_price_mxn - pm.promo_dinero, 0)
+          ELSE pm.precio
+        END
+      FROM productos p
+      WHERE pm.producto_id = p.id
+        AND pm.tope_descuento_mxn IS NULL
+    `);
+    await pool.query('ALTER TABLE crm_precios_mensuales ALTER COLUMN tope_descuento_mxn SET DEFAULT 0.0');
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS crm_respaldos_limpieza_operacion (

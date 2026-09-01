@@ -72,7 +72,8 @@ function calculateDiscountBudget({
   catalog_price,
   monthly_price,
   promo_money = 0,
-  promo_percent = 0
+  promo_percent = 0,
+  promotion_cap = null
 }) {
   const catalogCents = toMoneyCents(catalog_price);
   const monthlyCents = toMoneyCents(monthly_price);
@@ -94,15 +95,22 @@ function calculateDiscountBudget({
     throw new PricingDomainError('inconsistent_monthly_promotion');
   }
 
-  const capCents = promoMoneyCents > 0 ? promoMoneyCents : percentCapCents;
+  const representedDiscountCents = promoMoneyCents > 0 ? promoMoneyCents : percentCapCents;
+  const capCents = promotion_cap === null || promotion_cap === undefined
+    ? representedDiscountCents
+    : toMoneyCents(promotion_cap);
   if (capCents > catalogCents) {
     throw new PricingDomainError('promotion_cap_exceeds_catalog_price');
   }
 
   const embeddedCents = Math.max(catalogCents - monthlyCents, 0);
-  // La diferencia contra catálogo es informativa. La cotización inicia en el
-  // precio mensual y puede aplicar el tope mensual completo.
-  const availableCents = capCents;
+  if (representedDiscountCents !== embeddedCents) {
+    throw new PricingDomainError('inconsistent_monthly_price_discount');
+  }
+  if (embeddedCents > capCents) {
+    throw new PricingDomainError('monthly_discount_exceeds_promotion_cap');
+  }
+  const availableCents = capCents - embeddedCents;
 
   return {
     catalog_price: formatMoneyCents(catalogCents),

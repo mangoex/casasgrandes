@@ -2204,6 +2204,13 @@ function removeQuoteItemRow(rowNum) {
   }
 }
 
+function getSliderAdditionalDiscount(slider) {
+  if (!slider) return 0;
+  const sliderTotal = parseFloat(slider.value) || 0;
+  const discountFloor = parseFloat(slider.getAttribute('data-discount-floor')) || 0;
+  return Math.max(sliderTotal - discountFloor, 0);
+}
+
 // Collect form inputs helper
 function getQuotePayload() {
   const client_id = Number(document.getElementById('quote-client').value);
@@ -2226,7 +2233,7 @@ function getQuotePayload() {
         producto_id: Number(select.value),
         cantidad: Number(qtyInput.value),
         tamano: (tamanoSelect && tamanoSelect.value) ? tamanoSelect.value.trim() : null,
-        descuento_aplicado: slider ? (parseFloat(slider.value) || 0.0) : 0.0
+        descuento_aplicado: getSliderAdditionalDiscount(slider)
       });
     }
   });
@@ -2353,17 +2360,20 @@ function debouncedLiveCalculation() {
             : calc.items.find(i => i.producto_id === Number(select.value));
           if (calcItem) {
             const keyAccountDiscount = Number(calcItem.descuento_cuenta_clave_mxn || 0);
-            const maxDisc = Number(calcItem.max_discount_mxn || 0);
+            const embeddedDiscount = Number(calcItem.descuento_mensual_mxn || 0);
+            const maxAdditionalDiscount = Number(calcItem.max_discount_mxn || 0);
+            const configuredDiscountCap = Number(calcItem.tope_descuento_total_mxn || 0);
+            const sliderMaxTotal = embeddedDiscount + maxAdditionalDiscount;
             const hasKeyAccountDiscount = keyAccountDiscount > 0;
-            const hasAdvisorDiscount = maxDisc > 0;
+            const hasAdvisorDiscount = configuredDiscountCap > 0 || embeddedDiscount > 0;
 
             // El precio visible parte de Programación; beneficios y descuento adicional continúan debajo.
             unitPriceInput.value = `$${Number(calcItem.precio_lista).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
             if (monthlyDiscountLabel) {
-              monthlyDiscountLabel.textContent = `$${Number(calcItem.descuento_mensual_mxn || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+              monthlyDiscountLabel.textContent = `$${embeddedDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
             }
             if (advisorAvailableLabel) {
-              advisorAvailableLabel.textContent = `$${maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+              advisorAvailableLabel.textContent = `$${configuredDiscountCap.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
             }
             const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
             const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
@@ -2384,20 +2394,27 @@ function debouncedLiveCalculation() {
             
             // Configure discount slider
             if (hasAdvisorDiscount && slider) {
-              slider.max = maxDisc;
-              // Only reset to 0 if the max changed (new product selection)
-              if (parseFloat(slider.getAttribute('data-max-prev') || 0) !== maxDisc) {
-                slider.value = 0;
-                slider.setAttribute('data-max-prev', maxDisc);
+              slider.min = 0;
+              slider.max = sliderMaxTotal;
+              slider.setAttribute('data-discount-floor', embeddedDiscount);
+              slider.setAttribute('aria-valuemin', embeddedDiscount);
+              const sliderContract = `${embeddedDiscount}:${sliderMaxTotal}`;
+              if (slider.getAttribute('data-contract-prev') !== sliderContract) {
+                slider.value = embeddedDiscount + Number(calcItem.descuento_asesor_aplicado_mxn || 0);
+                slider.setAttribute('data-contract-prev', sliderContract);
               }
-              if (maxLabel) maxLabel.textContent = maxDisc.toLocaleString('es-MX', { minimumFractionDigits: 2 });
+              slider.value = Math.min(Math.max(Number(slider.value), embeddedDiscount), sliderMaxTotal);
+              slider.disabled = sliderMaxTotal <= embeddedDiscount;
+              if (maxLabel) maxLabel.textContent = configuredDiscountCap.toLocaleString('es-MX', { minimumFractionDigits: 2 });
               // Store base net price for slider calculations
               slider.setAttribute('data-base-price', calcItem.precio_neto);
               // Update slider display
               onDiscountSliderChange(slider);
             } else if (slider) {
               slider.value = 0;
-              slider.setAttribute('data-max-prev', '0');
+              slider.setAttribute('data-contract-prev', '0:0');
+              slider.setAttribute('data-discount-floor', '0');
+              slider.disabled = true;
               slider.style.setProperty('--slider-pct', '0%');
               slider.setAttribute('data-base-price', calcItem.precio_neto);
               const finalEl = wrapper.querySelector('.item-final-price');
@@ -2416,10 +2433,13 @@ function debouncedLiveCalculation() {
 
 // Handle discount slider movement — updates the per-row display in real time
 window.onDiscountSliderChange = function(slider) {
-  const val = parseFloat(slider.value) || 0;
+  const discountFloor = parseFloat(slider.getAttribute('data-discount-floor')) || 0;
+  const sliderTotal = Math.max(parseFloat(slider.value) || 0, discountFloor);
+  slider.value = sliderTotal;
   const max = parseFloat(slider.max) || 1;
   const basePrice = parseFloat(slider.getAttribute('data-base-price')) || 0;
-  const finalPrice = basePrice - val;
+  const additionalDiscount = Math.max(sliderTotal - discountFloor, 0);
+  const finalPrice = basePrice - additionalDiscount;
   
   const wrapper = slider.closest('.item-row-wrapper');
   if (!wrapper) return;
@@ -2429,14 +2449,14 @@ window.onDiscountSliderChange = function(slider) {
   const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
   const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
   
-  if (amountEl) amountEl.textContent = `$${val.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  if (amountEl) amountEl.textContent = `$${sliderTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   if (finalEl) finalEl.textContent = `$${finalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   if (mobileSubtotal) {
     mobileSubtotal.textContent = `Subtotal $${(finalPrice * quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
   }
   
   // Update slider gradient fill
-  const pct = max > 0 ? (val / max) * 100 : 0;
+  const pct = max > 0 ? (sliderTotal / max) * 100 : 0;
   slider.style.setProperty('--slider-pct', `${pct}%`);
   
   // Recalculate grand total with discounts applied
@@ -2452,7 +2472,7 @@ function recalcTotalsWithDiscounts() {
     const qtyInput = wrapper.querySelector('.item-qty-input');
     const slider = wrapper.querySelector('.item-discount-slider');
     const basePrice = slider ? parseFloat(slider.getAttribute('data-base-price') || 0) : 0;
-    const discountVal = slider ? parseFloat(slider.value || 0) : 0;
+    const discountVal = getSliderAdditionalDiscount(slider);
     const qty = qtyInput ? (parseFloat(qtyInput.value) || 1) : 1;
     
     if (select && select.value && basePrice > 0) {
@@ -2555,9 +2575,11 @@ function updateVirtualSheet(calc, payload) {
   // Build preview items rows
   // Read any advisor discounts currently set in the sliders
   const sliderDiscounts = [];
+  const sliderAdditionalDiscounts = [];
   document.querySelectorAll('#items-builder-container .item-row-wrapper').forEach(wrapper => {
     const slider = wrapper.querySelector('.item-discount-slider');
     sliderDiscounts.push(slider ? (parseFloat(slider.value) || 0) : 0);
+    sliderAdditionalDiscounts.push(getSliderAdditionalDiscount(slider));
   });
   
   const tbody = document.getElementById('preview-table-body');
@@ -2568,7 +2590,8 @@ function updateVirtualSheet(calc, payload) {
     const listPrice = i.precio_lista;
     const netPrice = i.precio_neto;
     const advisorDiscount = sliderDiscounts[itemIndex] || 0;
-    const finalPrice = netPrice - advisorDiscount;
+    const additionalDiscount = sliderAdditionalDiscounts[itemIndex] || 0;
+    const finalPrice = netPrice - additionalDiscount;
     const totalVolumeDiscount = listPrice - netPrice;
     const subtotalFinal = finalPrice * i.cantidad;
     grandTotalWithDiscounts += subtotalFinal;
@@ -9702,6 +9725,10 @@ function renderProgramacionTableContent(prices) {
 
     const tr = document.createElement('tr');
     tr.dataset.referencePrice = linkedPriceData.referencePrice;
+    tr.dataset.discountCap = Math.max(
+      Number(priceData.tope_descuento_mxn ?? priceData.promo_dinero ?? 0),
+      Number(linkedPriceData.promo_dinero || 0)
+    );
     
     // Base month and inputs cells
     tr.innerHTML = `
@@ -9751,6 +9778,10 @@ function renderProgramacionTableContent(prices) {
     row.querySelector('[data-field="precio"]').value = result.precio;
     row.querySelector('[data-field="promo_dinero"]').value = result.promo_dinero;
     row.querySelector('[data-field="promo_porcentaje"]').value = result.promo_porcentaje;
+    row.dataset.discountCap = Math.max(
+      Number(row.dataset.discountCap || 0),
+      Number(result.promo_dinero || 0)
+    );
   };
 
   tbody.querySelectorAll('.pricing-input').forEach(input => {
@@ -9862,7 +9893,14 @@ async function saveMonthlyPricing() {
     preciosMap[month][field] = val;
   });
 
-  const preciosArray = Object.values(preciosMap).sort((a, b) => a.mes - b.mes);
+  document.querySelectorAll('#monthly-pricing-tbody tr').forEach(row => {
+    const monthInput = row.querySelector('.pricing-input[data-month]');
+    const month = Number(monthInput?.dataset.month);
+    if (preciosMap[month]) {
+      preciosMap[month].tope_descuento_mxn = Number(row.dataset.discountCap || preciosMap[month].promo_dinero || 0);
+    }
+  });
+  const preciosArrayConTope = Object.values(preciosMap).sort((a, b) => a.mes - b.mes);
 
   const btn = document.getElementById('btn-save-precios');
   btn.disabled = true;
@@ -9874,7 +9912,7 @@ async function saveMonthlyPricing() {
       headers: getHeaders(),
       body: JSON.stringify({
         producto_id: parseInt(selectedProgramacionProductId),
-        precios: preciosArray,
+        precios: preciosArrayConTope,
         mes_inicio_propagacion: monthlyPricePropagationStart
       })
     });
