@@ -35,6 +35,7 @@ const {
 const { validateInitialPassword } = require('./utils/security');
 const { buildSecurityHeaders, parseTrustProxyHops } = require('./utils/httpSecurity');
 const { normalizeQuoteItems } = require('./utils/quoteValidation');
+const { applyNucleDiscount, validateNuclePercentage } = require('./utils/nuclePricing');
 const { createHealthHandlers, requestContextMiddleware } = require('./utils/observability');
 const { createGracefulShutdown } = require('./utils/serverLifecycle');
 
@@ -179,10 +180,70 @@ function pricingErrorMessage(error) {
     invalid_promotion_percent: 'La promoción porcentual debe estar entre 0 y 100.',
     promotion_cap_exceeds_catalog_price: 'El tope promocional no puede exceder el precio anual.',
     monthly_discount_exceeds_promotion_cap: 'La reducción del precio mensual excede el tope promocional total.',
-    advisor_discount_exceeds_available: 'El descuento solicitado excede el saldo autorizado para el mes.'
+    advisor_discount_exceeds_available: 'El descuento solicitado excede el saldo autorizado para el mes.',
+    invalid_nucle_percentage: 'El porcentaje Nucle debe estar entre 0 y 100.'
   };
   return messages[error.code] || error.message || 'Configuración de precios inválida.';
 }
+
+async function resolveNuclePercentage(store, month, enabled) {
+  if (!enabled) return 0;
+  const row = await store.get('SELECT porcentaje FROM crm_nucle_mensual WHERE mes = ?', [month]);
+  return validateNuclePercentage(row?.porcentaje || 0);
+}
+
+app.get('/api/admin/nucle', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const rows = await db.all('SELECT mes, porcentaje FROM crm_nucle_mensual ORDER BY mes ASC');
+    const byMonth = new Map(rows.map(row => [Number(row.mes), Number(row.porcentaje || 0)]));
+    res.json(Array.from({ length: 12 }, (_, index) => ({
+      mes: index + 1,
+      porcentaje: byMonth.get(index + 1) || 0
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible cargar el catálogo Nucle.' });
+  }
+});
+
+app.put('/api/admin/nucle', authenticateToken, requireAdmin, async (req, res) => {
+  const rows = req.body?.meses;
+  if (!Array.isArray(rows) || rows.length !== 12) {
+    return res.status(400).json({ error: 'Nucle requiere exactamente los doce meses.' });
+  }
+  const normalized = new Map();
+  try {
+    for (const row of rows) {
+      const month = Number(row.mes);
+      if (!Number.isInteger(month) || month < 1 || month > 12 || normalized.has(month)) {
+        return res.status(400).json({ error: 'Cada mes de enero a diciembre debe aparecer una sola vez.' });
+      }
+      normalized.set(month, validateNuclePercentage(row.porcentaje));
+    }
+  } catch (err) {
+    if (err instanceof PricingDomainError) {
+      return res.status(400).json({ error: pricingErrorMessage(err), code: err.code });
+    }
+    throw err;
+  }
+
+  try {
+    await db.transaction(async tx => {
+      for (let month = 1; month <= 12; month += 1) {
+        await tx.run(`
+          INSERT INTO crm_nucle_mensual (mes, porcentaje, actualizado_en)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT (mes)
+          DO UPDATE SET porcentaje = EXCLUDED.porcentaje, actualizado_en = CURRENT_TIMESTAMP
+        `, [month, normalized.get(month)]);
+      }
+    });
+    res.json({ success: true, meses: 12 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'No fue posible guardar el catálogo Nucle.' });
+  }
+});
 
 app.get('/api/productos', authenticateToken, async (req, res) => {
   try {
@@ -708,6 +769,7 @@ app.delete('/api/metas-globales/:id', authenticateToken, async (req, res) => {
 
 app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
   const { cliente_id, items, temporada_id, cuenta_clave_id } = req.body;
+  const nucleApplied = req.body.nucle_aplicado === true;
   
   if (!cliente_id) {
     return res.status(400).json({ error: 'cliente_id and non-empty items array are required' });
@@ -738,6 +800,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
       
     // Calculate total quantity of discountable seeds first to get correct volume scale
     const currentMonth = getContractMonth(new Date());
+    const nuclePercentage = await resolveNuclePercentage(db, currentMonth, nucleApplied);
     let totalDiscountableSeeds = 0;
     const dbItems = [];
     
@@ -755,6 +818,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
     const volMultiplier = getVolumeMultiplier(totalDiscountableSeeds);
     const calculatedItems = [];
     let grandTotal = 0.0;
+    let nucleDiscountTotal = 0.0;
     
     for (const { item, prod, monthlyPricing } of dbItems) {
       const { netPrice: priceBeforeKeyAccount } = calculateItemPricing(
@@ -774,9 +838,19 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
       );
       const maxDiscountMxn = Math.min(monthlyPricing.advisorDiscountAvailableMxn, netPrice);
       const discountApplied = validateAdvisorDiscount(item.descuento_aplicado, maxDiscountMxn);
-      const finalPrice = roundMoney(Math.max(netPrice - discountApplied, 0));
-      const subtotal = roundMoney(finalPrice * item.cantidad);
+      const priceAfterAdvisor = roundMoney(Math.max(netPrice - discountApplied, 0));
+      const nucle = applyNucleDiscount({
+        enabled: nucleApplied,
+        percentage: nuclePercentage,
+        category: prod.tipo_categoria,
+        monthlyPrice: monthlyPricing.listPrice,
+        priceAfterAdvisor,
+        quantity: item.cantidad
+      });
+      const finalPrice = nucle.finalUnitPrice;
+      const subtotal = nucle.subtotal;
       grandTotal = roundMoney(grandTotal + subtotal);
+      nucleDiscountTotal = roundMoney(nucleDiscountTotal + nucle.totalDiscount);
       
       calculatedItems.push({
         producto_id: prod.id,
@@ -793,6 +867,8 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
         tope_descuento_total_mxn: monthlyPricing.totalPromotionCapMxn,
         descuento_asesor_disponible_mxn: monthlyPricing.advisorDiscountAvailableMxn,
         descuento_asesor_aplicado_mxn: discountApplied,
+        descuento_nucle_unitario: nucle.appliedUnitDiscount,
+        nucle_elegible: nucle.eligible,
         precio_final: finalPrice,
         descuento_cuenta_clave_mxn: Math.max(priceBeforeKeyAccount - netPrice, 0),
         max_discount_mxn: maxDiscountMxn,
@@ -809,6 +885,9 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
       vol_multiplier: volMultiplier,
       total_discountable_seeds: totalDiscountableSeeds,
       items: calculatedItems,
+      nucle_aplicado: nucleApplied,
+      nucle_porcentaje: nuclePercentage,
+      descuento_nucle_mxn: nucleDiscountTotal,
       total_mxn: grandTotal,
       // For APARTADO conditions: requires $2,000 pesos deposit per bag of seed
       anticipo_requerido: totalDiscountableSeeds * 2000.0
@@ -826,6 +905,7 @@ app.post('/api/cotizaciones/calcular', authenticateToken, async (req, res) => {
 // CREATE QUOTATION / ORDER
 app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
   const { cliente_id, ciclo_agricola, condiciones_pago, temporada_id, items, financiera, notas, prospecto_id, planificacion_id, origen_etapa } = req.body;
+  const nucleApplied = req.body.nucle_aplicado === true;
   
   if (!cliente_id || !ciclo_agricola || !condiciones_pago) {
     return res.status(400).json({ error: 'Missing required header or items list' });
@@ -893,9 +973,11 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
     if (!activeSeason) return res.status(400).json({ error: 'Temporada no disponible.' });
 
     const currentMonth = getContractMonth(now);
+    const nuclePercentage = await resolveNuclePercentage(db, currentMonth, nucleApplied);
     let totalDiscountableSeeds = 0;
     const calculatedItems = [];
     let grandTotal = 0.0;
+    let nucleDiscountTotal = 0.0;
     
     for (const item of quoteItems) {
       const prod = await db.get('SELECT * FROM productos WHERE id = ? AND activo = 1', [item.producto_id]);
@@ -923,14 +1005,25 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
       const maxDiscountMxn = Math.min(row.monthlyPricing.advisorDiscountAvailableMxn, baseNetPrice);
       const discountApplied = validateAdvisorDiscount(item.descuento_aplicado, maxDiscountMxn);
       
-      const netPrice = roundMoney(Math.max(baseNetPrice - discountApplied, 0));
-      const subtotal = roundMoney(netPrice * item.cantidad);
+      const priceAfterAdvisor = roundMoney(Math.max(baseNetPrice - discountApplied, 0));
+      const nucle = applyNucleDiscount({
+        enabled: nucleApplied,
+        percentage: nuclePercentage,
+        category: prod.tipo_categoria,
+        monthlyPrice: row.monthlyPricing.listPrice,
+        priceAfterAdvisor,
+        quantity: item.cantidad
+      });
+      const netPrice = nucle.finalUnitPrice;
+      const subtotal = nucle.subtotal;
       
       row.netPrice = netPrice;
       row.subtotal = subtotal;
       row.listPrice = row.monthlyPricing.listPrice;
       row.discountApplied = discountApplied;
+      row.nucleDiscount = nucle.appliedUnitDiscount;
       grandTotal = roundMoney(grandTotal + subtotal);
+      nucleDiscountTotal = roundMoney(nucleDiscountTotal + nucle.totalDiscount);
     }
     
     const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000.0 : 0.0;
@@ -975,10 +1068,10 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
       }
 
       const result = await tx.run(`
-        INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera, prospecto_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cotizaciones (fecha_creacion, cliente_id, asesor_id, ciclo_agricola, condiciones_pago, folio_cotizacion, mes, estatus, total_mxn, anticipo_apartado, notas, financiera, prospecto_id, nucle_aplicado, nucle_porcentaje, descuento_nucle_mxn)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
-      `, [now, cliente_id, quoteAdvisorId, ciclo_agricola, condiciones_pago, prefix, mesShort, defaultStatus, grandTotal, anticipoApartado, notas, financiera || null, prospectId]);
+      `, [now, cliente_id, quoteAdvisorId, ciclo_agricola, condiciones_pago, prefix, mesShort, defaultStatus, grandTotal, anticipoApartado, notas, financiera || null, prospectId, nucleApplied ? 1 : 0, nuclePercentage, nucleDiscountTotal]);
       const cotId = result.id;
 
       for (const row of calculatedItems) {
@@ -987,8 +1080,8 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
             cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada,
             precio_lista_unitario, precio_neto_unitario, subtotal_mxn,
             precio_catalogo_unitario, precio_mensual_unitario, descuento_mensual_unitario,
-            tope_descuento_unitario, descuento_asesor_unitario, contrato_precio_version, tamano
-          ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'CHG-009', ?)
+            tope_descuento_unitario, descuento_asesor_unitario, descuento_nucle_unitario, contrato_precio_version, tamano
+          ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CHG-014', ?)
         `, [
           cotId,
           row.item.producto_id,
@@ -1002,6 +1095,7 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
           row.monthlyPricing.embeddedDiscountMxn,
           row.monthlyPricing.totalPromotionCapMxn,
           row.discountApplied,
+          row.nucleDiscount,
           row.item.tamano ? String(row.item.tamano).trim() : null
         ]);
       }
@@ -1039,7 +1133,7 @@ app.post('/api/cotizaciones', authenticateToken, async (req, res) => {
       return { cotId, prospectId: persistedProspectId };
     });
     
-    res.status(201).json({ id: persisted.cotId, folio: prefix, total_mxn: grandTotal, status: defaultStatus, message: 'Quotation submitted successfully' });
+    res.status(201).json({ id: persisted.cotId, folio: prefix, total_mxn: grandTotal, descuento_nucle_mxn: nucleDiscountTotal, status: defaultStatus, message: 'Quotation submitted successfully' });
     
   } catch (err) {
     if (err instanceof PricingDomainError) {
@@ -1346,6 +1440,7 @@ app.delete('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
 app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { ciclo_agricola, condiciones_pago, financiera, notas, temporada_id, items } = req.body;
+  const requestedNucleApplied = req.body.nucle_aplicado;
 
   let quoteItems;
   try {
@@ -1364,6 +1459,9 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       if (req.user.nivel_rol === 'Asesor' && !['Borrador', 'Pendiente', 'Pendiente Autorización'].includes(q.estatus)) {
         return { status: 403, body: { error: 'Solo puedes editar tus cotizaciones pendientes de autorización.' } };
       }
+      const nucleApplied = requestedNucleApplied === undefined
+        ? Boolean(q.nucle_aplicado)
+        : requestedNucleApplied === true;
 
       const oldItems = await tx.all(
         'SELECT * FROM cotizacion_detalles WHERE cotizacion_id = ? ORDER BY id ASC',
@@ -1397,6 +1495,7 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       if (!activeSeason) return { status: 400, body: { error: 'Temporada no disponible.' } };
 
       const currentMonth = getContractMonth(q.fecha_creacion);
+      const nuclePercentage = await resolveNuclePercentage(tx, currentMonth, nucleApplied);
       let totalDiscountableSeeds = 0;
       const calculatedRows = [];
       for (const item of quoteItems) {
@@ -1411,6 +1510,7 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
 
       const volMultiplier = getVolumeMultiplier(totalDiscountableSeeds);
       let grandTotal = 0;
+      let nucleDiscountTotal = 0;
       for (const row of calculatedRows) {
         const { netPrice: baseNetPrice } = calculateItemPricing(
           row.prod,
@@ -1421,11 +1521,22 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
         );
         const maxDiscountMxn = Math.min(row.monthlyPricing.advisorDiscountAvailableMxn, baseNetPrice);
         const discountApplied = validateAdvisorDiscount(row.item.descuento_aplicado, maxDiscountMxn);
-        row.netPrice = roundMoney(Math.max(baseNetPrice - discountApplied, 0));
-        row.subtotal = roundMoney(row.netPrice * row.item.cantidad);
+        const priceAfterAdvisor = roundMoney(Math.max(baseNetPrice - discountApplied, 0));
+        const nucle = applyNucleDiscount({
+          enabled: nucleApplied,
+          percentage: nuclePercentage,
+          category: row.prod.tipo_categoria,
+          monthlyPrice: row.monthlyPricing.listPrice,
+          priceAfterAdvisor,
+          quantity: row.item.cantidad
+        });
+        row.netPrice = nucle.finalUnitPrice;
+        row.subtotal = nucle.subtotal;
         row.listPrice = row.monthlyPricing.listPrice;
         row.discountApplied = discountApplied;
+        row.nucleDiscount = nucle.appliedUnitDiscount;
         grandTotal = roundMoney(grandTotal + row.subtotal);
+        nucleDiscountTotal = roundMoney(nucleDiscountTotal + nucle.totalDiscount);
       }
 
       const lastStockMovement = await tx.get(
@@ -1491,8 +1602,8 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
             cotizacion_id, producto_id, temporada_id, cantidad_ordenada, cantidad_entregada,
             precio_lista_unitario, precio_neto_unitario, subtotal_mxn,
             precio_catalogo_unitario, precio_mensual_unitario, descuento_mensual_unitario,
-            tope_descuento_unitario, descuento_asesor_unitario, contrato_precio_version, tamano
-          ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'CHG-009', ?)
+            tope_descuento_unitario, descuento_asesor_unitario, descuento_nucle_unitario, contrato_precio_version, tamano
+          ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CHG-014', ?)
         `, [
           id,
           row.item.producto_id,
@@ -1506,6 +1617,7 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
           row.monthlyPricing.embeddedDiscountMxn,
           row.monthlyPricing.totalPromotionCapMxn,
           row.discountApplied,
+          row.nucleDiscount,
           row.item.tamano ? String(row.item.tamano).trim() : null
         ]);
       }
@@ -1513,9 +1625,10 @@ app.put('/api/cotizaciones/:id', authenticateToken, async (req, res) => {
       const anticipoApartado = condiciones_pago === 'APARTADO' ? totalDiscountableSeeds * 2000 : 0;
       await tx.run(`
         UPDATE cotizaciones
-        SET ciclo_agricola = ?, condiciones_pago = ?, financiera = ?, notas = ?, total_mxn = ?, anticipo_apartado = ?
+        SET ciclo_agricola = ?, condiciones_pago = ?, financiera = ?, notas = ?, total_mxn = ?, anticipo_apartado = ?,
+            nucle_aplicado = ?, nucle_porcentaje = ?, descuento_nucle_mxn = ?
         WHERE id = ?
-      `, [ciclo_agricola, condiciones_pago, financiera || null, notas || null, grandTotal, anticipoApartado, id]);
+      `, [ciclo_agricola, condiciones_pago, financiera || null, notas || null, grandTotal, anticipoApartado, nucleApplied ? 1 : 0, nuclePercentage, nucleDiscountTotal, id]);
 
       if (q.estatus === 'Entregado') {
         for (const row of calculatedRows) {

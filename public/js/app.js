@@ -1475,6 +1475,9 @@ window.showQuoteDetails = async function(quoteId) {
     document.getElementById('quote-detail-fecha').textContent = quote.fecha_creacion || '-';
     document.getElementById('quote-detail-ciclo').textContent = quote.ciclo_agricola || '-';
     document.getElementById('quote-detail-condiciones').textContent = quote.condiciones_pago || '-';
+    document.getElementById('quote-detail-nucle').textContent = quote.nucle_aplicado
+      ? `${Number(quote.nucle_porcentaje || 0)}% (-$${Number(quote.descuento_nucle_mxn || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN)`
+      : 'No aplicado';
     document.getElementById('quote-detail-financiera').textContent = quote.financiera || 'Ninguna';
     document.getElementById('quote-detail-notas').textContent = quote.notas || 'Sin notas adicionales.';
 
@@ -1594,6 +1597,7 @@ window.toggleQuoteEditMode = async function(isEdit) {
     document.getElementById('edit-quote-condicion').value = activeQuote.condiciones_pago || 'CONTADO';
     document.getElementById('edit-quote-financiera').value = activeQuote.financiera || '';
     document.getElementById('edit-quote-notas').value = activeQuote.notas || '';
+    document.getElementById('edit-quote-nucle').checked = Boolean(activeQuote.nucle_aplicado);
     
     // Populate seasons select
     const seasonSelect = document.getElementById('edit-quote-temporada');
@@ -1741,6 +1745,7 @@ window.recalculateEditQuoteTotal = async function() {
       body: JSON.stringify({
         cliente_id: activeQuote.cliente_id,
         temporada_id: Number(seasonId) || null,
+        nucle_aplicado: Boolean(document.getElementById('edit-quote-nucle')?.checked),
         items
       })
     });
@@ -1762,6 +1767,7 @@ window.saveEditQuote = async function() {
   const temporadaId = document.getElementById('edit-quote-temporada').value;
   const financiera = document.getElementById('edit-quote-financiera').value.trim();
   const notas = document.getElementById('edit-quote-notas').value.trim();
+  const nucleAplicado = Boolean(document.getElementById('edit-quote-nucle')?.checked);
   
   const rows = document.querySelectorAll('#edit-quote-items-container .item-row');
   const items = [];
@@ -1795,6 +1801,7 @@ window.saveEditQuote = async function() {
         temporada_id: Number(temporadaId) || null,
         financiera: financiera || null,
         notas: notas || null,
+        nucle_aplicado: nucleAplicado,
         items
       })
     });
@@ -1882,6 +1889,9 @@ async function authorizeQuote(quoteId) {
 // Bind season change in edit mode to recalculate total
 document.addEventListener('change', (e) => {
   if (e.target && e.target.id === 'edit-quote-temporada') {
+    recalculateEditQuoteTotal();
+  }
+  if (e.target && e.target.id === 'edit-quote-nucle') {
     recalculateEditQuoteTotal();
   }
 });
@@ -2219,6 +2229,7 @@ function getQuotePayload() {
   const temporada_id = Number(document.getElementById('quote-temporada').value);
   const financiera = document.getElementById('quote-financiera').value.trim();
   const notas = document.getElementById('quote-notas').value.trim();
+  const nucle_aplicado = Boolean(document.getElementById('quote-nucle')?.checked);
   
   const items = [];
   const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
@@ -2245,6 +2256,7 @@ function getQuotePayload() {
     condiciones_pago,
     temporada_id,
     items,
+    nucle_aplicado,
     financiera,
     notas,
     prospecto_id: activeProspectId || undefined,
@@ -2331,12 +2343,17 @@ function debouncedLiveCalculation() {
         body: JSON.stringify({
           cliente_id: payload.client_id,
           items: payload.items,
-          temporada_id: payload.temporada_id
+          temporada_id: payload.temporada_id,
+          nucle_aplicado: payload.nucle_aplicado
         })
       });
       
       const calc = await res.json();
       if (!res.ok) throw new Error(calc.error || 'Calculation failed');
+      const nuclePercentageLabel = document.getElementById('quote-nucle-percentage');
+      if (nuclePercentageLabel) {
+        nuclePercentageLabel.textContent = calc.nucle_aplicado ? `(${Number(calc.nucle_porcentaje || 0)}%)` : '';
+      }
       
       // Update individual unit prices and discount sliders in the form
       const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
@@ -2362,6 +2379,7 @@ function debouncedLiveCalculation() {
             const keyAccountDiscount = Number(calcItem.descuento_cuenta_clave_mxn || 0);
             const embeddedDiscount = Number(calcItem.descuento_mensual_mxn || 0);
             const maxAdditionalDiscount = Number(calcItem.max_discount_mxn || 0);
+            const nucleUnitDiscount = Number(calcItem.descuento_nucle_unitario || 0);
             const configuredDiscountCap = Number(calcItem.tope_descuento_total_mxn || 0);
             const sliderMaxTotal = embeddedDiscount + maxAdditionalDiscount;
             const hasKeyAccountDiscount = keyAccountDiscount > 0;
@@ -2408,6 +2426,7 @@ function debouncedLiveCalculation() {
               if (maxLabel) maxLabel.textContent = sliderMaxTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 });
               // Store base net price for slider calculations
               slider.setAttribute('data-base-price', calcItem.precio_neto);
+              slider.setAttribute('data-nucle-discount', nucleUnitDiscount);
               // Update slider display
               onDiscountSliderChange(slider);
             } else if (slider) {
@@ -2417,8 +2436,9 @@ function debouncedLiveCalculation() {
               slider.disabled = true;
               slider.style.setProperty('--slider-pct', '0%');
               slider.setAttribute('data-base-price', calcItem.precio_neto);
+              slider.setAttribute('data-nucle-discount', nucleUnitDiscount);
               const finalEl = wrapper.querySelector('.item-final-price');
-              if (finalEl) finalEl.textContent = `$${Number(calcItem.precio_neto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+              if (finalEl) finalEl.textContent = `$${Number(calcItem.precio_final).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
             }
           }
         }
@@ -2438,8 +2458,9 @@ window.onDiscountSliderChange = function(slider) {
   slider.value = sliderTotal;
   const max = parseFloat(slider.max) || 1;
   const basePrice = parseFloat(slider.getAttribute('data-base-price')) || 0;
+  const nucleDiscount = parseFloat(slider.getAttribute('data-nucle-discount')) || 0;
   const additionalDiscount = Math.max(sliderTotal - discountFloor, 0);
-  const finalPrice = basePrice - additionalDiscount;
+  const finalPrice = Math.max(basePrice - additionalDiscount - nucleDiscount, 0);
   
   const wrapper = slider.closest('.item-row-wrapper');
   if (!wrapper) return;
@@ -2472,11 +2493,12 @@ function recalcTotalsWithDiscounts() {
     const qtyInput = wrapper.querySelector('.item-qty-input');
     const slider = wrapper.querySelector('.item-discount-slider');
     const basePrice = slider ? parseFloat(slider.getAttribute('data-base-price') || 0) : 0;
+    const nucleDiscount = slider ? parseFloat(slider.getAttribute('data-nucle-discount') || 0) : 0;
     const discountVal = getSliderAdditionalDiscount(slider);
     const qty = qtyInput ? (parseFloat(qtyInput.value) || 1) : 1;
     
     if (select && select.value && basePrice > 0) {
-      adjustedTotal += (basePrice - discountVal) * qty;
+      adjustedTotal += Math.max(basePrice - discountVal - nucleDiscount, 0) * qty;
     }
   });
   
@@ -2527,6 +2549,7 @@ function resetVirtualSheet() {
   `;
   document.getElementById('preview-discount-vol').textContent = '-';
   document.getElementById('preview-row-anticipo').style.display = 'none';
+  document.getElementById('preview-row-nucle').style.display = 'none';
   document.getElementById('preview-total-val').textContent = '$0.00 MXN';
   document.getElementById('preview-puntos-val').textContent = '$0.00 MXN';
   document.getElementById('preview-cupon-val').textContent = '$0.00 MXN';
@@ -2591,7 +2614,8 @@ function updateVirtualSheet(calc, payload) {
     const netPrice = i.precio_neto;
     const advisorDiscount = sliderDiscounts[itemIndex] || 0;
     const additionalDiscount = sliderAdditionalDiscounts[itemIndex] || 0;
-    const finalPrice = netPrice - additionalDiscount;
+    const nucleDiscount = Number(i.descuento_nucle_unitario || 0);
+    const finalPrice = Math.max(netPrice - additionalDiscount - nucleDiscount, 0);
     const totalVolumeDiscount = listPrice - netPrice;
     const subtotalFinal = finalPrice * i.cantidad;
     grandTotalWithDiscounts += subtotalFinal;
@@ -2625,6 +2649,15 @@ function updateVirtualSheet(calc, payload) {
     document.getElementById('preview-anticipo-val').textContent = `$${calc.anticipo_requerido.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   } else {
     anticipoRow.style.display = 'none';
+  }
+
+  const nucleRow = document.getElementById('preview-row-nucle');
+  const nucleDiscountTotal = Number(calc.descuento_nucle_mxn || 0);
+  if (calc.nucle_aplicado && nucleDiscountTotal > 0) {
+    nucleRow.style.display = 'flex';
+    document.getElementById('preview-nucle-val').textContent = `-$${nucleDiscountTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN (${Number(calc.nucle_porcentaje || 0)}%)`;
+  } else {
+    nucleRow.style.display = 'none';
   }
   
   // Total (with advisor discounts applied)
@@ -2691,6 +2724,8 @@ document.getElementById('quotation-form').addEventListener('submit', async (e) =
     alert(err.message);
   }
 });
+
+document.getElementById('quote-nucle')?.addEventListener('change', debouncedLiveCalculation);
 
 document.getElementById('btn-save-mobile-draft')?.addEventListener('click', () => {
   const payload = getQuotePayload();
@@ -4047,6 +4082,7 @@ if (document.getElementById('tab-admin-asesores')) {
   document.getElementById('tab-admin-metas').addEventListener('click', () => switchAdminTab('metas'));
   document.getElementById('tab-admin-ciclos').addEventListener('click', () => switchAdminTab('ciclos'));
   document.getElementById('tab-admin-cuentas').addEventListener('click', () => switchAdminTab('cuentas'));
+  document.getElementById('tab-admin-nucle').addEventListener('click', () => switchAdminTab('nucle'));
   document.getElementById('tab-admin-mantenimiento').addEventListener('click', () => switchAdminTab('mantenimiento'));
 }
 
@@ -4057,6 +4093,7 @@ function switchAdminTab(tabName) {
   const tabMet = document.getElementById('tab-admin-metas');
   const tabCic = document.getElementById('tab-admin-ciclos');
   const tabCue = document.getElementById('tab-admin-cuentas');
+  const tabNucle = document.getElementById('tab-admin-nucle');
   const tabMan = document.getElementById('tab-admin-mantenimiento');
 
   if (tabAse) tabAse.classList.remove('active');
@@ -4064,6 +4101,7 @@ function switchAdminTab(tabName) {
   if (tabMet) tabMet.classList.remove('active');
   if (tabCic) tabCic.classList.remove('active');
   if (tabCue) tabCue.classList.remove('active');
+  if (tabNucle) tabNucle.classList.remove('active');
   if (tabMan) tabMan.classList.remove('active');
 
   const pAse = document.getElementById('panel-admin-asesores');
@@ -4071,6 +4109,7 @@ function switchAdminTab(tabName) {
   const pMet = document.getElementById('panel-admin-metas');
   const pCic = document.getElementById('panel-admin-ciclos');
   const pCue = document.getElementById('panel-admin-cuentas');
+  const pNucle = document.getElementById('panel-admin-nucle');
   const pMan = document.getElementById('panel-admin-mantenimiento');
 
   if (pAse) pAse.style.display = 'none';
@@ -4078,6 +4117,7 @@ function switchAdminTab(tabName) {
   if (pMet) pMet.style.display = 'none';
   if (pCic) pCic.style.display = 'none';
   if (pCue) pCue.style.display = 'none';
+  if (pNucle) pNucle.style.display = 'none';
   if (pMan) pMan.style.display = 'none';
   
   const activeTabBtn = document.getElementById(`tab-admin-${tabName}`);
@@ -4099,8 +4139,56 @@ async function loadAdminData() {
     await loadAdminCiclos();
   } else if (adminActiveTab === 'cuentas') {
     await loadAdminKeyAccounts();
+  } else if (adminActiveTab === 'nucle') {
+    await loadAdminNucle();
   }
 }
+
+async function loadAdminNucle() {
+  const tbody = document.getElementById('admin-nucle-tbody');
+  if (!tbody) return;
+  const names = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  try {
+    const res = await fetch(`${API_URL}/api/admin/nucle`, { headers: getHeaders() });
+    const rows = await res.json();
+    if (!res.ok) throw new Error(rows.error || 'No fue posible cargar Nucle.');
+    tbody.innerHTML = rows.map(row => `
+      <tr>
+        <td style="font-weight: 600;">${names[Number(row.mes) - 1]}</td>
+        <td><input type="number" min="0" max="100" step="0.0001" class="form-input nucle-month-input" data-month="${Number(row.mes)}" value="${Number(row.porcentaje || 0)}" style="text-align:right; margin:0;"></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:var(--danger);">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function saveAdminNucle() {
+  const inputs = Array.from(document.querySelectorAll('.nucle-month-input'));
+  const meses = inputs.map(input => ({
+    mes: Number(input.dataset.month),
+    porcentaje: Number(input.value)
+  }));
+  const button = document.getElementById('btn-save-nucle');
+  if (button) button.disabled = true;
+  try {
+    const res = await fetch(`${API_URL}/api/admin/nucle`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ meses })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No fue posible guardar Nucle.');
+    alert('Catálogo Nucle guardado correctamente.');
+    await loadAdminNucle();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+document.getElementById('btn-save-nucle')?.addEventListener('click', saveAdminNucle);
 
 // -------------------------------------------------------------
 // SALESFORCE STYLE TRACKING (SEGUIMIENTO) DASHBOARD LOGIC

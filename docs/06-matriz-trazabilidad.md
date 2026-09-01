@@ -40,6 +40,7 @@
 | OBJ-013 | PRD-FR-033 | SDD-CMP-030, ADR-011 | BDD-SC-052..054 | TDD-TC-067..070 | `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-010: Node 104/104, Python 1/1, sintaxis y diff aprobados | verified-local |
 | OBJ-014 | PRD-FR-034 | SDD-CMP-031, ADR-012 | BDD-SC-055..057 | TDD-TC-071..074 | `db.js`, `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-011: Node 106/106, Python 1/1, casos 89/1089 y 1089/1089 aprobados | verified-local |
 | OBJ-015 | PRD-FR-035 | SDD-CMP-032, ADR-013 | BDD-SC-058..060 | TDD-TC-075..078 | `public/index.html`, `public/js/programacion-pricing.js`, `public/js/app.js`, `utils/monthlyPricing.js`, `server.js` | EVD-012: Node 110/110, derivación 7015/6926/1000 aprobada | verified-local |
+| OBJ-016 | PRD-FR-036 | SDD-CMP-033, ADR-014 | BDD-SC-061..064 | TDD-TC-079..085 | `db.js`, `utils/nuclePricing.js`, `server.js`, `public/index.html`, `public/js/app.js` | EVD-013: Node 117/117, caso mixto y catálogo 12/12 aprobados | verified-local |
 
 ## Huecos
 
@@ -184,3 +185,14 @@
 - Sintaxis Node y `git diff --check`: exit 0.
 - Oráculo Python no ejecutado porque este host no expone `python` ni `py`; el motor monetario no cambió y su espejo continúa cubierto por la prueba Node de casos dorados.
 - Pendiente: commit, despliegue y verificación visual autenticada.
+
+## EVD-013 — Evidencia local CHG-014
+
+- Fecha: 2026-09-01.
+- Rojo controlado: 3 fallos iniciales confirmaron la ausencia del motor, contrato HTTP, esquema e interfaz Nucle.
+- Pruebas focalizadas: `node --test test/nuclePricing.test.js test/nucleRoutes.test.js`, exit 0, 7/7.
+- Caso mixto: Híbrido mensual `900`, asesor `100` y Nucle `10%` produce `710`; Agroquímico `500` permanece en `500`; total `1,210`.
+- Administración: GET completa enero-diciembre y PUT persiste doce porcentajes dentro de una transacción.
+- Regresión: `npm test`, exit 0, 117/117.
+- Sintaxis Node y `git diff --check`: exit 0.
+- Pendiente: commit, despliegue, ejecución DDL en PostgreSQL productivo y verificación visual autenticada.

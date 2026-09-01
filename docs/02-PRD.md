@@ -300,5 +300,19 @@ Cotizador etiqueta y muestra el precio base. Su barra inicia en el descuento inc
 
 Criterio de aceptación: con precio base `7,015`, precio del mes `6,926` y Asesor `1,000`, Programación deriva descuento incorporado `89` y tope acumulado `1,089`; Cotizador muestra precio base `7,015`, inicia la barra en `89` y permite llevarla hasta `1,089`.
 
+## Incremento CHG-014 — Catálogo y beneficio Nucle
+
+### OBJ-016 — Aplicar un beneficio mensual exclusivo para semillas
+
+### PRD-FR-036 — Nucle mensual opcional
+
+Administración incluye un catálogo Nucle con exactamente los meses de enero a diciembre y un porcentaje entre 0 y 100 para cada mes. Cotizador incluye una casilla Nucle desmarcada por defecto.
+
+Al marcarla, el servidor toma el porcentaje del mes contractual y calcula el descuento por unidad sobre el Precio del mes de cada producto cuya categoría sea `Híbrido` o `Semilla`. Nucle no aplica a Agroquímicos ni otras categorías y se acumula independientemente después del descuento del asesor. El total nunca puede ser negativo.
+
+La cotización guarda si Nucle fue aplicado, el porcentaje usado, el descuento total y el descuento unitario de cada partida para conservar el histórico.
+
+Criterio de aceptación: con Híbrido mensual `900`, descuento asesor `100` y Nucle `10%`, el precio final unitario es `710`; un Agroquímico de `500` incluido en la misma cotización permanece en `500`.
+
 - catálogo `7,015`, precio mensual `5,926`, descuento incorporado `1,089` y tope `1,089`: la barra inicia y termina en `1,089`, el precio inicial/final es `5,926` y el saldo adicional es cero;
 - catálogo `7,015`, precio mensual `6,926`, descuento incorporado `89` y tope `1,089`: la barra inicia visualmente en `89`, puede llegar a `1,089` y en el extremo descuenta únicamente `1,000` adicionales del precio mensual.

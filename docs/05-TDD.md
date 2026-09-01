@@ -399,3 +399,45 @@
 - Cubre: BDD-SC-058, BDD-SC-060
 - Aserciones: Programación muestra precio base fijo, Precio del mes, Descuento del mes y Asesor en dinero; Cotizador muestra precio base del catálogo
 - Estado: passed-local
+
+## TDD-TC-079 — Validación porcentual Nucle
+
+- Cubre: BDD-SC-061
+- Aserciones: acepta 0..100 y rechaza valores fuera del rango
+- Estado: passed-local
+
+## TDD-TC-080 — Elegibilidad por categoría
+
+- Cubre: BDD-SC-063
+- Aserciones: Híbrido y Semilla son elegibles; Agroquímico no
+- Estado: passed-local
+
+## TDD-TC-081 — Acumulación después del asesor
+
+- Cubre: BDD-SC-062
+- Aserciones: Nucle usa el precio mensual como base aunque ya exista descuento del asesor
+- Estado: passed-local
+
+## TDD-TC-082 — Exclusión de Agroquímicos
+
+- Cubre: BDD-SC-063
+- Aserciones: precio y subtotal de Agroquímicos no cambian
+- Estado: passed-local
+
+## TDD-TC-083 — Contrato HTTP mixto
+
+- Cubre: BDD-SC-062, BDD-SC-063
+- Aserciones: previsualización mixta devuelve descuento, porcentaje y total correctos
+- Estado: passed-local
+
+## TDD-TC-084 — Esquema e interfaz
+
+- Cubre: BDD-SC-061, BDD-SC-064, SDD-CMP-033
+- Aserciones: migración aditiva, pestaña administrativa, casilla y payload existen
+- Estado: passed-local
+
+## TDD-TC-085 — Catálogo administrativo
+
+- Cubre: BDD-SC-061
+- Aserciones: GET completa doce meses y PUT persiste exactamente doce filas en transacción
+- Estado: passed-local

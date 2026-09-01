@@ -248,3 +248,14 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - La respuesta conserva compatibilidad con los campos históricos y añade `asesor_dinero = max(tope_descuento_mxn - promo_dinero, 0)`.
 - El frontend retira el control porcentual, muestra el precio base del catálogo junto al selector, mantiene vinculados Precio del mes y Descuento del mes ($), y conserva independiente el saldo Asesor.
 - Cotizador muestra `precio_catalogo` como Precio base, mantiene el piso acumulado y presenta como disponible el saldo adicional del asesor.
+
+## Diseño CHG-014
+
+### SDD-CMP-033 — Nucle mensual autoritativo y auditable
+
+- Cubre: PRD-FR-036.
+- `crm_nucle_mensual` conserva doce porcentajes validados entre 0 y 100; solo Administrador puede leerlos y modificarlos desde el catálogo administrativo.
+- `applyNucleDiscount` determina elegibilidad por categoría y calcula en centavos el porcentaje sobre el precio mensual, después del descuento del asesor y con piso cero.
+- Previsualización, creación y edición consultan el porcentaje del mes en servidor; el cliente solo envía `nucle_aplicado`.
+- `cotizaciones` guarda bandera, porcentaje y descuento total; `cotizacion_detalles` guarda el descuento Nucle unitario y la versión `CHG-014`.
+- El frontend muestra la casilla, el descuento en el resumen y el snapshot en el detalle de la cotización.
