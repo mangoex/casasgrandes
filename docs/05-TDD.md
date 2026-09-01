@@ -441,3 +441,9 @@
 - Cubre: BDD-SC-061
 - Aserciones: GET completa doce meses y PUT persiste exactamente doce filas en transacción
 - Estado: passed-local
+
+## TDD-TC-086 — Persistencia decimal Nucle
+
+- Cubre: BDD-SC-061, PRD-FR-036
+- Aserciones: el porcentaje se redondea a dos decimales, la interfaz usa incrementos de `0.01` y el UPSERT retorna `mes` en lugar de una columna `id` inexistente
+- Estado: passed-local

@@ -196,3 +196,12 @@
 - Regresión: `npm test`, exit 0, 117/117.
 - Sintaxis Node y `git diff --check`: exit 0.
 - Pendiente: commit, despliegue, ejecución DDL en PostgreSQL productivo y verificación visual autenticada.
+
+## EVD-014 — Evidencia local CHG-015
+
+- Fecha: 2026-09-01.
+- Rojo controlado: 3 fallos focalizados reprodujeron la precisión de cuatro decimales y el UPSERT sin una cláusula `RETURNING` compatible con la llave `mes`.
+- Corrección: porcentajes Nucle normalizados a dos decimales, campos con paso `0.01` y UPSERT con `RETURNING mes`.
+- Pruebas focalizadas: `node --test test/nuclePricing.test.js test/nucleRoutes.test.js test/pricingDiscountBudget.test.js`, exit 0, 19/19.
+- Regresión: `npm test`, exit 0, 118/118.
+- Pendiente: commit, despliegue y verificación visual autenticada.

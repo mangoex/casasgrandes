@@ -95,6 +95,14 @@ test('TDD-TC-084: esquema, Administración y Cotizador exponen el contrato Nucle
   assert.match(frontend, /nucle_aplicado/);
 });
 
+test('TDD-TC-086: Nucle guarda porcentajes con dos decimales usando la llave mes', () => {
+  const serverSource = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  const frontend = fs.readFileSync(path.join(__dirname, '..', 'public/js/app.js'), 'utf8');
+  assert.match(serverSource, /DO UPDATE SET porcentaje[\s\S]*RETURNING mes/);
+  assert.match(frontend, /step="0\.01"/);
+  assert.match(frontend, /toFixed\(2\)/);
+});
+
 test('TDD-TC-085: Administración carga y guarda exactamente doce porcentajes Nucle', async t => {
   const originalGet = db.get;
   const originalAll = db.all;
@@ -134,6 +142,7 @@ test('TDD-TC-085: Administración carga y guarda exactamente doce porcentajes Nu
   assert.equal(loaded[1].porcentaje, 0);
 
   const meses = Array.from({ length: 12 }, (_, index) => ({ mes: index + 1, porcentaje: index + 0.5 }));
+  meses[0].porcentaje = 1.205;
   const putResponse = await fetch(`${baseUrl}/api/admin/nucle`, {
     method: 'PUT',
     headers,
@@ -141,5 +150,6 @@ test('TDD-TC-085: Administración carga y guarda exactamente doce porcentajes Nu
   });
   assert.equal(putResponse.status, 200);
   assert.equal(writes.length, 12);
+  assert.deepEqual(writes[0].params, [1, 1.21]);
   assert.deepEqual(writes[8].params, [9, 8.5]);
 });

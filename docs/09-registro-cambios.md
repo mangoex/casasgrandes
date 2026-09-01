@@ -16,6 +16,7 @@
 | CHG-012 | 2026-09-01 | Iniciar Cotizador en el precio efectivo y representar en la barra el descuento acumulado hasta un tope independiente | ADR-012, PRD-FR-034 | TDD-TC-071..074; EVD-011 | implemented-local |
 | CHG-013 | 2026-09-01 | Mostrar el precio base fijo, capturar precio del mes y saldo Asesor en dinero, y reflejar ese contrato en Cotizador | ADR-013, PRD-FR-035 | TDD-TC-075..078; EVD-012 | implemented-local |
 | CHG-014 | 2026-09-01 | Configurar Nucle por mes y aplicarlo opcionalmente a Híbridos y Semillas además del descuento del asesor | ADR-014, PRD-FR-036 | TDD-TC-079..085; EVD-013 | implemented-local |
+| CHG-015 | 2026-09-01 | Corregir el guardado PostgreSQL de Nucle y normalizar sus porcentajes a dos decimales | PRD-FR-036 | TDD-TC-079, TDD-TC-084..086; EVD-014 | implemented-local |
 
 ## Reglas
 
