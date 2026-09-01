@@ -48,7 +48,7 @@ function quoteRecord(query) {
   return null;
 }
 
-test('TDD-TC-057/058: rutas rechazan configuración y descuento fuera del presupuesto', async t => {
+test('TDD-TC-069: rutas rechazan configuración y descuento fuera del tope mensual', async t => {
   const originalGet = db.get;
   const originalConnect = db.pool.connect;
   const originalTransaction = db.transaction;
@@ -90,7 +90,7 @@ test('TDD-TC-057/058: rutas rechazan configuración y descuento fuera del presup
   const invalidRows = Array.from({ length: 12 }, (_, index) => ({
     mes: index + 1,
     precio: index === 7 ? 6300 : 7015,
-    promo_dinero: index === 7 ? 500 : 0,
+    promo_dinero: index === 7 ? 8000 : 0,
     promo_porcentaje: 0
   }));
   const invalidProgramming = await fetch(`${baseUrl}/api/programacion/precios`, {
@@ -99,7 +99,7 @@ test('TDD-TC-057/058: rutas rechazan configuración y descuento fuera del presup
     body: JSON.stringify({ producto_id: 7, precios: invalidRows })
   });
   assert.equal(invalidProgramming.status, 400);
-  assert.equal((await invalidProgramming.json()).code, 'monthly_discount_exceeds_promotion_cap');
+  assert.equal((await invalidProgramming.json()).code, 'promotion_cap_exceeds_catalog_price');
   assert.equal(connectCalled, false);
 
   const quotePayload = {
@@ -107,7 +107,7 @@ test('TDD-TC-057/058: rutas rechazan configuración y descuento fuera del presup
     ciclo_agricola: 'O-I 2026',
     condiciones_pago: 'CONTADO',
     temporada_id: 1,
-    items: [{ producto_id: 7, cantidad: 1, descuento_aplicado: 375 }]
+    items: [{ producto_id: 7, cantidad: 1, descuento_aplicado: 1090 }]
   };
   const invalidPreview = await fetch(`${baseUrl}/api/cotizaciones/calcular`, {
     method: 'POST',
@@ -127,7 +127,7 @@ test('TDD-TC-057/058: rutas rechazan configuración y descuento fuera del presup
   assert.equal(transactionCalled, false);
 });
 
-test('TDD-TC-058: previsualización devuelve precio mensual y saldo autorizado', async t => {
+test('TDD-TC-068: previsualización usa precio mensual y tope completo', async t => {
   const originalGet = db.get;
   db.get = async query => quoteRecord(query);
   t.after(() => {
@@ -154,16 +154,16 @@ test('TDD-TC-058: previsualización devuelve precio mensual y saldo autorizado',
     body: JSON.stringify({
       cliente_id: 10,
       temporada_id: 1,
-      items: [{ producto_id: 7, cantidad: 1, descuento_aplicado: 374 }]
+      items: [{ producto_id: 7, cantidad: 1, descuento_aplicado: 1089 }]
     })
   });
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.equal(body.total_mxn, 5926);
+  assert.equal(body.total_mxn, 5211);
   assert.equal(body.items[0].precio_lista, 6300);
   assert.equal(body.items[0].descuento_mensual_mxn, 715);
-  assert.equal(body.items[0].max_discount_mxn, 374);
-  assert.equal(body.items[0].precio_final, 5926);
+  assert.equal(body.items[0].max_discount_mxn, 1089);
+  assert.equal(body.items[0].precio_final, 5211);
 });
 
 test('TDD-TC-057: Programación válida persiste doce meses en una transacción', async t => {

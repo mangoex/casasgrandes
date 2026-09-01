@@ -265,3 +265,13 @@ Partidas anteriores permanecen legibles como contrato legado y no se infieren de
 En Programación, `precio`, `promo_dinero` y `promo_porcentaje` se calculan contra `productos.list_price_mxn`. Editar cualquiera recalcula los otros dos; el precio se propaga desde el mes editado y los descuentos directos afectan solo su mes.
 
 Criterio de aceptación: con catálogo `7,015`, capturar descuento `1,089` produce precio mensual `5,926` y porcentaje `15.5239`; las tres representaciones guardadas equivalen al mismo centavo.
+
+## Incremento CHG-011 — Tope mensual completo en Cotizador
+
+### OBJ-013 — Cotizar desde el precio mensual hasta el límite configurado
+
+### PRD-FR-033 — Barra con tope mensual completo
+
+El Cotizador inicia en `crm_precios_mensuales.precio` y permite aplicar de cero hasta el tope promocional completo del mismo mes. La diferencia entre catálogo y precio mensual es informativa y no reduce el rango de la barra.
+
+Criterio de aceptación: con precio mensual `6,300` y tope `1,089`, la barra muestra máximo `1,089`, acepta ese importe y produce precio final `5,211`; rechaza `1,089.01`.

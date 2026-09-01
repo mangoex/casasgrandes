@@ -2129,7 +2129,7 @@ function addQuoteItemRow() {
         <input type="text" class="form-input item-calc-unit-price" style="background-color: var(--bg);" value="-" readonly>
         <div class="item-monthly-discount-summary" style="font-size:10px; color:var(--text-light); margin-top:4px; line-height:1.4;">
           <span>Descuento incluido por programación: <strong class="item-monthly-discount">$0.00 MXN</strong></span><br>
-          <span>Descuento adicional disponible: <strong class="item-advisor-available">$0.00 MXN</strong></span>
+          <span>Límite configurado del mes: <strong class="item-advisor-available">$0.00 MXN</strong></span>
         </div>
         <span class="mobile-item-subtotal">Subtotal —</span>
       </div>
@@ -2146,7 +2146,7 @@ function addQuoteItemRow() {
         <div class="item-key-account-amount" style="font-weight:700; font-size:15px; color:#2563eb;">-$0.00 MXN</div>
       </div>
       <div class="item-advisor-discount-control">
-        <label>🎚️ Descuento adicional</label>
+        <label>🎚️ Descuento del mes</label>
         <input type="range" class="discount-slider item-discount-slider"
                min="0" max="0" step="0.01" value="0"
                data-row="${rowNum}"
