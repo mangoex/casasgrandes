@@ -33,6 +33,7 @@ def calculate_discount_budget(
     monthly_price: object,
     promo_money: object = "0",
     promo_percent: object = "0",
+    promotion_cap: object | None = None,
 ) -> dict[str, str]:
     catalog = money(catalog_price)
     monthly = money(monthly_price)
@@ -44,17 +45,21 @@ def calculate_discount_budget(
 
     if promotion_percent < 0 or promotion_percent > 100:
         raise PricingReferenceError("invalid_promotion_percent")
-    if promotion_money > 0 and promotion_percent > 0:
-        raise PricingReferenceError("ambiguous_monthly_promotion")
+    percent_cap = (catalog * promotion_percent / Decimal("100")).quantize(
+        CENT,
+        rounding=ROUND_HALF_UP,
+    )
+    if promotion_money > 0 and promotion_percent > 0 and promotion_money != percent_cap:
+        raise PricingReferenceError("inconsistent_monthly_promotion")
 
-    promotion_cap = promotion_money
-    if promotion_percent > 0:
-        promotion_cap = (catalog * promotion_percent / Decimal("100")).quantize(
-            CENT,
-            rounding=ROUND_HALF_UP,
-        )
+    represented_discount = promotion_money if promotion_money > 0 else percent_cap
+    promotion_cap = money(represented_discount if promotion_cap is None else promotion_cap)
+    if promotion_cap > catalog:
+        raise PricingReferenceError("promotion_cap_exceeds_catalog_price")
 
     embedded_discount = max(catalog - monthly, Decimal("0.00"))
+    if represented_discount != embedded_discount:
+        raise PricingReferenceError("inconsistent_monthly_price_discount")
     if embedded_discount > promotion_cap:
         raise PricingReferenceError("monthly_discount_exceeds_promotion_cap")
 

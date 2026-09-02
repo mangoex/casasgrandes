@@ -1307,6 +1307,15 @@ tr:hover td {
   transform: scale(1.2);
 }
 
+.discount-slider:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.discount-slider:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+}
+
 .item-row:last-child {
   margin-bottom: 0;
 }

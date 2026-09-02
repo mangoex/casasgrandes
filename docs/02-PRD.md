@@ -256,19 +256,79 @@ El runtime calcula importes en centavos y redondea mitades hacia arriba. Casos d
 
 Partidas anteriores permanecen legibles como contrato legado y no se infieren desgloses imposibles desde la diferencia entre lista y neto.
 
-## Incremento CHG-010 — Centro de notificaciones contextuales y popover en tablero
+## Incremento CHG-010 — Representaciones vinculadas en Programación
 
-### OBJ-012 — Notificaciones contextuales según el rol y soporte shadcn
+### OBJ-012 — Evitar discrepancias al capturar precio y descuento
+
+### PRD-FR-032 — Vinculación bidireccional
+
+En Programación, `precio`, `promo_dinero` y `promo_porcentaje` se calculan contra `productos.list_price_mxn`. Editar cualquiera recalcula los otros dos; el precio se propaga desde el mes editado y los descuentos directos afectan solo su mes.
+
+Criterio de aceptación: con catálogo `7,015`, capturar descuento `1,089` produce precio mensual `5,926` y porcentaje `15.5239`; las tres representaciones guardadas equivalen al mismo centavo.
+
+## Incremento CHG-011 — Tope mensual completo en Cotizador
+
+### OBJ-013 — Cotizar desde el precio mensual hasta el límite configurado
+
+### PRD-FR-033 — Barra con tope mensual completo
+
+El Cotizador inicia en `crm_precios_mensuales.precio` y permite aplicar de cero hasta el tope promocional completo del mismo mes. La diferencia entre catálogo y precio mensual es informativa y no reduce el rango de la barra.
+
+Criterio de aceptación: con precio mensual `6,300` y tope `1,089`, la barra muestra máximo `1,089`, acepta ese importe y produce precio final `5,211`; rechaza `1,089.01`.
+
+## Incremento CHG-012 — Barra acumulada desde Programación
+
+### OBJ-014 — Representar sin duplicación el descuento mensual ya incorporado
+
+### PRD-FR-034 — Precio efectivo, piso acumulado y tope independiente
+
+El precio inicial del Cotizador es el precio efectivo mostrado en Programación. La barra representa el descuento total acumulado contra catálogo: inicia en la reducción ya incorporada al precio mensual y termina en el tope autorizado independiente. Solo la diferencia entre el valor elegido y el descuento incorporado reduce nuevamente el precio mensual.
+
+Si el descuento incorporado ya equivale al tope, la barra aparece al cien por ciento y queda sin recorrido adicional. El servidor conserva por separado `precio`, descuento incorporado y tope autorizado, y rechaza cualquier descuento adicional que exceda el saldo.
+
+Criterios de aceptación:
+- catálogo `7,015`, precio mensual `5,926`, descuento incorporado `1,089` y tope `1,089`: la barra inicia y termina en `1,089`, el precio inicial/final es `5,926` y el saldo adicional es cero;
+- catálogo `7,015`, precio mensual `6,926`, descuento incorporado `89` y tope `1,089`: la barra inicia visualmente en `89`, puede llegar a `1,089` y en el extremo descuenta únicamente `1,000` adicionales del precio mensual.
+
+## Incremento CHG-013 — Precio base, precio del mes y saldo Asesor
+
+### OBJ-015 — Capturar el margen comercial con términos operativos
+
+### PRD-FR-035 — Contrato visible de Programación y Cotizador
+
+Programación muestra junto al producto su precio base inmutable, tomado de `productos.list_price_mxn`. Por mes permite capturar `Precio del mes`, su `Descuento del mes ($)` vinculado y `Asesor ($)`, donde Asesor es el dinero adicional que todavía puede otorgarse. El descuento incorporado se deriva como precio base menos precio del mes y el tope acumulado se deriva como descuento incorporado más Asesor.
+
+Cotizador etiqueta y muestra el precio base. Su barra inicia en el descuento incorporado del precio del mes y termina después de agregar el saldo Asesor configurado; al servidor solo se envía la parte adicional elegida.
+
+Criterio de aceptación: con precio base `7,015`, precio del mes `6,926` y Asesor `1,000`, Programación deriva descuento incorporado `89` y tope acumulado `1,089`; Cotizador muestra precio base `7,015`, inicia la barra en `89` y permite llevarla hasta `1,089`.
+
+## Incremento CHG-014 — Catálogo y beneficio Nucle
+
+### OBJ-016 — Aplicar un beneficio mensual exclusivo para semillas
+
+### PRD-FR-036 — Nucle mensual opcional
+
+Administración incluye un catálogo Nucle con exactamente los meses de enero a diciembre y un porcentaje entre 0 y 100 para cada mes. Cotizador incluye una casilla Nucle desmarcada por defecto.
+
+Al marcarla, el servidor toma el porcentaje del mes contractual y calcula el descuento por unidad sobre el Precio del mes de cada producto cuya categoría sea `Híbrido` o `Semilla`. Nucle no aplica a Agroquímicos ni otras categorías y se acumula independientemente después del descuento del asesor. El total nunca puede ser negativo.
+
+La cotización guarda si Nucle fue aplicado, el porcentaje usado, el descuento total y el descuento unitario de cada partida para conservar el histórico.
+
+Criterio de aceptación: con Híbrido mensual `900`, descuento asesor `100` y Nucle `10%`, el precio final unitario es `710`; un Agroquímico de `500` incluido en la misma cotización permanece en `500`.
+
+## Incremento CHG-015 — Centro de notificaciones contextuales y popover en tablero
+
+### OBJ-017 — Notificaciones contextuales según el rol y soporte shadcn
 
 Proveer alertas operativas oportunas y contextuales en el encabezado del tablero (campana interactiva), segmentadas por rol de usuario, y compatibilidad con el ecosistema de componentes React shadcn UI.
 
-### PRD-FR-032 — Icono y disparador de notificaciones
+### PRD-FR-037 — Icono y disparador de notificaciones
 
 El encabezado del tablero general debe mostrar un icono de campana arriba a la derecha con un indicador animado de pulso cuando existan elementos sin atender.
 
 Criterio de aceptación: el icono es visible en escritorio y móvil, indicando el número o presencia de pendientes no leídos.
 
-### PRD-FR-033 — Notificaciones contextuales por rol
+### PRD-FR-038 — Notificaciones contextuales por rol
 
 - **Asesor**: Notifica visitas programadas para hoy que estén pendientes (`realizada = 0`), así como alertas de asignación de cartera.
 - **Administrador**: Notifica cotizaciones pendientes de revisión y aprobación (`Borrador`, `Pendiente`, `Pendiente Autorización`), así como avisos del sistema.
@@ -276,12 +336,12 @@ Criterio de aceptación: el icono es visible en escritorio y móvil, indicando e
 
 Criterio de aceptación: al iniciar sesión como Asesor se muestran las visitas de hoy; como Administrador se muestran las cotizaciones por autorizar.
 
-### PRD-FR-034 — Popover estructurado y responsivo
+### PRD-FR-039 — Popover estructurado y responsivo
 
 El centro de notificaciones debe abrirse como un Popover flotante en escritorio y como Bottom Sheet en móvil, con pestañas ("Todas", "No leídas", "Archivadas"), buscador y enlace de acción rápida a cada elemento.
 
 Criterio de aceptación: hacer clic en una notificación navega al recurso (visita o cotización) y permite marcar como leída.
 
-### PRD-FR-035 — Componentes base shadcn / React / TypeScript
+### PRD-FR-040 — Componentes base shadcn / React / TypeScript
 
 Se proveen los componentes `/components/ui/vercel-notification-popover.tsx` y `demo.tsx` compatibles con shadcn UI, Tailwind CSS y TypeScript.

@@ -412,9 +412,155 @@ When se resuelve Programación
 Then se usa el mes de la fecha contractual y no la zona horaria accidental del proceso
 ```
 
-## Feature: PRD-FR-032 / PRD-FR-033 — Notificaciones en tablero por rol
+## Feature: CHG-010 — Precio y descuento vinculados en Programación
 
-### BDD-SC-048 — Notificaciones para Asesor
+### BDD-SC-048 — Editar precio mensual
+
+```gherkin
+Given un producto con precio anual conocido
+When Administrador o Coordinador cambia el precio mensual
+Then la interfaz recalcula el descuento total en MXN y su porcentaje sobre el precio anual
+```
+
+### BDD-SC-049 — Editar descuento en dinero
+
+```gherkin
+Given un producto con precio anual conocido
+When Administrador o Coordinador cambia el descuento total en MXN
+Then la interfaz recalcula el precio mensual y el porcentaje equivalente
+```
+
+### BDD-SC-050 — Editar descuento porcentual
+
+```gherkin
+Given un producto con precio anual conocido
+When Administrador o Coordinador cambia el porcentaje de descuento
+Then la interfaz recalcula el descuento en MXN y el precio mensual
+```
+
+### BDD-SC-051 — Representaciones consistentes
+
+```gherkin
+Given una fila mensual con descuento en MXN y porcentaje
+When se guarda Programación
+Then el servidor acepta ambos valores si equivalen al mismo centavo y rechaza cualquier discrepancia
+```
+
+## Feature: CHG-011 — Tope mensual completo en Cotizador
+
+### BDD-SC-052 — Barra desde precio mensual
+
+```gherkin
+Given un precio mensual de 6300 y un tope configurado de 1089
+When el asesor agrega el producto al Cotizador
+Then la barra inicia en cero, muestra máximo 1089 y el precio inicial es 6300
+```
+
+### BDD-SC-053 — Aplicar el máximo
+
+```gherkin
+Given una barra con precio mensual 6300 y máximo 1089
+When el asesor mueve la barra al límite
+Then el descuento aplicado es 1089 y el precio final es 5211
+```
+
+### BDD-SC-054 — Límite autoritativo
+
+```gherkin
+Given un tope mensual de 1089
+When un cliente manipulado envía 1089.01
+Then el servidor responde 400 y no persiste la cotización
+```
+
+## Feature: CHG-012 — Barra acumulada desde Programación
+
+### BDD-SC-055 — Descuento mensual agotado
+
+```gherkin
+Given catálogo 7015, precio mensual 5926, descuento incorporado 1089 y tope 1089
+When el asesor agrega el producto al Cotizador
+Then el precio inicial es 5926 y la barra aparece completa en 1089 sin descuento adicional disponible
+```
+
+### BDD-SC-056 — Descuento mensual parcial
+
+```gherkin
+Given catálogo 7015, precio mensual 6926, descuento incorporado 89 y tope 1089
+When el asesor agrega el producto al Cotizador
+Then la barra inicia visualmente en 89 y permite desplazarse hasta 1089
+```
+
+### BDD-SC-057 — Diferencia adicional sin duplicar el piso
+
+```gherkin
+Given una barra acumulada que inicia en 89 y termina en 1089 sobre precio mensual 6926
+When el asesor mueve la barra a 1089
+Then el servidor recibe 1000 de descuento adicional y el precio final es 5926
+```
+
+## Feature: CHG-013 — Precio base y margen Asesor explícito
+
+### BDD-SC-058 — Programación muestra el precio base fijo
+
+```gherkin
+Given un producto con precio base 7015 configurado en Productos
+When el coordinador lo selecciona en Programación
+Then ve 7015 junto al nombre y no puede modificarlo desde la tabla mensual
+```
+
+### BDD-SC-059 — Precio del mes y Asesor forman el rango
+
+```gherkin
+Given precio base 7015
+When se guarda precio del mes 6926 y Asesor 1000
+Then el servidor deriva descuento incorporado 89 y tope acumulado 1089
+```
+
+### BDD-SC-060 — Cotizador explica el contrato
+
+```gherkin
+Given la programación del escenario anterior
+When el asesor selecciona el producto en Cotizador
+Then ve Precio base 7015 y una barra que inicia en 89 y termina en 1089
+```
+
+## Feature: CHG-014 — Nucle mensual
+
+### BDD-SC-061 — Configurar doce meses
+
+```gherkin
+Given un Administrador en el catálogo Nucle
+When guarda un porcentaje válido para cada mes de enero a diciembre
+Then los doce porcentajes quedan disponibles para cotizaciones de su mes contractual
+```
+
+### BDD-SC-062 — Acumular Nucle con descuento del asesor
+
+```gherkin
+Given un Híbrido con precio mensual 900, descuento asesor 100 y Nucle de 10 por ciento
+When el usuario marca Nucle
+Then el descuento Nucle es 90 y el precio final unitario es 710
+```
+
+### BDD-SC-063 — Excluir Agroquímicos
+
+```gherkin
+Given una cotización mixta con Híbridos y Agroquímicos
+When se aplica Nucle
+Then solo las partidas Híbrido o Semilla reciben el descuento
+```
+
+### BDD-SC-064 — Conservar histórico
+
+```gherkin
+Given una cotización creada con Nucle
+When cambia posteriormente el catálogo mensual
+Then la cotización conserva la bandera, porcentaje e importes Nucle originales
+```
+
+## Feature: CHG-015 / PRD-FR-037..039 — Notificaciones en tablero por rol
+
+### BDD-SC-065 — Notificaciones para Asesor
 
 ```gherkin
 Given un Asesor autenticado con visitas programadas para el día de hoy
@@ -422,7 +568,7 @@ When visualiza el tablero general y hace clic en la campana de notificaciones
 Then el popover presenta la lista de visitas de hoy y permite iniciar o consultar cada visita
 ```
 
-### BDD-SC-049 — Notificaciones para Administrador
+### BDD-SC-066 — Notificaciones para Administrador
 
 ```gherkin
 Given un Administrador autenticado con cotizaciones en estado Borrador o Pendiente
@@ -430,7 +576,7 @@ When abre el popover de notificaciones desde el encabezado del tablero
 Then el popover presenta las cotizaciones pendientes de revisión y autorizar con enlace a su detalle
 ```
 
-### BDD-SC-050 — Comportamiento y tabs del Popover
+### BDD-SC-067 — Comportamiento y tabs del Popover
 
 ```gherkin
 Given el centro de notificaciones abierto en la interfaz

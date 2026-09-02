@@ -94,3 +94,48 @@
 | 2 | Crear oráculo y pruebas inicialmente rojas | TDD-TC-055..062 | completed |
 | 3 | Implementar resolvedor, snapshot, canales y UI | SDD-CMP-026..028 | completed-local |
 | 4 | Ejecutar regresión, PostgreSQL aislado y gates | EVD-008 | partial-no-postgresql-browser |
+
+## Incremento 10 — CHG-010
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar representaciones vinculadas | ADR-010, PRD-FR-032 | completed |
+| 2 | Probar cálculo desde cada campo | TDD-TC-063..066 | completed |
+| 3 | Integrar control frontend y validación monetaria | SDD-CMP-029 | completed |
+| 4 | Ejecutar regresión y desplegar | EVD-009 | in-progress |
+
+## Incremento 11 — CHG-011
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar el rango completo del Cotizador | ADR-011, PRD-FR-033 | completed |
+| 2 | Probar presupuesto, rutas y barra | TDD-TC-067..070 | completed |
+| 3 | Ajustar motor, servidor e interfaz | SDD-CMP-030 | completed-local |
+| 4 | Ejecutar regresión y desplegar | EVD-010 | in-progress |
+
+## Incremento 12 — CHG-012
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar barra acumulada y tope independiente | ADR-012, PRD-FR-034 | completed |
+| 2 | Probar presupuesto, HTTP, interfaz y migración | TDD-TC-071..074 | completed |
+| 3 | Separar tope, saldo adicional y valor visual | SDD-CMP-031 | completed-local |
+| 4 | Ejecutar regresión y desplegar | EVD-011 | in-progress |
+
+## Incremento 13 — CHG-013
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar precio base, mensual y saldo Asesor | ADR-013, PRD-FR-035 | completed |
+| 2 | Probar derivación, HTTP y contrato visual | TDD-TC-075..078 | completed |
+| 3 | Ajustar Programación y Cotizador | SDD-CMP-032 | completed-local |
+| 4 | Ejecutar regresión y desplegar | EVD-012 | in-progress |
+
+## Incremento 14 — CHG-014
+
+| Orden | Tarea | IDs | Estado |
+|---|---|---|---|
+| 1 | Formalizar catálogo y regla Nucle | ADR-014, PRD-FR-036 | completed |
+| 2 | Probar rango, categorías, HTTP y administración | TDD-TC-079..085 | completed |
+| 3 | Implementar cálculo, snapshot e interfaz | SDD-CMP-033 | completed-local |
+| 4 | Ejecutar regresión y desplegar | EVD-013 | in-progress |

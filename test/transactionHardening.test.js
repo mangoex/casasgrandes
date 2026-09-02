@@ -46,7 +46,7 @@ test('TDD-TC-030/031: runner confirma, revierte y libera una sola conexión', as
 });
 
 test('TDD-TC-032: movimientos y producción bloquean inventario dentro de transacción', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8').replace(/\r\n/g, '\n');
   const movement = endpointSource(
     source,
     "app.post('/api/almacen/movimientos'",

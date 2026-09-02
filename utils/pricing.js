@@ -72,7 +72,8 @@ function calculateDiscountBudget({
   catalog_price,
   monthly_price,
   promo_money = 0,
-  promo_percent = 0
+  promo_percent = 0,
+  promotion_cap = null
 }) {
   const catalogCents = toMoneyCents(catalog_price);
   const monthlyCents = toMoneyCents(monthly_price);
@@ -86,21 +87,26 @@ function calculateDiscountBudget({
   if (promoPercentScaled > percentDenominator) {
     throw new PricingDomainError('invalid_promotion_percent');
   }
-  if (promoMoneyCents > 0 && promoPercentScaled > 0n) {
-    throw new PricingDomainError('ambiguous_monthly_promotion');
+  const percentCapCents = Number(roundHalfUpDivision(
+    BigInt(catalogCents) * promoPercentScaled,
+    percentDenominator
+  ));
+  if (promoMoneyCents > 0 && promoPercentScaled > 0n && promoMoneyCents !== percentCapCents) {
+    throw new PricingDomainError('inconsistent_monthly_promotion');
   }
 
-  const capCents = promoMoneyCents > 0
-    ? promoMoneyCents
-    : Number(roundHalfUpDivision(
-      BigInt(catalogCents) * promoPercentScaled,
-      percentDenominator
-    ));
+  const representedDiscountCents = promoMoneyCents > 0 ? promoMoneyCents : percentCapCents;
+  const capCents = promotion_cap === null || promotion_cap === undefined
+    ? representedDiscountCents
+    : toMoneyCents(promotion_cap);
   if (capCents > catalogCents) {
     throw new PricingDomainError('promotion_cap_exceeds_catalog_price');
   }
 
   const embeddedCents = Math.max(catalogCents - monthlyCents, 0);
+  if (representedDiscountCents !== embeddedCents) {
+    throw new PricingDomainError('inconsistent_monthly_price_discount');
+  }
   if (embeddedCents > capCents) {
     throw new PricingDomainError('monthly_discount_exceeds_promotion_cap');
   }

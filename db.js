@@ -74,11 +74,16 @@ async function initSchema() {
          OR producto_id IN (SELECT id FROM productos WHERE tipo_categoria = 'Híbrido' OR tipo_categoria = 'Semilla')
     `);
     await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS prospecto_id INTEGER');
+    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS nucle_aplicado INTEGER NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS nucle_porcentaje NUMERIC(5,2) NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE cotizaciones ALTER COLUMN nucle_porcentaje TYPE NUMERIC(5,2) USING ROUND(nucle_porcentaje::numeric, 2)');
+    await pool.query('ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS descuento_nucle_mxn NUMERIC(14,2) NOT NULL DEFAULT 0');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS precio_catalogo_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS precio_mensual_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS descuento_mensual_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS tope_descuento_unitario NUMERIC(14,2)');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS descuento_asesor_unitario NUMERIC(14,2)');
+    await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS descuento_nucle_unitario NUMERIC(14,2) NOT NULL DEFAULT 0');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS contrato_precio_version TEXT');
     await pool.query('ALTER TABLE cuentas_clave ADD COLUMN IF NOT EXISTS descripcion TEXT');
     for (const tierName of ['Adquirir', 'Desarrollar', 'Retener', 'Retener GOLD']) {
@@ -324,8 +329,43 @@ async function initSchema() {
         precio REAL DEFAULT 0.0,
         promo_dinero REAL DEFAULT 0.0,
         promo_porcentaje REAL DEFAULT 0.0,
+        tope_descuento_mxn REAL DEFAULT 0.0,
         UNIQUE(producto_id, mes)
       )
+    `);
+    await pool.query('ALTER TABLE crm_precios_mensuales ADD COLUMN IF NOT EXISTS tope_descuento_mxn REAL');
+    await pool.query(`
+      UPDATE crm_precios_mensuales pm
+      SET
+        tope_descuento_mxn = COALESCE(pm.promo_dinero, 0),
+        precio = CASE
+          WHEN COALESCE(pm.promo_dinero, 0) > 0
+            THEN GREATEST(p.list_price_mxn - pm.promo_dinero, 0)
+          ELSE pm.precio
+        END
+      FROM productos p
+      WHERE pm.producto_id = p.id
+        AND pm.tope_descuento_mxn IS NULL
+    `);
+    await pool.query('ALTER TABLE crm_precios_mensuales ALTER COLUMN tope_descuento_mxn SET DEFAULT 0.0');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_nucle_mensual (
+        mes INTEGER PRIMARY KEY CHECK (mes >= 1 AND mes <= 12),
+        porcentaje NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (porcentaje >= 0 AND porcentaje <= 100),
+        actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      ALTER TABLE crm_nucle_mensual
+      ALTER COLUMN porcentaje TYPE NUMERIC(5,2)
+      USING ROUND(porcentaje::numeric, 2)
+    `);
+    await pool.query(`
+      INSERT INTO crm_nucle_mensual (mes, porcentaje)
+      SELECT mes, 0
+      FROM generate_series(1, 12) AS mes
+      ON CONFLICT (mes) DO NOTHING
     `);
 
     await pool.query(`

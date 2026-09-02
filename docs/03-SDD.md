@@ -191,7 +191,7 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 ### SDD-CMP-026 — Presupuesto monetario determinista
 
 - Cubre: PRD-FR-029, PRD-NFR-010
-- `utils/pricing.js` expone una función pura que normaliza importes a centavos, calcula reducción mensual, tope total y saldo del asesor, y valida exclusividad de promociones.
+- `utils/pricing.js` expone una función pura que normaliza importes a centavos, calcula reducción mensual, tope total y saldo del asesor, y valida la equivalencia de las representaciones monetaria y porcentual cuando ambas existen.
 - El porcentaje usa el precio anual y redondeo de centavo `half-up`.
 - `pricing_reference.py` evalúa los mismos fixtures con `Decimal`; no participa en el runtime HTTP.
 
@@ -210,22 +210,72 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - El frontend muestra precio mensual, reducción incluida y saldo adicional; el slider nunca supera el valor devuelto por el servidor.
 - Las filas legadas conservan columnas nuevas nulas y se presentan con el desglose disponible, sin recalcularse.
 
-## Diseño CHG-010 — Centro de notificaciones contextuales y componentes shadcn
+## Diseño CHG-010
 
-### SDD-CMP-029 — Disparador y badge de notificaciones en el Tablero
+### SDD-CMP-029 — Control vinculado de Programación
 
 - Cubre: PRD-FR-032
+- El servidor devuelve el precio anual junto a cada fila mensual como referencia inmutable del cálculo.
+- Una función pura del frontend recalcula precio mensual, descuento monetario y porcentaje a partir del último campo editado, con dinero a dos decimales y porcentaje a cuatro.
+- El motor monetario acepta ambas representaciones solo cuando producen el mismo tope al centavo.
+
+## Diseño CHG-011
+
+### SDD-CMP-030 — Rango comercial desde precio mensual
+
+- Cubre: PRD-FR-033
+- `calculateDiscountBudget` conserva la diferencia catálogo-mes como dato informativo y devuelve el tope promocional completo como disponibilidad del asesor.
+- Previsualización, creación y edición limitan el descuento por `min(tope_mensual, precio_neto_antes_del_asesor)`.
+- El frontend usa `max_discount_mxn` como atributo `max` de la barra y lo etiqueta como límite configurado del mes.
+
+## Diseño CHG-012
+
+### SDD-CMP-031 — Contrato separado de descuento incorporado y tope
+
+- Cubre: PRD-FR-034
+- `crm_precios_mensuales.tope_descuento_mxn` conserva el máximo autorizado; `promo_dinero` y `promo_porcentaje` representan la reducción ya incorporada y vinculada con `precio`.
+- La migración aditiva toma el tope previo de `promo_dinero` y alinea el precio efectivo con la representación que Programación ya mostraba, sin modificar cotizaciones históricas.
+- El resolvedor devuelve precio mensual, descuento incorporado, tope total y saldo adicional `max(tope - incorporado, 0)`.
+- El navegador muestra una barra acumulada de cero al tope, la inicializa en el descuento incorporado, impide bajar de ese piso y envía al servidor únicamente la diferencia adicional.
+- Si piso y tope coinciden, la barra queda completa y deshabilitada; el precio final permanece en el precio mensual.
+
+## Diseño CHG-013
+
+### SDD-CMP-032 — Captura canónica de precio mensual y saldo Asesor
+
+- Cubre: PRD-FR-035.
+- La API de Programación acepta por mes `precio` y `asesor_dinero`; deriva en servidor `promo_dinero`, `promo_porcentaje` y `tope_descuento_mxn` para no confiar en representaciones redundantes del cliente.
+- La respuesta conserva compatibilidad con los campos históricos y añade `asesor_dinero = max(tope_descuento_mxn - promo_dinero, 0)`.
+- El frontend retira el control porcentual, muestra el precio base del catálogo junto al selector, mantiene vinculados Precio del mes y Descuento del mes ($), y conserva independiente el saldo Asesor.
+- Cotizador muestra `precio_catalogo` como Precio base, mantiene el piso acumulado y presenta como disponible el saldo adicional del asesor.
+
+## Diseño CHG-014
+
+### SDD-CMP-033 — Nucle mensual autoritativo y auditable
+
+- Cubre: PRD-FR-036.
+- `crm_nucle_mensual` conserva doce porcentajes validados entre 0 y 100; solo Administrador puede leerlos y modificarlos desde el catálogo administrativo.
+- `applyNucleDiscount` determina elegibilidad por categoría y calcula en centavos el porcentaje sobre el precio mensual, después del descuento del asesor y con piso cero.
+- Previsualización, creación y edición consultan el porcentaje del mes en servidor; el cliente solo envía `nucle_aplicado`.
+- `cotizaciones` guarda bandera, porcentaje y descuento total; `cotizacion_detalles` guarda el descuento Nucle unitario y la versión `CHG-014`.
+- El frontend muestra la casilla, el descuento en el resumen y el snapshot en el detalle de la cotización.
+
+## Diseño CHG-015 — Centro de notificaciones contextuales y componentes shadcn
+
+### SDD-CMP-034 — Disparador y badge de notificaciones en el Tablero
+
+- Cubre: PRD-FR-037
 - Botón disparador en el encabezado superior derecho del dashboard (desktop) y en el encabezado móvil con microanimación de pulso (`pulse-ring` y `pulse-core`) cuando existen notificaciones no leídas.
 - Cierra con clic exterior, botón de cerrar o tecla `Escape`.
 
-### SDD-CMP-030 — Agregador contextual de notificaciones por rol
+### SDD-CMP-035 — Agregador contextual de notificaciones por rol
 
-- Cubre: PRD-FR-033, PRD-FR-034
+- Cubre: PRD-FR-038, PRD-FR-039
 - **Asesor**: Agrega visitas pendientes de hoy (`/api/planificacion` con `fecha_programada = hoy` y `realizada = 0`) junto con avisos de cartera (`/api/notificaciones`).
 - **Administrador**: Agrega cotizaciones pendientes de revisión o aprobación (`/api/cotizaciones` con estatus `Borrador`, `Pendiente`, `Pendiente Autorización`) junto con alertas del sistema.
 - **Backend**: Expone `POST /api/notificaciones/leido` para marcar como leídas las notificaciones del usuario activo.
 
-### SDD-CMP-031 — Estructura shadcn UI / Tailwind / TypeScript
+### SDD-CMP-036 — Estructura shadcn UI / Tailwind / TypeScript
 
-- Cubre: PRD-FR-035
+- Cubre: PRD-FR-040
 - Se alojan los componentes `/components/ui/vercel-notification-popover.tsx` y `demo.tsx` con arquitectura shadcn/Radix UI.

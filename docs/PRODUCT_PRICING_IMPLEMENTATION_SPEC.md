@@ -45,10 +45,10 @@ Como Administrador o Coordinador, quiero cambiar el precio de un mes y que se re
 ### Comportamiento
 
 1. Al seleccionar un producto en Programación se muestran siempre los 12 meses. Los meses sin registro usan el precio base como valor inicial.
-2. Cuando se modifica el campo `Precio base` de un mes, la interfaz replica de inmediato ese valor desde el mes modificado hasta diciembre para ese producto. El usuario guarda una sola vez.
+2. Cuando se modifica el campo `Precio base` de un mes, la interfaz replica de inmediato ese valor desde el mes modificado hasta diciembre para ese producto. En cada fila afectada recalcula también el descuento equivalente en MXN y porcentaje. El usuario guarda una sola vez.
 3. La operación de guardado debe persistir esa propagación en el servidor de forma atómica. No debe depender únicamente de valores modificados en el navegador.
-4. La propagación afecta únicamente el campo `precio`; no cambia promociones de otros meses.
-5. Las promociones de dinero y porcentaje se editan únicamente en el mes elegido, salvo que en el futuro se solicite expresamente una propagación equivalente.
+4. El precio, el descuento en MXN y el porcentaje están vinculados contra la referencia comercial de cada fila: al editar cualquiera de los tres se recalculan los otros dos.
+5. Editar directamente el descuento en dinero o porcentaje afecta únicamente el mes elegido. La propagación a meses posteriores ocurre al editar el precio.
 
 Ejemplo: si Hipopótamo tiene `6,210` de enero a julio y se cambia agosto a `2,500`, agosto-diciembre quedan en `2,500`; enero-julio conservan `6,210`.
 
@@ -66,7 +66,7 @@ Como Asesor, quiero que el Cotizador use el precio y la promoción configurados 
    - `promo_porcentaje`: tope porcentual calculado sobre el precio anual.
    - La reducción `max(precio anual - precio mensual, 0)` consume el tope y solo la diferencia queda disponible al asesor.
    - Volumen, temporada y Cuenta Clave permanecen separados y no consumen este saldo.
-   - Para evitar descuentos ambiguos, si ambos son mayores a cero en un mismo mes, el servidor rechaza la configuración y la interfaz marca el conflicto. No se suman.
+   - Dinero y porcentaje son representaciones vinculadas del mismo presupuesto. Cuando ambos son mayores a cero deben producir el mismo importe al centavo; no se suman.
 5. El descuento aplicado por el asesor no puede exceder el saldo mensual restante. Una reducción mensual mayor al tope se rechaza.
 6. Si no existe programación mensual por un producto de legado, el servidor usa temporalmente `list_price_mxn` como compatibilidad y crea los doce registros al siguiente guardado administrativo. El camino normal no debe usar este fallback.
 7. Previsualización, alta de cotización, edición de cotización y conversión de una planificación a cotización deben compartir la misma consulta y cálculo de precio mensual.
@@ -83,7 +83,7 @@ Como Asesor, quiero que el Cotizador use el precio y la promoción configurados 
 ### Programación de precios
 
 - Mantener `GET /api/programacion/precios?producto_id=:id` devolviendo 12 filas completas.
-- Reemplazar el guardado de arreglo ciego por una operación validada en servidor: cada mes 1-12 aparece una sola vez, importes no negativos y no se permiten `promo_dinero > 0` y `promo_porcentaje > 0` simultáneamente.
+- Reemplazar el guardado de arreglo ciego por una operación validada en servidor: cada mes 1-12 aparece una sola vez, los importes son no negativos y, cuando se envían ambas representaciones del descuento, deben ser matemáticamente equivalentes.
 - El servidor detecta el primer mes cuyo `precio` cambió respecto a lo almacenado y aplica su precio hasta diciembre. Si hay varios cambios, el último cambio por orden de mes define los meses posteriores.
 - Alternativamente, se puede exponer un endpoint explícito `PATCH /api/programacion/precios` con `producto_id`, `mes_inicio`, `precio` y promociones del mes. Debe conservar los mismos resultados y ser transaccional.
 
@@ -101,7 +101,7 @@ Como Asesor, quiero que el Cotizador use el precio y la promoción configurados 
 4. Al cotizar Hipopótamo en julio, el precio de lista persistido en la cotización es el valor de julio; al cotizarlo en agosto, es `2,500`.
 5. Una promoción en agosto no altera los topes de descuento de julio o septiembre.
 6. Un Asesor recibe `403` al intentar editar producto o guardar Programación directamente por API.
-7. Un precio negativo, mes fuera de 1-12, producto inexistente o ambas promociones activas devuelve `400` con un mensaje claro.
+7. Un precio negativo, mes fuera de 1-12, producto inexistente o representaciones de promoción inconsistentes devuelve `400` con un mensaje claro.
 8. Cambiar un producto hoy no modifica `precio_lista_unitario`, `precio_neto_unitario` ni `subtotal_mxn` de cotizaciones existentes.
 9. El catálogo sigue permitiendo `Agregar a Cotización` sin abrir el modal de edición.
 10. La experiencia funciona con productos importados que no tengan clave o descripción, sin eliminar información existente.

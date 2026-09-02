@@ -4,8 +4,9 @@
     "input": {
       "catalog_price": "7015.00",
       "monthly_price": "6300.00",
-      "promo_money": "1089.00",
-      "promo_percent": "0"
+      "promo_money": "715.00",
+      "promo_percent": "0",
+      "promotion_cap": "1089.00"
     },
     "expected": {
       "catalog_price": "7015.00",
@@ -20,8 +21,9 @@
     "input": {
       "catalog_price": "7015.00",
       "monthly_price": "7015.00",
-      "promo_money": "1089.00",
-      "promo_percent": "0"
+      "promo_money": "0",
+      "promo_percent": "0",
+      "promotion_cap": "1089.00"
     },
     "expected": {
       "catalog_price": "7015.00",
@@ -36,8 +38,9 @@
     "input": {
       "catalog_price": "7015.00",
       "monthly_price": "7200.00",
-      "promo_money": "500.00",
-      "promo_percent": "0"
+      "promo_money": "0",
+      "promo_percent": "0",
+      "promotion_cap": "500.00"
     },
     "expected": {
       "catalog_price": "7015.00",
@@ -52,8 +55,9 @@
     "input": {
       "catalog_price": "1000.00",
       "monthly_price": "950.00",
-      "promo_money": "0",
-      "promo_percent": "10"
+      "promo_money": "50.00",
+      "promo_percent": "5",
+      "promotion_cap": "100.00"
     },
     "expected": {
       "catalog_price": "1000.00",
@@ -69,7 +73,8 @@
       "catalog_price": "100.50",
       "monthly_price": "100.50",
       "promo_money": "0",
-      "promo_percent": "1"
+      "promo_percent": "0",
+      "promotion_cap": "1.01"
     },
     "expected": {
       "catalog_price": "100.50",
@@ -84,19 +89,38 @@
     "input": {
       "catalog_price": "1000.00",
       "monthly_price": "800.00",
-      "promo_money": "150.00",
-      "promo_percent": "0"
+      "promo_money": "200.00",
+      "promo_percent": "20",
+      "promotion_cap": "150.00"
     },
     "error": "monthly_discount_exceeds_promotion_cap"
   },
   {
-    "name": "promociones_ambiguas",
+    "name": "representaciones_equivalentes",
     "input": {
       "catalog_price": "1000.00",
-      "monthly_price": "1000.00",
+      "monthly_price": "900.00",
       "promo_money": "100.00",
-      "promo_percent": "10"
+      "promo_percent": "10",
+      "promotion_cap": "100.00"
     },
-    "error": "ambiguous_monthly_promotion"
+    "expected": {
+      "catalog_price": "1000.00",
+      "monthly_price": "900.00",
+      "embedded_discount": "100.00",
+      "total_promotion_cap": "100.00",
+      "advisor_discount_available": "0.00"
+    }
+  },
+  {
+    "name": "representaciones_inconsistentes",
+    "input": {
+      "catalog_price": "1000.00",
+      "monthly_price": "900.00",
+      "promo_money": "100.00",
+      "promo_percent": "9",
+      "promotion_cap": "100.00"
+    },
+    "error": "inconsistent_monthly_promotion"
   }
 ]

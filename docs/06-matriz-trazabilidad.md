@@ -36,8 +36,13 @@
 | OBJ-011 | PRD-FR-030 | SDD-CMP-027 | BDD-SC-042, BDD-SC-043, BDD-SC-044 | TDD-TC-057, TDD-TC-058, TDD-TC-059 | `server.js`, `agentsService.js`, `public/js/app.js` | EVD-008: payload 375 rechazado; 12 meses atómicos simulados | verified-local |
 | OBJ-011 | PRD-FR-031, PRD-NFR-011 | SDD-CMP-028 | BDD-SC-045 | TDD-TC-060, TDD-TC-061 | `db.js`, `server.js`, `agentsService.js`, `public/js/app.js` | EVD-008: snapshot aditivo; PostgreSQL real pendiente | implemented-tested-local |
 | OBJ-011 | PRD-NFR-010 | SDD-CMP-026 | BDD-SC-040, BDD-SC-041, BDD-SC-046 | TDD-TC-055, TDD-TC-056, TDD-TC-062 | CHG-009 | EVD-008: Python 1/1, Node 65/65, npm audit 0 | Gate 4 local conditional |
-| OBJ-012 | PRD-FR-032, PRD-FR-033, PRD-FR-034 | SDD-CMP-029, SDD-CMP-030 | BDD-SC-048, BDD-SC-049, BDD-SC-050 | TDD-TC-063, TDD-TC-064 | `server.js`, `public/index.html`, `public/css/style.css`, `public/js/app.js` | Notificaciones contextuales en tablero por rol (Asesor/Admin) y tabs | implemented-tested-local |
-| OBJ-012 | PRD-FR-035 | SDD-CMP-031 | BDD-SC-050 | TDD-TC-063 | `components/ui/vercel-notification-popover.tsx`, `components/ui/demo.tsx` | Componentes shadcn/React creados en /components/ui | implemented-tested-local |
+| OBJ-012 | PRD-FR-032 | SDD-CMP-029, ADR-010 | BDD-SC-048..051 | TDD-TC-063..066 | `public/js/programacion-pricing.js`, `public/js/app.js`, `utils/pricing.js`, `server.js` | EVD-009: Node 104/104, Python 1/1, auditoría 0 | verified-local |
+| OBJ-013 | PRD-FR-033 | SDD-CMP-030, ADR-011 | BDD-SC-052..054 | TDD-TC-067..070 | `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-010: Node 104/104, Python 1/1, sintaxis y diff aprobados | verified-local |
+| OBJ-014 | PRD-FR-034 | SDD-CMP-031, ADR-012 | BDD-SC-055..057 | TDD-TC-071..074 | `db.js`, `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-011: Node 106/106, Python 1/1, casos 89/1089 y 1089/1089 aprobados | verified-local |
+| OBJ-015 | PRD-FR-035 | SDD-CMP-032, ADR-013 | BDD-SC-058..060 | TDD-TC-075..078 | `public/index.html`, `public/js/programacion-pricing.js`, `public/js/app.js`, `utils/monthlyPricing.js`, `server.js` | EVD-012: Node 110/110, derivación 7015/6926/1000 aprobada | verified-local |
+| OBJ-016 | PRD-FR-036 | SDD-CMP-033, ADR-014 | BDD-SC-061..064 | TDD-TC-079..085 | `db.js`, `utils/nuclePricing.js`, `server.js`, `public/index.html`, `public/js/app.js` | EVD-013: Node 117/117, caso mixto y catálogo 12/12 aprobados | verified-local |
+| OBJ-017 | PRD-FR-037, PRD-FR-038, PRD-FR-039 | SDD-CMP-034, SDD-CMP-035 | BDD-SC-065, BDD-SC-066, BDD-SC-067 | TDD-TC-087, TDD-TC-088 | `server.js`, `public/index.html`, `public/css/style.css`, `public/js/app.js` | Notificaciones contextuales en tablero por rol (Asesor/Admin) y tabs | implemented-tested-local |
+| OBJ-017 | PRD-FR-040 | SDD-CMP-036 | BDD-SC-067 | TDD-TC-087 | `components/ui/vercel-notification-popover.tsx`, `components/ui/demo.tsx` | Componentes shadcn/React creados en /components/ui | implemented-tested-local |
 
 ## Huecos
 
@@ -139,3 +144,66 @@
 - Política readiness: 5/5 casos del marco aprobados; `git diff --check`, exit 0.
 - No ejecutado: DDL y transacciones contra PostgreSQL real aislado, navegador autenticado de escritorio/móvil, Outreach contra proveedor, despliegue, rollback o datos productivos.
 - Decisión: Gate 4 local condicionado; Gate 5 producción `NOT READY`.
+
+## EVD-009 — Evidencia local CHG-010
+
+- Fecha: 2026-09-01.
+- Pruebas focalizadas: `node --test test/programacionPricing.test.js test/pricingDiscountBudget.test.js`, exit 0, 13/13.
+- Oráculo: Python `-m unittest test.test_pricing_reference -v`, exit 0, 1/1.
+- Regresión: `npm test`, exit 0, 104/104.
+- Auditoría: `npm audit --omit=dev`, exit 0, cero vulnerabilidades.
+- Sintaxis Node y `git diff --check`: exit 0.
+- Ajuste de portabilidad: la prueba de límites de endpoint normaliza CRLF para ejecutarse también en Windows.
+- Pendiente al registrar esta evidencia: merge commit, push y verificación del redeploy.
+
+## EVD-010 — Evidencia local CHG-011
+
+- Fecha: 2026-09-01.
+- Rojo controlado: las pruebas focalizadas fallaron 5 casos antes del cambio por descontar la diferencia contra catálogo del tope mensual.
+- Pruebas focalizadas: `node --test test/pricingDiscountBudget.test.js test/pricingRoutes.test.js`, exit 0, 11/11.
+- Oráculo: Python `-m unittest test.test_pricing_reference -v`, exit 0, 1/1.
+- Regresión: `npm test`, exit 0, 104/104.
+- Sintaxis Node y `git diff --check`: exit 0.
+- Pendiente al registrar esta evidencia: verificación visual en navegador y despliegue.
+
+## EVD-011 — Evidencia local CHG-012
+
+- Fecha: 2026-09-01.
+- Rojo controlado: 7 fallos focalizados confirmaron que el motor, HTTP, esquema y frontend mezclaban piso acumulado con tope.
+- Pruebas focalizadas: `node --test test/pricingDiscountBudget.test.js test/pricingRoutes.test.js`, exit 0, 13/13.
+- Casos de negocio: incorporado `1,089`/tope `1,089` produce saldo cero; incorporado `89`/tope `1,089` produce saldo adicional `1,000`.
+- Oráculo: Python `-m unittest test.test_pricing_reference -v`, exit 0, 1/1.
+- Regresión: `npm test`, exit 0, 106/106.
+- Sintaxis Node, cache busting de assets y `git diff --check`: exit 0.
+- Pendiente al registrar esta evidencia: verificación visual posterior al redeploy.
+
+## EVD-012 — Evidencia local CHG-013
+
+- Fecha: 2026-09-01.
+- Rojo controlado: 4 fallos focalizados confirmaron la ausencia del saldo Asesor explícito, el contrato HTTP y las nuevas etiquetas.
+- Pruebas focalizadas: `node --test test/programacionPricing.test.js test/pricingDiscountBudget.test.js test/pricingRoutes.test.js`, exit 0, 22/22.
+- Caso de negocio: base `7,015`, mensual `6,926` y Asesor `1,000` derivan descuento incorporado `89`, porcentaje histórico `1.2687` y tope acumulado `1,089`.
+- Regresión: `npm test`, exit 0, 110/110.
+- Sintaxis Node y `git diff --check`: exit 0.
+- Oráculo Python no ejecutado porque este host no expone `python` ni `py`; el motor monetario no cambió y su espejo continúa cubierto por la prueba Node de casos dorados.
+- Pendiente: commit, despliegue y verificación visual autenticada.
+
+## EVD-013 — Evidencia local CHG-014
+
+- Fecha: 2026-09-01.
+- Rojo controlado: 3 fallos iniciales confirmaron la ausencia del motor, contrato HTTP, esquema e interfaz Nucle.
+- Pruebas focalizadas: `node --test test/nuclePricing.test.js test/nucleRoutes.test.js`, exit 0, 7/7.
+- Caso mixto: Híbrido mensual `900`, asesor `100` y Nucle `10%` produce `710`; Agroquímico `500` permanece en `500`; total `1,210`.
+- Administración: GET completa enero-diciembre y PUT persiste doce porcentajes dentro de una transacción.
+- Regresión: `npm test`, exit 0, 117/117.
+- Sintaxis Node y `git diff --check`: exit 0.
+- Pendiente: commit, despliegue, ejecución DDL en PostgreSQL productivo y verificación visual autenticada.
+
+## EVD-014 — Evidencia local CHG-015
+
+- Fecha: 2026-09-01.
+- Rojo controlado: 3 fallos focalizados reprodujeron la precisión de cuatro decimales y el UPSERT sin una cláusula `RETURNING` compatible con la llave `mes`.
+- Corrección: porcentajes Nucle normalizados a dos decimales, campos con paso `0.01` y UPSERT con `RETURNING mes`.
+- Pruebas focalizadas: `node --test test/nuclePricing.test.js test/nucleRoutes.test.js test/pricingDiscountBudget.test.js`, exit 0, 19/19.
+- Regresión: `npm test`, exit 0, 118/118.
+- Pendiente: commit, despliegue y verificación visual autenticada.

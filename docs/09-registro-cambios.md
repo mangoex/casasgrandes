@@ -11,6 +11,12 @@
 | CHG-007 | 2026-07-27 | Confirmar creación, edición y conversión comercial como unidades atómicas | PROJECT-PR-016, ADR-007, PRD-FR-021..023 | TDD-TC-046..049; EVD-006 | implemented-local |
 | CHG-008 | 2026-07-27 | Exponer salud, correlacionar solicitudes y cerrar recursos de forma ordenada | PROJECT-PR-017, ADR-008, PRD-FR-024..027 | TDD-TC-050..054; EVD-007 | implemented-local |
 | CHG-009 | 2026-08-27 | Usar precio mensual como base y restar su reducción del presupuesto total disponible al asesor | PROJECT-PR-018, ADR-009, PRD-FR-028..031 | TDD-TC-055..062; EVD-008 | implemented-local |
+| CHG-010 | 2026-09-01 | Vincular precio mensual, descuento en MXN y porcentaje contra el precio anual | ADR-010, PRD-FR-032 | TDD-TC-063..066; EVD-009 | implemented-local |
+| CHG-011 | 2026-09-01 | Usar el tope mensual completo como rango de descuento desde el precio de Programación | ADR-011, PRD-FR-033 | TDD-TC-067..070; EVD-010 | implemented-local |
+| CHG-012 | 2026-09-01 | Iniciar Cotizador en el precio efectivo y representar en la barra el descuento acumulado hasta un tope independiente | ADR-012, PRD-FR-034 | TDD-TC-071..074; EVD-011 | implemented-local |
+| CHG-013 | 2026-09-01 | Mostrar el precio base fijo, capturar precio del mes y saldo Asesor en dinero, y reflejar ese contrato en Cotizador | ADR-013, PRD-FR-035 | TDD-TC-075..078; EVD-012 | implemented-local |
+| CHG-014 | 2026-09-01 | Configurar Nucle por mes y aplicarlo opcionalmente a Híbridos y Semillas además del descuento del asesor | ADR-014, PRD-FR-036 | TDD-TC-079..085; EVD-013 | implemented-local |
+| CHG-015 | 2026-09-01 | Corregir el guardado PostgreSQL de Nucle y normalizar sus porcentajes a dos decimales | PRD-FR-036 | TDD-TC-079, TDD-TC-084..086; EVD-014 | implemented-local |
 
 ## Reglas
 

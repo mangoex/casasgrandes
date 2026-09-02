@@ -265,7 +265,7 @@
 ## TDD-TC-056 — Paridad del motor productivo
 
 - Cubre: BDD-SC-040, BDD-SC-041, BDD-SC-046, PRD-FR-029
-- Aserciones: JavaScript en centavos coincide exactamente con los fixtures del oráculo y rechaza promociones ambiguas
+- Aserciones: JavaScript en centavos coincide exactamente con los fixtures del oráculo y rechaza representaciones inconsistentes
 - Estado: passed-local
 
 ## TDD-TC-057 — Validación atómica de Programación
@@ -304,14 +304,158 @@
 - Aserciones: pruebas Python y Node, suite completa, auditoría, Humanio estricto y diff check permanecen verdes
 - Estado: passed-local
 
-## TDD-TC-063 — Endpoint de lectura y marcado de notificaciones
+## TDD-TC-063 — Vinculación desde precio
 
-- Cubre: BDD-SC-048..050, PRD-FR-032, PRD-FR-034
+- Cubre: BDD-SC-048, PRD-FR-032
+- Aserciones: precio mensual produce descuento en MXN y porcentaje equivalentes contra el precio anual
+- Estado: passed-local
+
+## TDD-TC-064 — Vinculación desde dinero
+
+- Cubre: BDD-SC-049, PRD-FR-032
+- Aserciones: descuento en MXN produce precio mensual y porcentaje equivalentes
+- Estado: passed-local
+
+## TDD-TC-065 — Vinculación desde porcentaje
+
+- Cubre: BDD-SC-050, PRD-FR-032
+- Aserciones: porcentaje produce descuento en MXN y precio mensual con redondeo monetario
+- Estado: passed-local
+
+## TDD-TC-066 — Validación de representaciones
+
+- Cubre: BDD-SC-051, PRD-FR-032
+- Aserciones: el motor acepta dinero y porcentaje equivalentes y rechaza discrepancias
+- Estado: passed-local
+
+## TDD-TC-067 — Presupuesto mensual completo
+
+- Cubre: BDD-SC-052, PRD-FR-033
+- Aserciones: la disponibilidad del asesor equivale al tope mensual completo aunque exista diferencia contra catálogo
+- Estado: passed-local
+
+## TDD-TC-068 — Contrato HTTP del Cotizador
+
+- Cubre: BDD-SC-052, BDD-SC-053, PRD-FR-033
+- Aserciones: la previsualización devuelve máximo 1089 desde precio 6300 y precio final 5211 al aplicarlo
+- Estado: passed-local
+
+## TDD-TC-069 — Rechazo sobre el límite
+
+- Cubre: BDD-SC-054, PRD-FR-033
+- Aserciones: previsualización, alta y edición rechazan un descuento superior al tope
+- Estado: passed-local
+
+## TDD-TC-070 — Contrato visual de la barra
+
+- Cubre: BDD-SC-052, BDD-SC-053
+- Aserciones: la interfaz etiqueta el límite mensual y asigna `max_discount_mxn` al máximo de la barra
+- Estado: passed-local
+
+## TDD-TC-071 — Presupuesto con tope independiente
+
+- Cubre: BDD-SC-055, BDD-SC-056, PRD-FR-034
+- Aserciones: descuento incorporado 89 y tope 1089 producen saldo adicional 1000; descuento incorporado 1089 produce saldo cero
+- Estado: passed-local
+
+## TDD-TC-072 — Precio mensual autoritativo por HTTP
+
+- Cubre: BDD-SC-055, BDD-SC-057, PRD-FR-034
+- Aserciones: la previsualización inicia en el precio mensual y resta solo el adicional sobre el piso incorporado
+- Estado: passed-local
+
+## TDD-TC-073 — Contrato visual acumulado
+
+- Cubre: BDD-SC-055, BDD-SC-056, BDD-SC-057
+- Aserciones: la barra conserva piso, tope, relleno absoluto y convierte el valor total a descuento adicional antes de enviar
+- Estado: passed-local
+
+## TDD-TC-074 — Migración y persistencia del tope
+
+- Cubre: PRD-FR-034, SDD-CMP-031
+- Aserciones: esquema, lectura y guardado conservan `tope_descuento_mxn` separado de las representaciones vinculadas
+- Estado: passed-local
+
+## TDD-TC-075 — Derivación canónica por fila
+
+- Cubre: BDD-SC-059, PRD-FR-035
+- Aserciones: precio base 7015, mensual 6926 y Asesor 1000 producen incorporado 89 y tope 1089
+- Estado: passed-local
+
+## TDD-TC-076 — Independencia del saldo Asesor
+
+- Cubre: BDD-SC-059
+- Aserciones: cambiar precio del mes recalcula el descuento incorporado sin cambiar el dinero capturado para Asesor
+- Estado: passed-local
+
+## TDD-TC-077 — Canonicalización HTTP
+
+- Cubre: BDD-SC-059, SDD-CMP-032
+- Aserciones: la API recibe solo precio mensual y Asesor y persiste las representaciones derivadas exactas
+- Estado: passed-local
+
+## TDD-TC-078 — Contrato visual
+
+- Cubre: BDD-SC-058, BDD-SC-060
+- Aserciones: Programación muestra precio base fijo, Precio del mes, Descuento del mes y Asesor en dinero; Cotizador muestra precio base del catálogo
+- Estado: passed-local
+
+## TDD-TC-079 — Validación porcentual Nucle
+
+- Cubre: BDD-SC-061
+- Aserciones: acepta 0..100 y rechaza valores fuera del rango
+- Estado: passed-local
+
+## TDD-TC-080 — Elegibilidad por categoría
+
+- Cubre: BDD-SC-063
+- Aserciones: Híbrido y Semilla son elegibles; Agroquímico no
+- Estado: passed-local
+
+## TDD-TC-081 — Acumulación después del asesor
+
+- Cubre: BDD-SC-062
+- Aserciones: Nucle usa el precio mensual como base aunque ya exista descuento del asesor
+- Estado: passed-local
+
+## TDD-TC-082 — Exclusión de Agroquímicos
+
+- Cubre: BDD-SC-063
+- Aserciones: precio y subtotal de Agroquímicos no cambian
+- Estado: passed-local
+
+## TDD-TC-083 — Contrato HTTP mixto
+
+- Cubre: BDD-SC-062, BDD-SC-063
+- Aserciones: previsualización mixta devuelve descuento, porcentaje y total correctos
+- Estado: passed-local
+
+## TDD-TC-084 — Esquema e interfaz
+
+- Cubre: BDD-SC-061, BDD-SC-064, SDD-CMP-033
+- Aserciones: migración aditiva, pestaña administrativa, casilla y payload existen
+- Estado: passed-local
+
+## TDD-TC-085 — Catálogo administrativo
+
+- Cubre: BDD-SC-061
+- Aserciones: GET completa doce meses y PUT persiste exactamente doce filas en transacción
+- Estado: passed-local
+
+## TDD-TC-086 — Persistencia decimal Nucle
+
+- Cubre: BDD-SC-061, PRD-FR-036
+- Aserciones: el porcentaje se redondea a dos decimales, la interfaz usa incrementos de `0.01` y el UPSERT retorna `mes` en lugar de una columna `id` inexistente
+- Estado: passed-local
+
+## TDD-TC-087 — Endpoint de lectura y marcado de notificaciones
+
+- Cubre: BDD-SC-065..067, PRD-FR-037, PRD-FR-039
 - Aserciones: `GET /api/notificaciones` responde para cualquier rol autenticado y `POST /api/notificaciones/leido` actualiza `leido = 1` de forma segura.
 - Estado: passed-local
 
-## TDD-TC-064 — Agregador y filtrado contextual por rol (Asesor vs Administrador)
+## TDD-TC-088 — Agregador y filtrado contextual por rol (Asesor vs Administrador)
 
-- Cubre: BDD-SC-048, BDD-SC-049, PRD-FR-033
+- Cubre: BDD-SC-065, BDD-SC-066, PRD-FR-038
 - Aserciones: el agregador detecta visitas de hoy pendientes para el Asesor y cotizaciones por revisar/autorizar para el Administrador.
 - Estado: passed-local
