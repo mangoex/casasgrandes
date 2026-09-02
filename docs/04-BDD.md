@@ -411,3 +411,29 @@ Given una cotización creada o editada cerca de un cambio de mes en America/Maza
 When se resuelve Programación
 Then se usa el mes de la fecha contractual y no la zona horaria accidental del proceso
 ```
+
+## Feature: PRD-FR-032 / PRD-FR-033 — Notificaciones en tablero por rol
+
+### BDD-SC-048 — Notificaciones para Asesor
+
+```gherkin
+Given un Asesor autenticado con visitas programadas para el día de hoy
+When visualiza el tablero general y hace clic en la campana de notificaciones
+Then el popover presenta la lista de visitas de hoy y permite iniciar o consultar cada visita
+```
+
+### BDD-SC-049 — Notificaciones para Administrador
+
+```gherkin
+Given un Administrador autenticado con cotizaciones en estado Borrador o Pendiente
+When abre el popover de notificaciones desde el encabezado del tablero
+Then el popover presenta las cotizaciones pendientes de revisión y autorizar con enlace a su detalle
+```
+
+### BDD-SC-050 — Comportamiento y tabs del Popover
+
+```gherkin
+Given el centro de notificaciones abierto en la interfaz
+When el usuario navega entre las pestañas Todas, No leídas y Archivadas
+Then filtra correctamente los elementos y se cierra limpiamente al hacer clic fuera o presionar Escape
+```

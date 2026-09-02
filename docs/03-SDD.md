@@ -209,3 +209,23 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - `precio_lista_unitario` continúa siendo compatible y para CHG-009 contiene el precio mensual.
 - El frontend muestra precio mensual, reducción incluida y saldo adicional; el slider nunca supera el valor devuelto por el servidor.
 - Las filas legadas conservan columnas nuevas nulas y se presentan con el desglose disponible, sin recalcularse.
+
+## Diseño CHG-010 — Centro de notificaciones contextuales y componentes shadcn
+
+### SDD-CMP-029 — Disparador y badge de notificaciones en el Tablero
+
+- Cubre: PRD-FR-032
+- Botón disparador en el encabezado superior derecho del dashboard (desktop) y en el encabezado móvil con microanimación de pulso (`pulse-ring` y `pulse-core`) cuando existen notificaciones no leídas.
+- Cierra con clic exterior, botón de cerrar o tecla `Escape`.
+
+### SDD-CMP-030 — Agregador contextual de notificaciones por rol
+
+- Cubre: PRD-FR-033, PRD-FR-034
+- **Asesor**: Agrega visitas pendientes de hoy (`/api/planificacion` con `fecha_programada = hoy` y `realizada = 0`) junto con avisos de cartera (`/api/notificaciones`).
+- **Administrador**: Agrega cotizaciones pendientes de revisión o aprobación (`/api/cotizaciones` con estatus `Borrador`, `Pendiente`, `Pendiente Autorización`) junto con alertas del sistema.
+- **Backend**: Expone `POST /api/notificaciones/leido` para marcar como leídas las notificaciones del usuario activo.
+
+### SDD-CMP-031 — Estructura shadcn UI / Tailwind / TypeScript
+
+- Cubre: PRD-FR-035
+- Se alojan los componentes `/components/ui/vercel-notification-popover.tsx` y `demo.tsx` con arquitectura shadcn/Radix UI.

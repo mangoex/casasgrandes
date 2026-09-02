@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindIAViewEventListeners();
   bindProgramacionEventListeners();
   bindStageReportFormEvents();
+  setupNotificationPopoverListeners();
 });
 
 function setupKanbanDeleteShortcut() {
@@ -172,6 +173,9 @@ async function showAppView() {
   // Set User Profile Display
   document.getElementById('user-display-name').textContent = user.nombre;
   document.getElementById('user-display-role').textContent = user.nivel_rol;
+
+  // Load contextual notifications for user
+  fetchAccountNotifications();
 
   document.body.classList.toggle('role-asesor', user.nivel_rol === 'Asesor');
   const greetingEl = document.getElementById('mobile-greeting-name');
@@ -541,7 +545,8 @@ async function loadDashboardData() {
       loadDashboardData();
     });
   }
-  const selectedCycle = cycleSelect ? cycleSelect.value : 'O-I 2026';
+  // Refresh account notifications alongside dashboard
+  fetchAccountNotifications();
 
   try {
     const res = await fetch(`${API_URL}/api/dashboard/stats?ciclo_agricola=${encodeURIComponent(selectedCycle)}`, { headers: getHeaders() });
@@ -8590,26 +8595,463 @@ window.loadAdvisorAssignmentView = async function() {
   }
 };
 
-// Load Advisor Notifications feed
-window.loadNotificationsFeed = async function() {
-  const container = document.getElementById('notif-feed-container');
-  const countBadge = document.getElementById('notif-unread-count');
-  if (!container) return;
+// =============================================================
+// CONTEXTUAL NOTIFICATION CENTER (Vercel / shadcn Popover)
+// =============================================================
+let notificationsState = {
+  items: [],
+  activeTab: 'all', // 'all' | 'unread' | 'archived'
+  searchTerm: '',
+  archivedIds: new Set(),
+  isOpen: false
+};
+
+// Initialize archived ids from localStorage safely
+try {
+  const savedArchived = JSON.parse(localStorage.getItem('casasgrandes_archived_notifs') || '[]');
+  if (Array.isArray(savedArchived)) {
+    notificationsState.archivedIds = new Set(savedArchived);
+  }
+} catch {
+  notificationsState.archivedIds = new Set();
+}
+
+async function fetchAccountNotifications() {
+  if (!user) return [];
+  const notifs = [];
+  const todayIso = new Date().toISOString().slice(0, 10);
   
   try {
-    const res = await fetch(`${API_URL}/api/notificaciones`, { headers: getHeaders() });
-    const notifs = await res.json();
-    
-    const unread = notifs.filter(n => n.leido === 0).length;
-    if (countBadge) {
-      if (unread > 0) {
-        countBadge.textContent = unread;
-        countBadge.style.display = 'inline-block';
-      } else {
-        countBadge.style.display = 'none';
+    if (user.nivel_rol === 'Asesor') {
+      // 1. Asesor: Visitas por hacer hoy (pendientes de realizar)
+      try {
+        const weekStr = getCurrentWeekString();
+        const range = getWeekDateRange(weekStr);
+        const planRes = await fetch(`${API_URL}/api/planificacion?fecha_inicio=${range.monday}&fecha_fin=${range.sunday}&asesor_id=${user.id}`, { headers: getHeaders() });
+        if (planRes.ok) {
+          const plans = await planRes.json();
+          const todayPending = (plans || []).filter(p => p.fecha_programada === todayIso && Number(p.realizada) === 0);
+          todayPending.forEach(p => {
+            notifs.push({
+              id: `visit-${p.id}`,
+              type: 'visit',
+              category: 'Visita Hoy',
+              title: p.cliente_nombre || 'Visita agendada para hoy',
+              desc: `Objetivo: ${p.objetivo_visita || 'Seguimiento comercial en campo'}${p.hora ? ` • Hora: ${p.hora}` : ''}`,
+              time: 'Hoy',
+              isUnread: true,
+              actionLabel: 'Iniciar visita',
+              onClick: () => {
+                closeNotificationPopover();
+                switchView('planeacion-view', 'Planificación');
+              }
+            });
+          });
+        }
+      } catch (err) {
+        console.warn('Error fetching advisor visits for notifications:', err);
+      }
+    } else if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') {
+      // 2. Administrador: Cotizaciones pendientes por revisar y autorizar
+      try {
+        const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
+        if (quotesRes.ok) {
+          const quotes = await quotesRes.json();
+          const pendingQuotes = (quotes || []).filter(q => ['Borrador', 'Pendiente', 'Pendiente Autorización'].includes(q.estatus));
+          pendingQuotes.forEach(q => {
+            const formattedTotal = Number(q.total_mxn || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+            notifs.push({
+              id: `quote-${q.id}`,
+              type: 'quote',
+              category: 'Por Revisar',
+              title: `Cotización ${q.folio_cotizacion || ('#' + q.id)} — ${q.cliente_nombre || 'Cliente'}`,
+              desc: `Asesor: ${q.asesor_nombre || 'Sin asignar'} • Total: $${formattedTotal} MXN • Estatus: ${q.estatus}`,
+              time: q.fecha_creacion ? String(q.fecha_creacion).slice(0, 10) : 'Pendiente',
+              isUnread: true,
+              actionLabel: 'Revisar',
+              onClick: () => {
+                closeNotificationPopover();
+                showQuoteDetails(q.id);
+              }
+            });
+          });
+        }
+      } catch (err) {
+        console.warn('Error fetching admin quotes for notifications:', err);
       }
     }
-    
+
+    // 3. Alertas del sistema y avisos de cartera desde /api/notificaciones
+    try {
+      const crmRes = await fetch(`${API_URL}/api/notificaciones`, { headers: getHeaders() });
+      if (crmRes.ok) {
+        const crmNotifs = await crmRes.json();
+        (crmNotifs || []).forEach(n => {
+          let dateStr = 'Reciente';
+          if (n.creado_en) {
+            try {
+              dateStr = new Date(n.creado_en).toLocaleString('es-MX', {
+                hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit'
+              });
+            } catch {
+              dateStr = String(n.creado_en);
+            }
+          }
+          notifs.push({
+            id: `crm-${n.id}`,
+            type: 'alert',
+            category: 'Aviso',
+            title: 'Notificación del Sistema',
+            desc: n.mensaje,
+            time: dateStr,
+            isUnread: Number(n.leido) === 0,
+            actionLabel: 'Ver detalle',
+            onClick: () => {
+              closeNotificationPopover();
+              if (user.nivel_rol === 'Asesor') {
+                switchView('asignacion-view', 'Asignación');
+              }
+            }
+          });
+        });
+      }
+    } catch (err) {
+      console.warn('Error fetching crm notifications:', err);
+    }
+  } catch (globalErr) {
+    console.error('Error in fetchAccountNotifications:', globalErr);
+  }
+
+  notificationsState.items = notifs;
+  updateNotificationBadges();
+  return notifs;
+}
+
+function updateNotificationBadges() {
+  const unreadCount = notificationsState.items.filter(n => n.isUnread && !notificationsState.archivedIds.has(n.id)).length;
+  const desktopBadge = document.getElementById('header-notif-badge');
+  const mobileDot = document.getElementById('mobile-notification-dot');
+
+  if (desktopBadge) {
+    desktopBadge.style.display = unreadCount > 0 ? 'flex' : 'none';
+  }
+  if (mobileDot) {
+    mobileDot.style.display = unreadCount > 0 ? 'inline-block' : 'none';
+  }
+
+  // Also update assignment view badge if present
+  const feedCountBadge = document.getElementById('notif-unread-count');
+  if (feedCountBadge) {
+    if (unreadCount > 0) {
+      feedCountBadge.textContent = unreadCount;
+      feedCountBadge.style.display = 'inline-block';
+    } else {
+      feedCountBadge.style.display = 'none';
+    }
+  }
+}
+
+function renderNotificationPopoverContent() {
+  const isMobile = window.innerWidth < 768;
+  const popover = document.getElementById('header-notification-popover');
+  const mobileSheet = document.getElementById('mobile-notification-sheet');
+  const targetContainer = isMobile
+    ? mobileSheet?.querySelector('.vercel-notif-sheet-content')
+    : popover;
+
+  if (!targetContainer) return;
+
+  const currentTab = notificationsState.activeTab;
+  const filterText = (notificationsState.searchTerm || '').toLowerCase().trim();
+
+  const filtered = notificationsState.items.filter(item => {
+    const isArchived = notificationsState.archivedIds.has(item.id);
+    if (currentTab === 'archived') {
+      if (!isArchived) return false;
+    } else {
+      if (isArchived) return false;
+      if (currentTab === 'unread' && !item.isUnread) return false;
+    }
+
+    if (filterText) {
+      const matchTitle = (item.title || '').toLowerCase().includes(filterText);
+      const matchDesc = (item.desc || '').toLowerCase().includes(filterText);
+      const matchCat = (item.category || '').toLowerCase().includes(filterText);
+      return matchTitle || matchDesc || matchCat;
+    }
+    return true;
+  });
+
+  const totalUnread = notificationsState.items.filter(n => n.isUnread && !notificationsState.archivedIds.has(n.id)).length;
+  const totalAll = notificationsState.items.filter(n => !notificationsState.archivedIds.has(n.id)).length;
+  const totalArchived = notificationsState.items.filter(n => notificationsState.archivedIds.has(n.id)).length;
+
+  let html = '';
+  if (isMobile) {
+    html += `<div class="vercel-notif-sheet-handle"></div>`;
+  }
+
+  // Header Tabs Bar
+  html += `
+    <div class="vercel-notif-tabs-bar">
+      <div class="vercel-notif-tabs-list">
+        <button type="button" class="vercel-notif-tab ${currentTab === 'all' ? 'active' : ''}" onclick="setNotificationTab('all')">
+          Todas ${totalAll > 0 ? `<span class="vercel-notif-tab-badge">${totalAll}</span>` : ''}
+          ${currentTab === 'all' ? '<span class="vercel-notif-tab-indicator"></span>' : ''}
+        </button>
+        <button type="button" class="vercel-notif-tab ${currentTab === 'unread' ? 'active' : ''}" onclick="setNotificationTab('unread')">
+          No leídas ${totalUnread > 0 ? `<span class="vercel-notif-tab-badge">${totalUnread}</span>` : ''}
+          ${currentTab === 'unread' ? '<span class="vercel-notif-tab-indicator"></span>' : ''}
+        </button>
+        <button type="button" class="vercel-notif-tab ${currentTab === 'archived' ? 'active' : ''}" onclick="setNotificationTab('archived')">
+          Archivadas ${totalArchived > 0 ? `<span class="vercel-notif-tab-badge" style="background: #f1f5f9; color: #64748b;">${totalArchived}</span>` : ''}
+          ${currentTab === 'archived' ? '<span class="vercel-notif-tab-indicator"></span>' : ''}
+        </button>
+      </div>
+      <button type="button" class="vercel-notif-settings-btn" title="Marcar todas como leídas" onclick="markAllNotificationsAsRead(event)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </button>
+    </div>
+  `;
+
+  // Search filter row
+  html += `
+    <div class="vercel-notif-search-row">
+      <input type="text" class="vercel-notif-search-input" placeholder="Buscar notificaciones..." value="${escapeHtml(notificationsState.searchTerm)}" oninput="onNotificationSearch(this.value)">
+    </div>
+  `;
+
+  // Items Panel Body
+  html += `<div class="vercel-notif-panel-body">`;
+
+  if (filtered.length === 0) {
+    let emptyMsg = 'No tienes notificaciones pendientes';
+    if (currentTab === 'unread') emptyMsg = '¡Estás al día! No hay notificaciones sin leer';
+    if (currentTab === 'archived') emptyMsg = 'No hay notificaciones archivadas';
+    if (filterText) emptyMsg = 'No se encontraron resultados para la búsqueda';
+
+    const roleDetail = user?.nivel_rol === 'Asesor'
+      ? 'Tus visitas del día aparecerán aquí'
+      : 'Las cotizaciones pendientes por revisar aparecerán aquí';
+
+    html += `
+      <div class="vercel-notif-empty">
+        <div class="vercel-notif-empty-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="21 8 21 21 3 21 3 8" />
+            <rect x="1" y="3" width="22" height="5" />
+            <line x1="10" y1="12" x2="14" y2="12" />
+          </svg>
+        </div>
+        <div class="vercel-notif-empty-text">${emptyMsg}</div>
+        <div class="vercel-notif-empty-subtext">${roleDetail}</div>
+      </div>
+    `;
+  } else {
+    html += `<ul class="vercel-notif-list">`;
+    filtered.forEach(item => {
+      let iconHtml = '';
+      if (item.type === 'visit') {
+        iconHtml = `<div class="vercel-notif-item-icon visit-icon" title="Visita">📅</div>`;
+      } else if (item.type === 'quote') {
+        iconHtml = `<div class="vercel-notif-item-icon quote-icon" title="Cotización">📝</div>`;
+      } else {
+        iconHtml = `<div class="vercel-notif-item-icon alert-icon" title="Aviso">🔔</div>`;
+      }
+
+      const isArchived = notificationsState.archivedIds.has(item.id);
+
+      html += `
+        <li class="vercel-notif-item ${item.isUnread ? 'is-unread' : ''}">
+          <div class="vercel-notif-link" onclick="handleNotificationClick('${item.id}')">
+            ${iconHtml}
+            <div class="vercel-notif-item-content">
+              <div class="vercel-notif-item-title">
+                <span>${escapeHtml(item.title)}</span>
+                <span class="vercel-notif-item-tag">${escapeHtml(item.category)}</span>
+              </div>
+              <div class="vercel-notif-item-desc">${escapeHtml(item.desc)}</div>
+              <div class="vercel-notif-item-meta">
+                <span class="vercel-notif-item-time">${escapeHtml(item.time)}</span>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <button type="button" class="vercel-notif-item-action-btn" onclick="event.stopPropagation(); handleNotificationClick('${item.id}')">
+                    ${escapeHtml(item.actionLabel || 'Ver')}
+                  </button>
+                  <button type="button" class="vercel-notif-item-action-btn" style="color: #64748b;" title="${isArchived ? 'Desarchivar' : 'Archivar'}" onclick="event.stopPropagation(); toggleArchiveNotification('${item.id}')">
+                    ${isArchived ? 'Restaurar' : 'Archivar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+      `;
+    });
+    html += `</ul>`;
+  }
+
+  html += `</div>`;
+
+  // Footer Actions
+  html += `
+    <div class="vercel-notif-footer">
+      <button type="button" class="vercel-notif-footer-btn" onclick="markAllNotificationsAsRead(event)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        Marcar todas como leídas
+      </button>
+    </div>
+  `;
+
+  targetContainer.innerHTML = html;
+}
+
+window.toggleNotificationPopover = async function(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+
+  const isMobile = window.innerWidth < 768;
+  const popover = document.getElementById('header-notification-popover');
+  const mobileSheet = document.getElementById('mobile-notification-sheet');
+  const triggerBtn = document.getElementById('header-notification-btn');
+
+  if (notificationsState.isOpen) {
+    closeNotificationPopover();
+    return;
+  }
+
+  await fetchAccountNotifications();
+  notificationsState.isOpen = true;
+
+  if (triggerBtn) {
+    triggerBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  if (isMobile) {
+    if (mobileSheet) mobileSheet.style.display = 'flex';
+    if (popover) popover.style.display = 'none';
+  } else {
+    if (popover) popover.style.display = 'flex';
+    if (mobileSheet) mobileSheet.style.display = 'none';
+  }
+
+  renderNotificationPopoverContent();
+};
+
+window.closeNotificationPopover = function(e) {
+  if (e && e.target && e.target.closest('.vercel-notif-sheet-content')) {
+    return; // Don't close if clicking inside mobile sheet content
+  }
+
+  notificationsState.isOpen = false;
+  const popover = document.getElementById('header-notification-popover');
+  const mobileSheet = document.getElementById('mobile-notification-sheet');
+  const triggerBtn = document.getElementById('header-notification-btn');
+
+  if (triggerBtn) {
+    triggerBtn.setAttribute('aria-expanded', 'false');
+  }
+  if (popover) popover.style.display = 'none';
+  if (mobileSheet) mobileSheet.style.display = 'none';
+};
+
+window.setNotificationTab = function(tab) {
+  notificationsState.activeTab = tab;
+  renderNotificationPopoverContent();
+};
+
+window.onNotificationSearch = function(val) {
+  notificationsState.searchTerm = val || '';
+  renderNotificationPopoverContent();
+};
+
+window.handleNotificationClick = function(itemId) {
+  const item = notificationsState.items.find(n => n.id === itemId);
+  if (!item) return;
+
+  item.isUnread = false;
+  updateNotificationBadges();
+
+  // If item is a crm notification, mark it as read on backend
+  if (item.id.startsWith('crm-')) {
+    const rawId = item.id.replace('crm-', '');
+    fetch(`${API_URL}/api/notificaciones/${rawId}/leido`, {
+      method: 'POST',
+      headers: getHeaders()
+    }).catch(err => console.error(err));
+  }
+
+  if (typeof item.onClick === 'function') {
+    item.onClick();
+  }
+};
+
+window.toggleArchiveNotification = function(itemId) {
+  if (notificationsState.archivedIds.has(itemId)) {
+    notificationsState.archivedIds.delete(itemId);
+  } else {
+    notificationsState.archivedIds.add(itemId);
+  }
+  try {
+    localStorage.setItem('casasgrandes_archived_notifs', JSON.stringify(Array.from(notificationsState.archivedIds)));
+  } catch (err) {}
+  updateNotificationBadges();
+  renderNotificationPopoverContent();
+};
+
+window.markAllNotificationsAsRead = async function(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  notificationsState.items.forEach(n => {
+    n.isUnread = false;
+  });
+  updateNotificationBadges();
+  renderNotificationPopoverContent();
+
+  try {
+    await fetch(`${API_URL}/api/notificaciones/leido`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+function setupNotificationPopoverListeners() {
+  document.addEventListener('click', (e) => {
+    if (!notificationsState.isOpen) return;
+    if (
+      !e.target.closest('.header-notif-wrapper') &&
+      !e.target.closest('.mobile-icon-button') &&
+      !e.target.closest('.vercel-notif-popover') &&
+      !e.target.closest('.vercel-notif-sheet-content')
+    ) {
+      closeNotificationPopover();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && notificationsState.isOpen) {
+      closeNotificationPopover();
+    }
+  });
+}
+
+// Compatibility helper for Advisor Assignment Notifications Feed
+window.loadNotificationsFeed = async function() {
+  const container = document.getElementById('notif-feed-container');
+  if (!container) return;
+
+  try {
+    const notifs = await fetchAccountNotifications();
     container.innerHTML = '';
     if (notifs.length === 0) {
       container.innerHTML = '<div style="text-align: center; color: var(--text-light); padding: 20px;">Sin notificaciones recientes.</div>';
@@ -8618,20 +9060,21 @@ window.loadNotificationsFeed = async function() {
     
     notifs.forEach(n => {
       const card = document.createElement('div');
-      card.style.background = n.leido === 0 ? 'rgba(230, 126, 34, 0.08)' : 'var(--bg-hover)';
-      card.style.borderLeft = n.leido === 0 ? '3px solid var(--warning)' : '3px solid var(--border)';
+      card.style.background = n.isUnread ? 'rgba(230, 126, 34, 0.08)' : 'var(--bg-hover)';
+      card.style.borderLeft = n.isUnread ? '3px solid var(--warning)' : '3px solid var(--border)';
       card.style.padding = '8px 12px';
       card.style.borderRadius = 'var(--radius)';
       card.style.fontSize = '12px';
       card.style.display = 'flex';
       card.style.flexDirection = 'column';
       card.style.gap = '4px';
-      
-      const time = new Date(n.creado_en).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+      card.style.cursor = 'pointer';
+      card.onclick = () => handleNotificationClick(n.id);
       
       card.innerHTML = `
-        <div style="color: var(--text-dark);">${n.mensaje}</div>
-        <div style="font-size: 10px; color: var(--text-light); text-align: right;">${time}</div>
+        <div style="font-weight: 600; color: var(--text);">${escapeHtml(n.title)}</div>
+        <div style="color: var(--text-dark);">${escapeHtml(n.desc)}</div>
+        <div style="font-size: 10px; color: var(--text-light); text-align: right;">${escapeHtml(n.time)}</div>
       `;
       container.appendChild(card);
     });
@@ -8641,18 +9084,9 @@ window.loadNotificationsFeed = async function() {
   }
 };
 
-// Clear Advisor Notifications
 window.clearNotifications = async function() {
-  try {
-    const res = await fetch(`${API_URL}/api/notificaciones/leido`, {
-      method: 'POST',
-      headers: getHeaders()
-    });
-    if (!res.ok) throw new Error('Failed to mark read');
-    loadNotificationsFeed();
-  } catch (err) {
-    console.error(err);
-  }
+  await markAllNotificationsAsRead();
+  loadNotificationsFeed();
 };
 
 // Export Kardex to Excel (CSV)

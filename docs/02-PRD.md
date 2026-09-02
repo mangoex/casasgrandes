@@ -255,3 +255,33 @@ El runtime calcula importes en centavos y redondea mitades hacia arriba. Casos d
 ### PRD-NFR-011 — Compatibilidad gobernada
 
 Partidas anteriores permanecen legibles como contrato legado y no se infieren desgloses imposibles desde la diferencia entre lista y neto.
+
+## Incremento CHG-010 — Centro de notificaciones contextuales y popover en tablero
+
+### OBJ-012 — Notificaciones contextuales según el rol y soporte shadcn
+
+Proveer alertas operativas oportunas y contextuales en el encabezado del tablero (campana interactiva), segmentadas por rol de usuario, y compatibilidad con el ecosistema de componentes React shadcn UI.
+
+### PRD-FR-032 — Icono y disparador de notificaciones
+
+El encabezado del tablero general debe mostrar un icono de campana arriba a la derecha con un indicador animado de pulso cuando existan elementos sin atender.
+
+Criterio de aceptación: el icono es visible en escritorio y móvil, indicando el número o presencia de pendientes no leídos.
+
+### PRD-FR-033 — Notificaciones contextuales por rol
+
+- **Asesor**: Notifica visitas programadas para hoy que estén pendientes (`realizada = 0`), así como alertas de asignación de cartera.
+- **Administrador**: Notifica cotizaciones pendientes de revisión y aprobación (`Borrador`, `Pendiente`, `Pendiente Autorización`), así como avisos del sistema.
+- **Otros roles**: Notificaciones operativas y de almacén.
+
+Criterio de aceptación: al iniciar sesión como Asesor se muestran las visitas de hoy; como Administrador se muestran las cotizaciones por autorizar.
+
+### PRD-FR-034 — Popover estructurado y responsivo
+
+El centro de notificaciones debe abrirse como un Popover flotante en escritorio y como Bottom Sheet en móvil, con pestañas ("Todas", "No leídas", "Archivadas"), buscador y enlace de acción rápida a cada elemento.
+
+Criterio de aceptación: hacer clic en una notificación navega al recurso (visita o cotización) y permite marcar como leída.
+
+### PRD-FR-035 — Componentes base shadcn / React / TypeScript
+
+Se proveen los componentes `/components/ui/vercel-notification-popover.tsx` y `demo.tsx` compatibles con shadcn UI, Tailwind CSS y TypeScript.

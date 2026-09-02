@@ -36,6 +36,8 @@
 | OBJ-011 | PRD-FR-030 | SDD-CMP-027 | BDD-SC-042, BDD-SC-043, BDD-SC-044 | TDD-TC-057, TDD-TC-058, TDD-TC-059 | `server.js`, `agentsService.js`, `public/js/app.js` | EVD-008: payload 375 rechazado; 12 meses atómicos simulados | verified-local |
 | OBJ-011 | PRD-FR-031, PRD-NFR-011 | SDD-CMP-028 | BDD-SC-045 | TDD-TC-060, TDD-TC-061 | `db.js`, `server.js`, `agentsService.js`, `public/js/app.js` | EVD-008: snapshot aditivo; PostgreSQL real pendiente | implemented-tested-local |
 | OBJ-011 | PRD-NFR-010 | SDD-CMP-026 | BDD-SC-040, BDD-SC-041, BDD-SC-046 | TDD-TC-055, TDD-TC-056, TDD-TC-062 | CHG-009 | EVD-008: Python 1/1, Node 65/65, npm audit 0 | Gate 4 local conditional |
+| OBJ-012 | PRD-FR-032, PRD-FR-033, PRD-FR-034 | SDD-CMP-029, SDD-CMP-030 | BDD-SC-048, BDD-SC-049, BDD-SC-050 | TDD-TC-063, TDD-TC-064 | `server.js`, `public/index.html`, `public/css/style.css`, `public/js/app.js` | Notificaciones contextuales en tablero por rol (Asesor/Admin) y tabs | implemented-tested-local |
+| OBJ-012 | PRD-FR-035 | SDD-CMP-031 | BDD-SC-050 | TDD-TC-063 | `components/ui/vercel-notification-popover.tsx`, `components/ui/demo.tsx` | Componentes shadcn/React creados en /components/ui | implemented-tested-local |
 
 ## Huecos
 

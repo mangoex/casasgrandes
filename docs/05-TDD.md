@@ -303,3 +303,15 @@
 - Cubre: PRD-NFR-010, PRD-NFR-011
 - Aserciones: pruebas Python y Node, suite completa, auditoría, Humanio estricto y diff check permanecen verdes
 - Estado: passed-local
+
+## TDD-TC-063 — Endpoint de lectura y marcado de notificaciones
+
+- Cubre: BDD-SC-048..050, PRD-FR-032, PRD-FR-034
+- Aserciones: `GET /api/notificaciones` responde para cualquier rol autenticado y `POST /api/notificaciones/leido` actualiza `leido = 1` de forma segura.
+- Estado: passed-local
+
+## TDD-TC-064 — Agregador y filtrado contextual por rol (Asesor vs Administrador)
+
+- Cubre: BDD-SC-048, BDD-SC-049, PRD-FR-033
+- Aserciones: el agregador detecta visitas de hoy pendientes para el Asesor y cotizaciones por revisar/autorizar para el Administrador.
+- Estado: passed-local

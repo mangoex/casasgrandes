@@ -3814,12 +3814,49 @@ app.get('/api/dashboard/proyecciones', authenticateToken, async (req, res) => {
 // -------------------------------------------------------------
 app.get('/api/notificaciones', authenticateToken, async (req, res) => {
   try {
-    const query = 'SELECT * FROM crm_notificaciones WHERE asesor_id = ? ORDER BY creado_en DESC LIMIT 20';
-    const rows = await db.all(query, [req.user.id]);
-    res.json(rows);
+    let query;
+    let params;
+    if (req.user.nivel_rol === 'Asesor') {
+      query = 'SELECT * FROM crm_notificaciones WHERE asesor_id = ? ORDER BY creado_en DESC LIMIT 30';
+      params = [req.user.id];
+    } else {
+      query = 'SELECT * FROM crm_notificaciones WHERE asesor_id = ? OR asesor_id IS NULL ORDER BY creado_en DESC LIMIT 30';
+      params = [req.user.id];
+    }
+    const rows = await db.all(query, params);
+    res.json(rows || []);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+app.post('/api/notificaciones/leido', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.nivel_rol === 'Asesor') {
+      await db.run('UPDATE crm_notificaciones SET leido = 1 WHERE asesor_id = ?', [req.user.id]);
+    } else {
+      await db.run('UPDATE crm_notificaciones SET leido = 1 WHERE asesor_id = ? OR asesor_id IS NULL', [req.user.id]);
+    }
+    res.json({ message: 'Notificaciones marcadas como leídas' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to mark notifications as read' });
+  }
+});
+
+app.post('/api/notificaciones/:id/leido', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.nivel_rol === 'Asesor') {
+      await db.run('UPDATE crm_notificaciones SET leido = 1 WHERE id = ? AND asesor_id = ?', [id, req.user.id]);
+    } else {
+      await db.run('UPDATE crm_notificaciones SET leido = 1 WHERE id = ? AND (asesor_id = ? OR asesor_id IS NULL)', [id, req.user.id]);
+    }
+    res.json({ message: 'Notificación marcada como leída' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
   }
 });
 
