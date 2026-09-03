@@ -29,30 +29,53 @@ class PricingReferenceTest(unittest.TestCase):
                     )
 
     def test_tdd_tc_088_key_account_seed_exclusive_oracle(self) -> None:
-        """TDD-TC-088: Cuenta Clave aplica a semillas/híbridos y excluye agroquímicos."""
-        # 1. Validación de categorías elegibles
-        self.assertTrue(is_key_account_eligible("Híbrido"))
-        self.assertTrue(is_key_account_eligible("hibrido"))
-        self.assertTrue(is_key_account_eligible("Semilla"))
-        self.assertTrue(is_key_account_eligible("semillas"))
-        self.assertFalse(is_key_account_eligible("Agroquímico"))
-        self.assertFalse(is_key_account_eligible("agroquimico"))
-        self.assertFalse(is_key_account_eligible("Fertilizante"))
-        self.assertFalse(is_key_account_eligible(None))
+        """TDD-TC-088: Cuenta Clave aplica exclusivamente a Calamar e Hipopótamo."""
+        # 1. Validación de productos elegibles (Calamar e Hipopótamo)
+        self.assertTrue(is_key_account_eligible("Híbrido", "Hipopótamo Acceleron"))
+        self.assertTrue(is_key_account_eligible("hibrido", "HIPOPOTAMO ACCEL"))
+        self.assertTrue(is_key_account_eligible("Semilla", "Calamar"))
+        self.assertTrue(is_key_account_eligible("semillas", "semilla calamar"))
 
-        # 2. Cálculo determinista de precio neto: Híbrido (ej. Hipopótamo o Calamar)
-        # Con precio base 7015 y Retener GOLD (-$100), debe descontar $100 -> 6915.00
-        hibrido_neto = calculate_item_net_price(
+        # 2. Validación de productos no elegibles (otras semillas, agroquímicos, fertilizantes)
+        self.assertFalse(is_key_account_eligible("Híbrido", "Rinoceronte Acceleron"))
+        self.assertFalse(is_key_account_eligible("Híbrido", "Armadillo Poncho"))
+        self.assertFalse(is_key_account_eligible("Híbrido", "Vitala"))
+        self.assertFalse(is_key_account_eligible("Híbrido", "A-7573 Acceleron"))
+        self.assertFalse(is_key_account_eligible("Agroquímico", "Clavis + Desis"))
+        self.assertFalse(is_key_account_eligible("Fertilizante", "Urea"))
+        self.assertFalse(is_key_account_eligible(None, "Calamar"))
+        self.assertFalse(is_key_account_eligible("Híbrido", None))
+
+        # 3. Cálculo determinista: Hipopótamo y Calamar aplican descuento de Cuenta Clave (-$100)
+        hipopotamo_neto = calculate_item_net_price(
             category="Híbrido",
+            product_name="Hipopótamo Acceleron",
             list_price=7015,
             key_account_discount=100,
         )
-        self.assertEqual(hibrido_neto, "6915.00")
+        self.assertEqual(hipopotamo_neto, "6915.00")
 
-        # 3. Cálculo determinista de precio neto: Agroquímico (ej. Clavis + Desis)
-        # Con precio base 897.19 y Retener GOLD (-$100), NO debe descontar -> 897.19
+        calamar_neto = calculate_item_net_price(
+            category="Semilla",
+            product_name="Calamar",
+            list_price=7015,
+            key_account_discount=100,
+        )
+        self.assertEqual(calamar_neto, "6915.00")
+
+        # 4. Cálculo determinista: Otra semilla (ej. Rinoceronte) NO aplica descuento ($0)
+        rinoceronte_neto = calculate_item_net_price(
+            category="Híbrido",
+            product_name="Rinoceronte Acceleron",
+            list_price=5300,
+            key_account_discount=100,
+        )
+        self.assertEqual(rinoceronte_neto, "5300.00")
+
+        # 5. Cálculo determinista: Agroquímico (ej. Clavis) NO aplica descuento ($0)
         agroquimico_neto = calculate_item_net_price(
             category="Agroquímico",
+            product_name="Clavis + Desis",
             list_price=897.19,
             key_account_discount=100,
         )

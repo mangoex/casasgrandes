@@ -577,31 +577,31 @@ When el asesor teclea 6000 en el campo de Precio Final
 Then el descuento aplicado se ajusta a 1015 (89 incorporado + 926 adicional)
 And la barra de descuento se posiciona en 1015
 And los totales de la cotización reflejan el precio final de 6000
-When el asesor teclea un precio menor a 5926 (precio mínimo con tope de 1000 pesos de asesor)
-Then el campo se acota automáticamente a 5926 y el descuento no excede el tope autorizado
+When el asesor intenta teclear un precio menor a 5926 (límite inferior según condición mensual autorizada)
+Then el control restringe la entrada impidiendo valores inferiores a 5926 y acota el campo al mínimo autorizado
 ```
 
-## Feature: CHG-017 — Descuento de Cuenta Clave exclusivo para semillas
+## Feature: CHG-017 — Descuento de Cuenta Clave exclusivo para Calamar e Hipopótamo
 
-### BDD-SC-067 — Semillas e híbridos reciben beneficio de Cuenta Clave
+### BDD-SC-067 — Semillas Calamar e Hipopótamo reciben beneficio de Cuenta Clave
 
 ```gherkin
 Given un cliente con nivel de Cuenta Clave Retener GOLD (descuento 100 MXN)
-And un producto Semilla o Híbrido como Hipopótamo o Calamar con precio base 7015
+And un producto Semilla Calamar o Hipopótamo con precio base 7015
 When se cotiza el producto para ese cliente
 Then el sistema aplica el descuento de Cuenta Clave de 100 MXN
 And el precio base neto antes de beneficios del asesor es 6915 MXN
 And se visualiza el paso Cuenta Clave en Cotizador
 ```
 
-### BDD-SC-068 — Agroquímicos y Fertilizantes excluyen beneficio de Cuenta Clave
+### BDD-SC-068 — Otras semillas, Agroquímicos y Fertilizantes excluyen beneficio de Cuenta Clave
 
 ```gherkin
 Given un cliente con nivel de Cuenta Clave Retener GOLD (descuento 100 MXN)
-And un producto Agroquímico como Clavis con precio de catálogo 897.19 MXN
+And un producto Semilla distinto como Rinoceronte o Armadillo, o un Agroquímico como Clavis
 When se cotiza el producto para ese cliente
 Then el sistema asigna 0 MXN de descuento de Cuenta Clave
-And el precio base neto de Clavis permanece en 897.19 MXN
+And el precio base neto permanece íntegro sin deducción de Cuenta Clave
 And el paso Cuenta Clave permanece oculto en Cotizador para esa partida
 ```
 

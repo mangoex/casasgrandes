@@ -330,20 +330,21 @@ El Cotizador permite establecer precios con total exactitud de dos formas comple
 2. El campo `Precio Final (con descuento)` es un control editable directamente por el usuario. Al escribir un precio objetivo, el sistema calcula automáticamente el descuento requerido, mueve la barra a la posición equivalente y actualiza el descuento aplicado y los totales generales.
 
 Reglas comerciales:
-- Si el usuario ingresa un precio inferior al mínimo permitido (que requeriría un descuento superior al tope autorizado para el mes), el sistema acota el valor al precio mínimo permitido sin rebasar el tope autorizado del servidor (PROJECT-PR-018).
+- El precio que el asesor puede teclear no puede ser menor a la condición autorizada por mes (precio base neto menos el tope de descuento mensual autorizado del asesor). El campo no permite introducir ni retener un importe menor a ese límite mínimo autorizado (PROJECT-PR-018); cualquier intento de teclear un precio inferior queda restringido y acotado al precio mínimo permitido.
+- El campo dispone del límite inferior configurado dinámicamente (`min`), muestra la referencia de precio mínimo (`Mín: $X MXN`) y valida la entrada en tiempo real y al perder el foco.
 - Si el usuario ingresa un precio superior al precio base neto (descuento negativo), el sistema acota el valor al precio base neto (descuento adicional 0).
 - Al mover la barra de desplazamiento, el campo de precio final se actualiza de forma inmediata y continua.
 - Al modificar el precio final o la barra, los subtotales de la partida y el total global de la cotización se recalculan en tiempo real.
 
-## Incremento CHG-017 — Descuento de Cuenta Clave exclusivo para semillas
+## Incremento CHG-017 — Descuento de Cuenta Clave exclusivo para Calamar e Hipopótamo
 
 ### OBJ-018 — Aplicación estricta y determinista del beneficio de Cuenta Clave
 
-### PRD-FR-038 — Exclusión de Cuenta Clave en Agroquímicos y restricción a semillas
+### PRD-FR-038 — Beneficio de Cuenta Clave exclusivo para Calamar e Hipopótamo
 
-El beneficio monetario por nivel de Cuenta Clave (ej. Adquirir, Desarrollar, Retener, Retener GOLD) es un incentivo exclusivo para la adquisición de semillas:
-1. Aplica únicamente a productos cuya categoría sea `Híbrido` o `Semilla` (ej. Hipopótamo, Calamar, Rinoceronte, Armadillo, Vitala, A-7573).
-2. Queda expresamente excluido de productos con categoría `Agroquímico` o `Fertilizante` (ej. Clavis, Faena, Muralla Max, Provivi, Urea).
+El beneficio monetario por nivel de Cuenta Clave (ej. Adquirir, Desarrollar, Retener, Retener GOLD) es un incentivo exclusivo para dos productos específicos:
+1. Aplica única y exclusivamente a los productos **Calamar** e **Hipopótamo** (categorías `Híbrido` o `Semilla`).
+2. Queda expresamente excluido de todas las demás variedades de semillas (ej. Rinoceronte, Armadillo, Vitala, A-7573) y de todos los productos de categoría `Agroquímico` o `Fertilizante` (ej. Clavis, Faena, Muralla Max, Provivi, Urea).
 3. Para partidas no elegibles, el descuento por cuenta clave es $0.00 MXN, el precio neto no sufre deducción por cuenta clave y el bloque visual `🔑 Cuenta Clave` permanece oculto en Cotizador.
 4. Los cálculos deterministas en Python (`pricing_reference.py`, `cotizador.py`) y el runtime Node.js (`utils/pricing.js`, `server.js`) deben producir resultados idénticos y reproducibles.
 

@@ -267,20 +267,28 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - Cubre: PRD-FR-037.
 - El elemento `<input type="range" class="item-discount-slider">` define `step="1"` para desplazar la barra en incrementos enteros de $1 MXN.
 - El contenedor de Precio Final incluye un `<input type="number" class="item-final-price-input">` editable con `step="1"`.
+- El input `item-final-price-input` configura `min` y `max` dinámicamente:
+  `minAllowedPrice = Math.round(Math.max((basePrice - nucleDiscount) - maxAdditionalDiscount, 0))`
+  `maxAllowedPrice = Math.round(Math.max(basePrice - nucleDiscount, 0))`
+- El contenedor incluye la referencia visual `<div class="item-final-price-min-label">Mín: $X MXN</div>`.
 - Al escribir en `item-final-price-input`, `onFinalPriceInputChange` calcula:
   `targetAdditional = basePrice - nucleDiscount - enteredPrice`
   `clampedAdditional = clamp(targetAdditional, 0, maxAdditionalDiscount)`
   `slider.value = discountFloor + clampedAdditional`
+- Si el usuario teclea un precio menor a `minAllowedPrice` y ya completó los dígitos del importe mínimo, se acota de inmediato a `minAllowedPrice` para impedir valores inferiores a la condición mensual autorizada.
 - Sincroniza visualmente la barra, el descuento aplicado y el total global mediante `recalcTotalsWithDiscounts()`.
-- Al salir del foco (`blur`), `onFinalPriceInputBlur` restablece el valor exacto formateado si se introdujeron valores fuera de límites.
+- Al salir del foco (`blur`) o al disparar `change`, cualquier valor fuera de `[minAllowedPrice, maxAllowedPrice]` se acota estrictamente a su frontera.
 - Al interactuar con el slider, `onDiscountSliderChange` sincroniza de inmediato el campo `item-final-price-input`.
 
 ## Diseño CHG-017
 
-### SDD-CMP-035 — Elegibilidad determinista de Cuenta Clave para semillas
+### SDD-CMP-035 — Elegibilidad determinista de Cuenta Clave para Calamar e Hipopótamo
 
 - Cubre: PRD-FR-038, ADR-015.
-- La función de dominio `isKeyAccountEligibleCategory(category)` (JS) e `is_key_account_eligible(category)` (Python) normaliza el texto de categoría: retorna `true` para `híbrido`, `hibrido`, `semilla`, `semillas`; y `false` para cualquier otra (`agroquímico`, `agroquimico`, `fertilizante`, etc.).
+- La función de dominio `isKeyAccountEligible(prod)` (JS) e `is_key_account_eligible(category, product_name)` (Python) verifica dos condiciones obligatorias:
+  1. Categoría elegible: `híbrido`, `hibrido`, `semilla`, `semillas`.
+  2. Coincidencia de nombre de producto: debe contener `calamar` o `hipopotamo` (insensible a acentos y mayúsculas).
+- Cualquier otra variedad de semilla (ej. Rinoceronte, Armadillo, Vitala, A-7573) y cualquier agroquímico o fertilizante se evalúa como no elegible (`false`).
 - En `getNetPrice(prod, volMultiplier, keyAccountDiscount, activeSeason)`:
   - `effectiveKeyAccountDiscount = isKeyAccountEligible(prod) ? (Number(keyAccountDiscount) || 0) : 0`
   - `netPrice = Math.max(priceBeforeKeyAccount - effectiveKeyAccountDiscount, 0)`

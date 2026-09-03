@@ -17,8 +17,8 @@
 | CHG-013 | 2026-09-01 | Mostrar el precio base fijo, capturar precio del mes y saldo Asesor en dinero, y reflejar ese contrato en Cotizador | ADR-013, PRD-FR-035 | TDD-TC-075..078; EVD-012 | implemented-local |
 | CHG-014 | 2026-09-01 | Configurar Nucle por mes y aplicarlo opcionalmente a Híbridos y Semillas además del descuento del asesor | ADR-014, PRD-FR-036 | TDD-TC-079..085; EVD-013 | implemented-local |
 | CHG-015 | 2026-09-01 | Corregir el guardado PostgreSQL de Nucle y normalizar sus porcentajes a dos decimales | PRD-FR-036 | TDD-TC-079, TDD-TC-084..086; EVD-014 | implemented-local |
-| CHG-016 | 2026-09-03 | Barra de descuento con paso entero de 1 en 1 peso y edición directa bidireccional de Precio Final en Cotizador | PRD-FR-037 | TDD-TC-087; EVD-015 | implemented-local |
-| CHG-017 | 2026-09-03 | Descuento de Cuenta Clave exclusivo para semillas (Híbridos), excluyendo agroquímicos y fertilizantes | ADR-015, PRD-FR-038 | TDD-TC-088, TDD-TC-089; EVD-016 | implemented-local |
+| CHG-016 | 2026-09-03 | Barra de descuento con paso entero de 1 en 1 peso, edición directa bidireccional y límite inferior estricto de Precio Final en Cotizador | PRD-FR-037 | TDD-TC-087; EVD-015 | implemented-local |
+| CHG-017 | 2026-09-03 | Descuento de Cuenta Clave exclusivo para Calamar e Hipopótamo, excluyendo demás semillas, agroquímicos y fertilizantes | ADR-015, PRD-FR-038 | TDD-TC-088, TDD-TC-089; EVD-016 | implemented-local |
 
 ## Reglas
 

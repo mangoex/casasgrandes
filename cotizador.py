@@ -184,15 +184,19 @@ def calculate_prices(product_key, quantity, season_key, client_key):
         else:
             season_price = list_price * (1 + discount / 100.0)
             
+    prod_name_lower = prod["name"].lower()
+    is_cc_eligible = "calamar" in prod_name_lower or "hipopótamo" in prod_name_lower or "hipopotamo" in prod_name_lower
+    cc_discount = client["discount"] if is_cc_eligible else 0.0
+
     if prod["type"] == "seed_discount":
         base_usd = prod["base_usd"]
         vol_multiplier = get_volume_multiplier(quantity)
         usd_price_for_tier = round(base_usd * vol_multiplier, 2)
         exchange_rate = 18.70
         mxn_volume_price = round(usd_price_for_tier * 4.00 * exchange_rate)
-        net_price = mxn_volume_price - client["discount"]
+        net_price = max(mxn_volume_price - cc_discount, 0)
     elif prod["type"] == "seed_no_discount":
-        net_price = max(round(season_price) - client["discount"], 0)
+        net_price = max(round(season_price) - cc_discount, 0)
     else:
         net_price = max(season_price - prod["descuento_val"], 0)
         

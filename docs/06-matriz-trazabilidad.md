@@ -214,24 +214,25 @@
 - Rojo controlado: 1 fallo focalizado confirmó que el slider requería `step="1"` y que los handlers bidireccionales `onFinalPriceInputChange` y `onFinalPriceInputBlur` estaban pendientes.
 - Implementación:
   - `<input type="range" class="discount-slider item-discount-slider">` con `step="1"` tanto en plantilla como en configuración de ciclo de vida.
-  - `<input type="number" class="form-input item-final-price-input">` editable con `step="1"` y validación de acotamiento contra los topes autorizados de servidor (PROJECT-PR-018).
+  - `<input type="number" class="form-input item-final-price-input">` editable con `step="1"`, `min` dinámico, referencia visual `Mín: $X MXN`, `onchange` y validación de acotamiento estricto contra el precio mínimo permitido según el tope mensual autorizado del asesor (PROJECT-PR-018).
   - Sincronización bidireccional inmediata: mover slider actualiza Precio Final; editar Precio Final actualiza slider, descuento aplicado y totales globales.
 - Pruebas focalizadas: `node --test test/pricingDiscountBudget.test.js`, exit 0, 12/12.
-- Regresión completa: `node --test test/*.test.js`, exit 0, 119/119.
-- Oráculo Python: `python -m unittest test.test_pricing_reference -v`, exit 0, 1/1.
+- Regresión completa: `node --test test/*.test.js`, exit 0, 122/122.
+- Oráculo Python: `python -m unittest test.test_pricing_reference -v`, exit 0, 2/2.
 
 ## EVD-016 — Evidencia local CHG-017
 
 - Fecha: 2026-09-03.
 - Calibración: Riesgo R3 (Financiero / Contrato monetario).
 - Rojo controlado:
-  - Python: `ImportError` inicial al faltar `is_key_account_eligible` y `calculate_item_net_price`.
-  - Node.js: `TypeError` inicial al faltar `isKeyAccountEligibleCategory`.
+  - Python: fallo en `test_tdd_tc_088_key_account_seed_exclusive_oracle` al validar exclusividad de Calamar e Hipopótamo y rechazo de Rinoceronte, Armadillo, Vitala y agroquímicos.
+  - Node.js: fallo en `test/monthlyPricing.test.js` (`true !== false`) al verificar que Rinoceronte y otras semillas no recibían descuento.
 - Implementación:
-  - `pricing_reference.py`: funciones `is_key_account_eligible` y `calculate_item_net_price` con exclusión de agroquímicos y fertilizantes.
-  - `cotizador.py`: lógica de precios alineada para aplicar descuento de cliente a semillas y excluir agroquímicos.
-  - `utils/pricing.js`: funciones `isKeyAccountEligibleCategory` e `isKeyAccountEligible` con aplicación condicionada en `getNetPrice`.
+  - `pricing_reference.py`: normalización unicode insensible a acentos/mayúsculas; `is_key_account_eligible` y `calculate_item_net_price` aplican descuento de Cuenta Clave única y exclusivamente a `calamar` e `hipopotamo`.
+  - `cotizador.py`: lógica de precios alineada para aplicar descuento de cliente a Calamar e Hipopótamo y excluir las demás semillas y productos químicos.
+  - `utils/pricing.js`: `isKeyAccountEligible(prod)` verifica pertenencia a Híbrido/Semilla y coincidencia de nombre con Calamar o Hipopótamo.
+  - `public/js/app.js`: input de Precio Final configura `min` y `max` dinámicos, muestra indicador visual de precio mínimo (`Mín: $X MXN`) y acota estrictamente la captura al mínimo mensual autorizado en `input`, `change` y `blur`.
 - Pruebas focalizadas:
-  - Python: `python -m unittest test.test_pricing_reference -v`, exit 0, 2/2 (Híbrido Hipopótamo $7,015 -$100 -> $6,915; Agroquímico Clavis $897.19 -$0 -> $897.19).
-  - Node.js: `node --test test/monthlyPricing.test.js`, exit 0, 4/4.
-- Regresión completa: `node --test test/*.test.js`, exit 0, 120/120.
+  - Python: `python -m unittest test.test_pricing_reference -v`, exit 0, 2/2.
+  - Node.js: `node --test test/monthlyPricing.test.js test/pricingDiscountBudget.test.js`, exit 0, 16/16.
+- Regresión completa: `node --test test/*.test.js`, exit 0, 122/122.

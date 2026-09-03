@@ -230,13 +230,19 @@ function isKeyAccountEligibleCategory(category) {
 
 /**
  * Determina si un registro de producto es elegible para el beneficio de Cuenta Clave.
+ * El descuento por Cuenta Clave es exclusivo únicamente para dos productos: Calamar e Hipopótamo.
  *
  * @param {object|null|undefined} prod - Registro de producto
  * @returns {boolean} true si el producto es elegible
  */
 function isKeyAccountEligible(prod) {
   if (!prod) return false;
-  return isKeyAccountEligibleCategory(prod.tipo_categoria);
+  if (!isKeyAccountEligibleCategory(prod.tipo_categoria)) {
+    return false;
+  }
+  const rawName = String(prod.producto || prod.nombre || prod.name || '').trim().toLowerCase();
+  const normalizedName = rawName.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return normalizedName.includes('calamar') || normalizedName.includes('hipopotamo');
 }
 
 /**

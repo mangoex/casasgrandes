@@ -2189,8 +2189,12 @@ function addQuoteItemRow() {
                  style="font-weight:700; font-size:15px; color:var(--success); width:110px; text-align:right; padding:4px 8px;"
                  onkeydown="if(event.key==='Enter') this.blur();"
                  oninput="onFinalPriceInputChange(this)"
+                 onchange="onFinalPriceInputBlur(this)"
                  onblur="onFinalPriceInputBlur(this)">
           <span style="font-weight:700; color:var(--success); font-size:12px;">MXN</span>
+        </div>
+        <div class="item-final-price-min-label" style="font-size:10px; color:var(--text-light); margin-top:2px;">
+          Mín: <span class="item-final-price-min-val">$0</span> MXN
         </div>
         <div class="item-final-price" style="display:none;">-</div>
       </div>
@@ -2449,6 +2453,21 @@ function debouncedLiveCalculation() {
               // Store base net price for slider calculations
               slider.setAttribute('data-base-price', calcItem.precio_neto);
               slider.setAttribute('data-nucle-discount', nucleUnitDiscount);
+
+              const maxAdditionalDiscount = Math.max(sliderMaxTotal - embeddedDiscount, 0);
+              const minAllowedPrice = Math.round(Math.max((Number(calcItem.precio_neto) - nucleUnitDiscount) - maxAdditionalDiscount, 0));
+              const maxAllowedPrice = Math.round(Math.max(Number(calcItem.precio_neto) - nucleUnitDiscount, 0));
+              const finalInput = wrapper.querySelector('.item-final-price-input');
+              if (finalInput) {
+                finalInput.min = String(minAllowedPrice);
+                finalInput.max = String(maxAllowedPrice);
+                finalInput.disabled = slider.disabled;
+              }
+              const minValEl = wrapper.querySelector('.item-final-price-min-val');
+              if (minValEl) {
+                minValEl.textContent = `$${minAllowedPrice.toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
+              }
+
               // Update slider display
               onDiscountSliderChange(slider);
             } else if (slider) {
@@ -2460,12 +2479,19 @@ function debouncedLiveCalculation() {
               slider.style.setProperty('--slider-pct', '0%');
               slider.setAttribute('data-base-price', calcItem.precio_neto);
               slider.setAttribute('data-nucle-discount', nucleUnitDiscount);
+              const finalPriceRounded = Math.round(calcItem.precio_final);
               const finalEl = wrapper.querySelector('.item-final-price');
               if (finalEl) finalEl.textContent = `$${Number(calcItem.precio_final).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
               const finalInput = wrapper.querySelector('.item-final-price-input');
               if (finalInput) {
-                finalInput.value = Number(calcItem.precio_final).toFixed(2);
+                finalInput.value = finalPriceRounded;
+                finalInput.min = String(finalPriceRounded);
+                finalInput.max = String(finalPriceRounded);
                 finalInput.disabled = true;
+              }
+              const minValEl = wrapper.querySelector('.item-final-price-min-val');
+              if (minValEl) {
+                minValEl.textContent = `$${finalPriceRounded.toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
               }
             }
           }
@@ -2489,6 +2515,7 @@ window.onDiscountSliderChange = function(slider) {
   const nucleDiscount = parseFloat(slider.getAttribute('data-nucle-discount')) || 0;
   const additionalDiscount = Math.max(sliderTotal - discountFloor, 0);
   const finalPrice = Math.max(basePrice - additionalDiscount - nucleDiscount, 0);
+  const finalPriceRounded = Math.round(finalPrice);
   
   const wrapper = slider.closest('.item-row-wrapper');
   if (!wrapper) return;
@@ -2502,7 +2529,7 @@ window.onDiscountSliderChange = function(slider) {
   if (amountEl) amountEl.textContent = `$${sliderTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   if (finalEl) finalEl.textContent = `$${finalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   if (finalInput && document.activeElement !== finalInput) {
-    finalInput.value = Number(finalPrice).toFixed(2);
+    finalInput.value = finalPriceRounded;
     finalInput.disabled = slider.disabled;
   }
   if (mobileSubtotal) {
@@ -2529,8 +2556,25 @@ window.onFinalPriceInputChange = function(input) {
   const maxTotal = parseFloat(slider.max) || 0;
   const maxAdditionalDiscount = Math.max(maxTotal - discountFloor, 0);
 
-  const enteredPrice = parseFloat(input.value);
+  const minAllowedPrice = Math.round(Math.max((basePrice - nucleDiscount) - maxAdditionalDiscount, 0));
+  const maxAllowedPrice = Math.round(Math.max(basePrice - nucleDiscount, 0));
+
+  let enteredPrice = parseFloat(input.value);
   if (isNaN(enteredPrice)) return;
+
+  // Límite superior: no exceder precio base
+  if (enteredPrice > maxAllowedPrice) {
+    enteredPrice = maxAllowedPrice;
+    input.value = maxAllowedPrice;
+  }
+
+  // Límite inferior: no se puede descontar más de lo autorizado por mes (PROJECT-PR-018)
+  const minDigits = String(Math.floor(minAllowedPrice)).length;
+  const enteredDigits = String(Math.floor(enteredPrice)).length;
+  if (enteredPrice < minAllowedPrice && enteredDigits >= minDigits) {
+    enteredPrice = minAllowedPrice;
+    input.value = minAllowedPrice;
+  }
 
   const rawAdditional = (basePrice - nucleDiscount) - enteredPrice;
   const clampedAdditional = Math.max(0, Math.min(rawAdditional, maxAdditionalDiscount));
@@ -2549,11 +2593,29 @@ window.onFinalPriceInputBlur = function(input) {
   const basePrice = parseFloat(slider.getAttribute('data-base-price')) || 0;
   const nucleDiscount = parseFloat(slider.getAttribute('data-nucle-discount')) || 0;
   const discountFloor = parseFloat(slider.getAttribute('data-discount-floor')) || 0;
-  const sliderTotal = Math.max(parseFloat(slider.value) || 0, discountFloor);
-  const additionalDiscount = Math.max(sliderTotal - discountFloor, 0);
-  const effectiveFinalPrice = Math.max(basePrice - additionalDiscount - nucleDiscount, 0);
+  const maxTotal = parseFloat(slider.max) || 0;
+  const maxAdditionalDiscount = Math.max(maxTotal - discountFloor, 0);
 
-  input.value = effectiveFinalPrice.toFixed(2);
+  const minAllowedPrice = Math.round(Math.max((basePrice - nucleDiscount) - maxAdditionalDiscount, 0));
+  const maxAllowedPrice = Math.round(Math.max(basePrice - nucleDiscount, 0));
+
+  let enteredPrice = parseFloat(input.value);
+  if (isNaN(enteredPrice) || enteredPrice < minAllowedPrice) {
+    enteredPrice = minAllowedPrice;
+  } else if (enteredPrice > maxAllowedPrice) {
+    enteredPrice = maxAllowedPrice;
+  } else {
+    enteredPrice = Math.round(enteredPrice);
+  }
+
+  input.value = enteredPrice;
+
+  const rawAdditional = (basePrice - nucleDiscount) - enteredPrice;
+  const clampedAdditional = Math.max(0, Math.min(rawAdditional, maxAdditionalDiscount));
+  const sliderTotal = discountFloor + clampedAdditional;
+
+  slider.value = sliderTotal;
+  onDiscountSliderChange(slider);
 };
 
 // Recalculate grand total factoring in any advisor discounts from sliders

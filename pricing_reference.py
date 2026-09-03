@@ -73,21 +73,38 @@ def calculate_discount_budget(
     }
 
 
-def is_key_account_eligible(category: str | None) -> bool:
-    """Valida si una categoría de producto es elegible para descuento de Cuenta Clave.
+import unicodedata
 
-    El beneficio de Cuenta Clave es exclusivo para semillas (categorías Híbrido y Semilla,
-    como Hipopótamo y Calamar). No aplica a Agroquímicos ni Fertilizantes.
+
+def normalize_text(text: str | None) -> str:
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", str(text).strip().lower())
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def is_key_account_eligible(category: str | None, product_name: str | None = None) -> bool:
+    """Valida si un producto es elegible para descuento de Cuenta Clave.
+
+    El beneficio de Cuenta Clave es exclusivo para las semillas Calamar e Hipopótamo
+    (categorías Híbrido o Semilla). No aplica a otras variedades de semillas ni a
+    Agroquímicos o Fertilizantes.
     """
     if not category:
         return False
-    normalized = str(category).strip().lower()
-    return normalized in ("híbrido", "hibrido", "semilla", "semillas")
+    norm_cat = normalize_text(category)
+    if norm_cat not in ("hibrido", "semilla", "semillas"):
+        return False
+    if not product_name:
+        return False
+    norm_name = normalize_text(product_name)
+    return "calamar" in norm_name or "hipopotamo" in norm_name
 
 
 def calculate_item_net_price(
     *,
     category: str | None,
+    product_name: str | None = None,
     list_price: object,
     key_account_discount: object = "0",
     chemical_discount: object = "0",
@@ -97,7 +114,7 @@ def calculate_item_net_price(
     chem_discount = money(chemical_discount)
     cc_discount = money(key_account_discount)
 
-    if is_key_account_eligible(category):
+    if is_key_account_eligible(category, product_name):
         effective_cc = cc_discount
         price_before_cc = base
     else:

@@ -177,14 +177,27 @@ test('TDD-TC-087: Cotizador usa paso entero y sincroniza bidireccionalmente el p
   assert.match(frontend, /item-final-price-input/);
   assert.match(frontend, /onFinalPriceInputChange/);
   assert.match(frontend, /onFinalPriceInputBlur/);
+  assert.match(frontend, /finalInput\.min\s*=\s*String\(minAllowedPrice\)/);
+  assert.match(frontend, /item-final-price-min-val/);
+  assert.match(frontend, /onchange="onFinalPriceInputBlur\(this\)"/);
 
-  // 3. Simulación de la lógica bidireccional
+  // 3. Simulación de la lógica bidireccional con restricción de precio mínimo
   const calculateBidirectional = ({ basePrice, nucleDiscount = 0, discountFloor = 0, maxAdditionalDiscount, targetPrice }) => {
-    const rawAdditional = (basePrice - nucleDiscount) - targetPrice;
+    const minAllowedPrice = Math.round(Math.max((basePrice - nucleDiscount) - maxAdditionalDiscount, 0));
+    const maxAllowedPrice = Math.round(Math.max(basePrice - nucleDiscount, 0));
+
+    let sanitizedPrice = targetPrice;
+    if (sanitizedPrice < minAllowedPrice) {
+      sanitizedPrice = minAllowedPrice;
+    } else if (sanitizedPrice > maxAllowedPrice) {
+      sanitizedPrice = maxAllowedPrice;
+    }
+
+    const rawAdditional = (basePrice - nucleDiscount) - sanitizedPrice;
     const clampedAdditional = Math.max(0, Math.min(rawAdditional, maxAdditionalDiscount));
     const sliderTotal = discountFloor + clampedAdditional;
     const effectiveFinalPrice = Math.max((basePrice - clampedAdditional - nucleDiscount), 0);
-    return { clampedAdditional, sliderTotal, effectiveFinalPrice };
+    return { clampedAdditional, sliderTotal, effectiveFinalPrice, minAllowedPrice };
   };
 
   // Precio dentro del rango autorizado (ej: base 6826, asesor disponible 1000, piso 89)
@@ -199,7 +212,7 @@ test('TDD-TC-087: Cotizador usa paso entero y sincroniza bidireccionalmente el p
   assert.equal(inRange.sliderTotal, 915);
   assert.equal(inRange.effectiveFinalPrice, 6000);
 
-  // Precio por debajo del mínimo permitido (excede tope del asesor)
+  // Precio por debajo del mínimo permitido (no puede ser menor a la condición autorizada)
   const belowMin = calculateBidirectional({
     basePrice: 6826,
     nucleDiscount: 0,
@@ -207,9 +220,10 @@ test('TDD-TC-087: Cotizador usa paso entero y sincroniza bidireccionalmente el p
     maxAdditionalDiscount: 1000,
     targetPrice: 4000
   });
+  assert.equal(belowMin.minAllowedPrice, 5826);
   assert.equal(belowMin.clampedAdditional, 1000); // Acotado al máximo disponible
   assert.equal(belowMin.sliderTotal, 1089);
-  assert.equal(belowMin.effectiveFinalPrice, 5826); // No baja de 5826
+  assert.equal(belowMin.effectiveFinalPrice, 5826); // No baja de 5826 bajo ninguna condición
 
   // Precio por encima del base
   const aboveBase = calculateBidirectional({

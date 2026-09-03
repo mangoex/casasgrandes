@@ -458,23 +458,24 @@
   4. Al ingresar un precio inferior al mínimo permitido por el tope del asesor, se acota al límite máximo autorizado sin violar PROJECT-PR-018.
 - Estado: passed-local
 
-## TDD-TC-088 — Oráculo determinista Python de elegibilidad de Cuenta Clave
+## TDD-TC-088 — Oráculo determinista Python de elegibilidad de Cuenta Clave (Calamar e Hipopótamo)
 
 - Cubre: BDD-SC-067, BDD-SC-068, PRD-FR-038
 - Aserciones:
-  1. `is_key_account_eligible('Híbrido')` y `is_key_account_eligible('Semilla')` retornan `True`.
-  2. `is_key_account_eligible('Agroquímico')` y `is_key_account_eligible('Fertilizante')` retornan `False`.
-  3. `calculate_item_net_price` aplica el descuento de Cuenta Clave a Semillas e Híbridos (ej. Hipopótamo, Calamar).
-  4. `calculate_item_net_price` excluye el descuento de Cuenta Clave a Agroquímicos (ej. Clavis) manteniendo su precio íntegro.
+  1. `is_key_account_eligible('Híbrido', 'Hipopótamo Acceleron')` y `is_key_account_eligible('Híbrido', 'Calamar')` retornan `True`.
+  2. `is_key_account_eligible('Híbrido', 'Rinoceronte Acceleron')` y `is_key_account_eligible('Híbrido', 'Armadillo')` retornan `False`.
+  3. `is_key_account_eligible('Agroquímico', 'Clavis')` y `is_key_account_eligible('Fertilizante', 'Urea')` retornan `False`.
+  4. `calculate_item_net_price` aplica el descuento de Cuenta Clave a Calamar e Hipopótamo y lo excluye en cualquier otra semilla o químico.
 - Estado: passed-local
 
-## TDD-TC-089 — Motor de precios y endpoints excluyen Cuenta Clave en Agroquímicos
+## TDD-TC-089 — Motor de precios JS exclusivo para Calamar e Hipopótamo
 
 - Cubre: BDD-SC-067, BDD-SC-068, PRD-FR-038, SDD-CMP-035
 - Aserciones:
-  1. `getNetPrice` en JS descuenta cuenta clave para un producto Híbrido o Semilla.
-  2. `getNetPrice` en JS NO descuenta cuenta clave para un producto Agroquímico.
-  3. En `/api/cotizaciones/calcular`, una partida de agroquímico para un cliente Cuenta Clave reporta `descuento_cuenta_clave_mxn = 0`.
+  1. `getNetPrice` en JS descuenta cuenta clave para Calamar e Hipopótamo.
+  2. `getNetPrice` en JS NO descuenta cuenta clave para otras semillas (ej. Rinoceronte, Armadillo, Vitala).
+  3. `getNetPrice` en JS NO descuenta cuenta clave para Agroquímicos (ej. Clavis) ni Fertilizantes.
+  4. En `/api/cotizaciones/calcular`, una partida de producto no elegible para un cliente Cuenta Clave reporta `descuento_cuenta_clave_mxn = 0`.
 - Estado: passed-local
 
 ## TDD-TC-090 — Endpoint de lectura y marcado de notificaciones
