@@ -4699,3 +4699,496 @@ tr:hover td {
   font-weight: 500;
 }
 
+/* =============================================================
+   NOTIFICATIONS POPOVER & MOBILE SHEET (Vercel / shadcn UI)
+   ============================================================= */
+.header-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-notif-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.header-notif-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.header-notif-btn:hover {
+  background-color: var(--bg);
+  color: var(--primary);
+  border-color: #cbd5e1;
+}
+
+.header-notif-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.header-notif-icon {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2;
+  transition: transform 0.2s ease;
+}
+
+.header-notif-btn:hover .header-notif-icon {
+  transform: rotate(12deg);
+}
+
+/* Notification Pulse Indicator Dot */
+.header-notif-pulse {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: flex;
+  height: 10px;
+  width: 10px;
+  pointer-events: none;
+}
+
+.header-notif-pulse-ring {
+  position: absolute;
+  display: inline-flex;
+  height: 100%;
+  width: 100%;
+  border-radius: 9999px;
+  background-color: #22c55e;
+  opacity: 0.75;
+  animation: notifPing 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.header-notif-pulse-dot {
+  position: relative;
+  display: inline-flex;
+  height: 10px;
+  width: 10px;
+  border-radius: 9999px;
+  background-color: #16a34a;
+  border: 2px solid var(--surface);
+}
+
+@keyframes notifPing {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Popover Dropdown Container (Desktop) */
+.vercel-notif-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 384px;
+  max-width: 90vw;
+  max-height: 520px;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: vercelPopoverIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top right;
+}
+
+@keyframes vercelPopoverIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Tabs Header */
+.vercel-notif-tabs-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 48px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  background-color: var(--surface);
+  flex-shrink: 0;
+}
+
+.vercel-notif-tabs-list {
+  display: flex;
+  height: 100%;
+  gap: 4px;
+}
+
+.vercel-notif-tab {
+  position: relative;
+  padding: 0 14px;
+  height: 100%;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-light);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s ease;
+}
+
+.vercel-notif-tab:hover {
+  color: var(--text);
+}
+
+.vercel-notif-tab.active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.vercel-notif-tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 10px;
+  right: 10px;
+  height: 2px;
+  background-color: var(--primary);
+  border-radius: 9999px;
+}
+
+.vercel-notif-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 9999px;
+  background-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.vercel-notif-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  background: none;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vercel-notif-settings-btn:hover {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* Panels Body & Lists */
+.vercel-notif-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 200px;
+  max-height: 380px;
+  background-color: var(--surface);
+}
+
+.vercel-notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.vercel-notif-item {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.15s ease;
+}
+
+.vercel-notif-item:last-child {
+  border-bottom: none;
+}
+
+.vercel-notif-item:hover {
+  background-color: #f8fafc;
+}
+
+.vercel-notif-item.is-unread {
+  background-color: rgba(220, 252, 231, 0.25);
+}
+
+.vercel-notif-item.is-unread:hover {
+  background-color: rgba(220, 252, 231, 0.4);
+}
+
+.vercel-notif-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.vercel-notif-item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.vercel-notif-item-icon.visit-icon {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.vercel-notif-item-icon.quote-icon {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+.vercel-notif-item-icon.alert-icon {
+  background-color: #ffedd5;
+  color: #c2410c;
+}
+
+.vercel-notif-item-icon.success-icon {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.vercel-notif-item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vercel-notif-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.vercel-notif-item-desc {
+  font-size: 12px;
+  color: var(--text-light);
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.vercel-notif-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.vercel-notif-item-time {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.vercel-notif-item-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: #e2e8f0;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.vercel-notif-item-action-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.vercel-notif-item-action-btn:hover {
+  background-color: var(--primary-light);
+}
+
+/* Empty State */
+.vercel-notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--text-light);
+  text-align: center;
+  gap: 10px;
+}
+
+.vercel-notif-empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  background-color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 20px;
+}
+
+.vercel-notif-empty-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-light);
+}
+
+.vercel-notif-empty-subtext {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Popover Footer */
+.vercel-notif-footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background-color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.vercel-notif-footer-btn {
+  width: 100%;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.vercel-notif-footer-btn:hover {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+}
+
+/* Search bar in panel */
+.vercel-notif-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background-color: #f8fafc;
+}
+
+.vercel-notif-search-input {
+  flex: 1;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  background-color: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.vercel-notif-search-input:focus {
+  border-color: var(--primary);
+}
+
+/* Mobile Bottom Sheet Overlay */
+.vercel-notif-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.vercel-notif-sheet-content {
+  background-color: var(--surface);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  border-top: 1px solid var(--border);
+  max-height: 75dvh;
+  height: 60dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.1);
+  animation: slideUpSheet 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.vercel-notif-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 9999px;
+  background-color: #cbd5e1;
+  margin: 8px auto 4px auto;
+  flex-shrink: 0;
+}

@@ -558,6 +558,7 @@ When cambia posteriormente el catálogo mensual
 Then la cotización conserva la bandera, porcentaje e importes Nucle originales
 ```
 
+<<<<<<< HEAD
 ## Feature: CHG-016 — Precisión y sincronización bidireccional en Cotizador
 
 ### BDD-SC-065 — Barra de descuento avanza en enteros de 1 en 1 peso
@@ -602,4 +603,30 @@ When se cotiza el producto para ese cliente
 Then el sistema asigna 0 MXN de descuento de Cuenta Clave
 And el precio base neto de Clavis permanece en 897.19 MXN
 And el paso Cuenta Clave permanece oculto en Cotizador para esa partida
+```
+
+## Feature: CHG-018 / PRD-FR-039..041 — Notificaciones en tablero por rol
+
+### BDD-SC-069 — Notificaciones para Asesor
+
+```gherkin
+Given un Asesor autenticado con visitas programadas para el día de hoy
+When visualiza el tablero general y hace clic en la campana de notificaciones
+Then el popover presenta la lista de visitas de hoy y permite iniciar o consultar cada visita
+```
+
+### BDD-SC-070 — Notificaciones para Administrador
+
+```gherkin
+Given un Administrador autenticado con cotizaciones en estado Borrador o Pendiente
+When abre el popover de notificaciones desde el encabezado del tablero
+Then el popover presenta las cotizaciones pendientes de revisión y autorizar con enlace a su detalle
+```
+
+### BDD-SC-071 — Comportamiento y tabs del Popover
+
+```gherkin
+Given el centro de notificaciones abierto en la interfaz
+When el usuario navega entre las pestañas Todas, No leídas y Archivadas
+Then filtra correctamente los elementos y se cierra limpiamente al hacer clic fuera o presionar Escape
 ```

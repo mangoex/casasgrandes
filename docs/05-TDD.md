@@ -476,3 +476,15 @@
   2. `getNetPrice` en JS NO descuenta cuenta clave para un producto Agroquímico.
   3. En `/api/cotizaciones/calcular`, una partida de agroquímico para un cliente Cuenta Clave reporta `descuento_cuenta_clave_mxn = 0`.
 - Estado: passed-local
+
+## TDD-TC-090 — Endpoint de lectura y marcado de notificaciones
+
+- Cubre: BDD-SC-069..071, PRD-FR-039, PRD-FR-041
+- Aserciones: `GET /api/notificaciones` responde para cualquier rol autenticado y `POST /api/notificaciones/leido` actualiza `leido = 1` de forma segura.
+- Estado: passed-local
+
+## TDD-TC-091 — Agregador y filtrado contextual por rol (Asesor vs Administrador)
+
+- Cubre: BDD-SC-069, BDD-SC-070, PRD-FR-040
+- Aserciones: el agregador detecta visitas de hoy pendientes para el Asesor y cotizaciones por revisar/autorizar para el Administrador.
+- Estado: passed-local

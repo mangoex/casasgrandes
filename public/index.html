@@ -131,7 +131,26 @@
       <header>
         <button id="mobile-menu-btn" class="mobile-only-btn">☰</button>
         <h1 id="view-title">Tablero General</h1>
-        <div id="header-user-badge" class="badge badge-info">Conectado</div>
+        <div class="header-actions-group">
+          <!-- Bell Notification Popover Trigger -->
+          <div class="header-notif-wrapper">
+            <button id="header-notification-btn" class="header-notif-btn" type="button" aria-label="Notificaciones" title="Notificaciones del sistema" aria-haspopup="dialog" aria-expanded="false" onclick="toggleNotificationPopover(event)">
+              <svg class="header-notif-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+              <span id="header-notif-badge" class="header-notif-pulse" style="display: none;">
+                <span class="header-notif-pulse-ring"></span>
+                <span class="header-notif-pulse-dot"></span>
+              </span>
+            </button>
+            <!-- Desktop Popover Dropdown (Vercel/shadcn style) -->
+            <div id="header-notification-popover" class="vercel-notif-popover" role="dialog" aria-label="Bandeja de notificaciones" style="display: none;">
+              <!-- Dynamic Popover Content rendered by JS -->
+            </div>
+          </div>
+          <div id="header-user-badge" class="badge badge-info">Conectado</div>
+        </div>
       </header>
 
       <!-- A. DASHBOARD VIEW -->
@@ -146,9 +165,9 @@
                 <span class="role-badge">Asesor de ventas</span>
               </div>
             </div>
-            <button class="mobile-icon-button" type="button" aria-label="Ver notificaciones" onclick="switchView('asignacion-view', 'Asignación de Agricultores')">
+            <button id="mobile-dashboard-notif-btn" class="mobile-icon-button" type="button" aria-label="Ver notificaciones" onclick="toggleNotificationPopover(event)">
               <span class="material-symbols-rounded" aria-hidden="true">notifications</span>
-              <span class="notification-dot" aria-hidden="true"></span>
+              <span id="mobile-notification-dot" class="notification-dot" aria-hidden="true" style="display: none;"></span>
             </button>
           </div>
 
@@ -3133,6 +3152,13 @@
           <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Guardar Ciclo</button>
         </form>
       </div>
+    </div>
+  </div>
+
+  <!-- Mobile Notification Sheet (Vercel / shadcn style) -->
+  <div id="mobile-notification-sheet" class="vercel-notif-sheet-overlay" style="display: none;" onclick="closeNotificationPopover(event)">
+    <div class="vercel-notif-sheet-content" onclick="event.stopPropagation()">
+      <!-- Rendered dynamically by JS -->
     </div>
   </div>
 

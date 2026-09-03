@@ -41,6 +41,8 @@
 | OBJ-014 | PRD-FR-034 | SDD-CMP-031, ADR-012 | BDD-SC-055..057 | TDD-TC-071..074 | `db.js`, `utils/pricing.js`, `utils/monthlyPricing.js`, `server.js`, `public/js/app.js` | EVD-011: Node 106/106, Python 1/1, casos 89/1089 y 1089/1089 aprobados | verified-local |
 | OBJ-015 | PRD-FR-035 | SDD-CMP-032, ADR-013 | BDD-SC-058..060 | TDD-TC-075..078 | `public/index.html`, `public/js/programacion-pricing.js`, `public/js/app.js`, `utils/monthlyPricing.js`, `server.js` | EVD-012: Node 110/110, derivación 7015/6926/1000 aprobada | verified-local |
 | OBJ-016 | PRD-FR-036 | SDD-CMP-033, ADR-014 | BDD-SC-061..064 | TDD-TC-079..085 | `db.js`, `utils/nuclePricing.js`, `server.js`, `public/index.html`, `public/js/app.js` | EVD-013: Node 117/117, caso mixto y catálogo 12/12 aprobados | verified-local |
+| OBJ-017 | PRD-FR-037, PRD-FR-038, PRD-FR-039 | SDD-CMP-034, SDD-CMP-035 | BDD-SC-065, BDD-SC-066, BDD-SC-067 | TDD-TC-087, TDD-TC-088 | `server.js`, `public/index.html`, `public/css/style.css`, `public/js/app.js` | Notificaciones contextuales en tablero por rol (Asesor/Admin) y tabs | implemented-tested-local |
+| OBJ-017 | PRD-FR-040 | SDD-CMP-036 | BDD-SC-067 | TDD-TC-087 | `components/ui/vercel-notification-popover.tsx`, `components/ui/demo.tsx` | Componentes shadcn/React creados en /components/ui | implemented-tested-local |
 
 ## Huecos
 

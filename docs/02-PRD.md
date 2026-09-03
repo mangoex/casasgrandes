@@ -287,6 +287,8 @@ El precio inicial del Cotizador es el precio efectivo mostrado en Programación.
 Si el descuento incorporado ya equivale al tope, la barra aparece al cien por ciento y queda sin recorrido adicional. El servidor conserva por separado `precio`, descuento incorporado y tope autorizado, y rechaza cualquier descuento adicional que exceda el saldo.
 
 Criterios de aceptación:
+- catálogo `7,015`, precio mensual `5,926`, descuento incorporado `1,089` y tope `1,089`: la barra inicia y termina en `1,089`, el precio inicial/final es `5,926` y el saldo adicional es cero;
+- catálogo `7,015`, precio mensual `6,926`, descuento incorporado `89` y tope `1,089`: la barra inicia visualmente en `89`, puede llegar a `1,089` y en el extremo descuenta únicamente `1,000` adicionales del precio mensual.
 
 ## Incremento CHG-013 — Precio base, precio del mes y saldo Asesor
 
@@ -344,3 +346,33 @@ El beneficio monetario por nivel de Cuenta Clave (ej. Adquirir, Desarrollar, Ret
 2. Queda expresamente excluido de productos con categoría `Agroquímico` o `Fertilizante` (ej. Clavis, Faena, Muralla Max, Provivi, Urea).
 3. Para partidas no elegibles, el descuento por cuenta clave es $0.00 MXN, el precio neto no sufre deducción por cuenta clave y el bloque visual `🔑 Cuenta Clave` permanece oculto en Cotizador.
 4. Los cálculos deterministas en Python (`pricing_reference.py`, `cotizador.py`) y el runtime Node.js (`utils/pricing.js`, `server.js`) deben producir resultados idénticos y reproducibles.
+
+## Incremento CHG-018 — Centro de notificaciones contextuales y popover en tablero
+
+### OBJ-019 — Notificaciones contextuales según el rol y soporte shadcn
+
+Proveer alertas operativas oportunas y contextuales en el encabezado del tablero (campana interactiva), segmentadas por rol de usuario, y compatibilidad con el ecosistema de componentes React shadcn UI.
+
+### PRD-FR-039 — Icono y disparador de notificaciones
+
+El encabezado del tablero general debe mostrar un icono de campana arriba a la derecha con un indicador animado de pulso cuando existan elementos sin atender.
+
+Criterio de aceptación: el icono es visible en escritorio y móvil, indicando el número o presencia de pendientes no leídos.
+
+### PRD-FR-040 — Notificaciones contextuales por rol
+
+- **Asesor**: Notifica visitas programadas para hoy que estén pendientes (`realizada = 0`), así como alertas de asignación de cartera.
+- **Administrador**: Notifica cotizaciones pendientes de revisión y aprobación (`Borrador`, `Pendiente`, `Pendiente Autorización`), así como avisos del sistema.
+- **Otros roles**: Notificaciones operativas y de almacén.
+
+Criterio de aceptación: al iniciar sesión como Asesor se muestran las visitas de hoy; como Administrador se muestran las cotizaciones por autorizar.
+
+### PRD-FR-041 — Popover estructurado y responsivo
+
+El centro de notificaciones debe abrirse como un Popover flotante en escritorio y como Bottom Sheet en móvil, con pestañas ("Todas", "No leídas", "Archivadas"), buscador y enlace de acción rápida a cada elemento.
+
+Criterio de aceptación: hacer clic en una notificación navega al recurso (visita o cotización) y permite marcar como leída.
+
+### PRD-FR-042 — Componentes base shadcn / React / TypeScript
+
+Se proveen los componentes `/components/ui/vercel-notification-popover.tsx` y `demo.tsx` compatibles con shadcn UI, Tailwind CSS y TypeScript.

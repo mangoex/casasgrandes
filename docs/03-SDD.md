@@ -287,3 +287,23 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - En la API de cotizaciones (`/api/cotizaciones/calcular`), el ítem calculado retorna `descuento_cuenta_clave_mxn = 0` para productos no elegibles.
 - En `public/js/app.js`, como `hasKeyAccountDiscount` evalúa a falso cuando el descuento es cero, el elemento visual `item-key-account-step` se oculta automáticamente.
 - El oráculo `pricing_reference.py` modela `calculate_item_net_price` de forma determinista para pruebas cruzadas continuas.
+
+## Diseño CHG-018 — Centro de notificaciones contextuales y componentes shadcn
+
+### SDD-CMP-036 — Disparador y badge de notificaciones en el Tablero
+
+- Cubre: PRD-FR-039
+- Botón disparador en el encabezado superior derecho del dashboard (desktop) y en el encabezado móvil con microanimación de pulso (`pulse-ring` y `pulse-core`) cuando existen notificaciones no leídas.
+- Cierra con clic exterior, botón de cerrar o tecla `Escape`.
+
+### SDD-CMP-037 — Agregador contextual de notificaciones por rol
+
+- Cubre: PRD-FR-040, PRD-FR-041
+- **Asesor**: Agrega visitas pendientes de hoy (`/api/planificacion` con `fecha_programada = hoy` y `realizada = 0`) junto con avisos de cartera (`/api/notificaciones`).
+- **Administrador**: Agrega cotizaciones pendientes de revisión o aprobación (`/api/cotizaciones` con estatus `Borrador`, `Pendiente`, `Pendiente Autorización`) junto con alertas del sistema.
+- **Backend**: Expone `POST /api/notificaciones/leido` para marcar como leídas las notificaciones del usuario activo.
+
+### SDD-CMP-038 — Estructura shadcn UI / Tailwind / TypeScript
+
+- Cubre: PRD-FR-042
+- Se alojan los componentes `/components/ui/vercel-notification-popover.tsx` y `demo.tsx` con arquitectura shadcn/Radix UI.
