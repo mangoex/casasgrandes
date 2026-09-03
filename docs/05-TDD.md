@@ -447,3 +447,32 @@
 - Cubre: BDD-SC-061, PRD-FR-036
 - Aserciones: el porcentaje se redondea a dos decimales, la interfaz usa incrementos de `0.01` y el UPSERT retorna `mes` en lugar de una columna `id` inexistente
 - Estado: passed-local
+
+## TDD-TC-087 — Granularidad entera y sincronización bidireccional de Precio Final en Cotizador
+
+- Cubre: BDD-SC-065, BDD-SC-066, PRD-FR-037, SDD-CMP-034
+- Aserciones:
+  1. El control deslizante del Cotizador declara `step="1"` y se configura con paso entero.
+  2. Existe el campo editable `item-final-price-input` con control bidireccional.
+  3. Al ingresar un precio final objetivo dentro de rango, se calcula el descuento adicional exacto y se sincroniza la posición del slider y totales.
+  4. Al ingresar un precio inferior al mínimo permitido por el tope del asesor, se acota al límite máximo autorizado sin violar PROJECT-PR-018.
+- Estado: passed-local
+
+## TDD-TC-088 — Oráculo determinista Python de elegibilidad de Cuenta Clave
+
+- Cubre: BDD-SC-067, BDD-SC-068, PRD-FR-038
+- Aserciones:
+  1. `is_key_account_eligible('Híbrido')` y `is_key_account_eligible('Semilla')` retornan `True`.
+  2. `is_key_account_eligible('Agroquímico')` y `is_key_account_eligible('Fertilizante')` retornan `False`.
+  3. `calculate_item_net_price` aplica el descuento de Cuenta Clave a Semillas e Híbridos (ej. Hipopótamo, Calamar).
+  4. `calculate_item_net_price` excluye el descuento de Cuenta Clave a Agroquímicos (ej. Clavis) manteniendo su precio íntegro.
+- Estado: passed-local
+
+## TDD-TC-089 — Motor de precios y endpoints excluyen Cuenta Clave en Agroquímicos
+
+- Cubre: BDD-SC-067, BDD-SC-068, PRD-FR-038, SDD-CMP-035
+- Aserciones:
+  1. `getNetPrice` en JS descuenta cuenta clave para un producto Híbrido o Semilla.
+  2. `getNetPrice` en JS NO descuenta cuenta clave para un producto Agroquímico.
+  3. En `/api/cotizaciones/calcular`, una partida de agroquímico para un cliente Cuenta Clave reporta `descuento_cuenta_clave_mxn = 0`.
+- Estado: passed-local

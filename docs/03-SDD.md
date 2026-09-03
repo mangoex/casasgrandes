@@ -259,3 +259,31 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - Previsualización, creación y edición consultan el porcentaje del mes en servidor; el cliente solo envía `nucle_aplicado`.
 - `cotizaciones` guarda bandera, porcentaje y descuento total; `cotizacion_detalles` guarda el descuento Nucle unitario y la versión `CHG-014`.
 - El frontend muestra la casilla, el descuento en el resumen y el snapshot en el detalle de la cotización.
+
+## Diseño CHG-016
+
+### SDD-CMP-034 — Control bidireccional y de precisión de cotización
+
+- Cubre: PRD-FR-037.
+- El elemento `<input type="range" class="item-discount-slider">` define `step="1"` para desplazar la barra en incrementos enteros de $1 MXN.
+- El contenedor de Precio Final incluye un `<input type="number" class="item-final-price-input">` editable con `step="1"`.
+- Al escribir en `item-final-price-input`, `onFinalPriceInputChange` calcula:
+  `targetAdditional = basePrice - nucleDiscount - enteredPrice`
+  `clampedAdditional = clamp(targetAdditional, 0, maxAdditionalDiscount)`
+  `slider.value = discountFloor + clampedAdditional`
+- Sincroniza visualmente la barra, el descuento aplicado y el total global mediante `recalcTotalsWithDiscounts()`.
+- Al salir del foco (`blur`), `onFinalPriceInputBlur` restablece el valor exacto formateado si se introdujeron valores fuera de límites.
+- Al interactuar con el slider, `onDiscountSliderChange` sincroniza de inmediato el campo `item-final-price-input`.
+
+## Diseño CHG-017
+
+### SDD-CMP-035 — Elegibilidad determinista de Cuenta Clave para semillas
+
+- Cubre: PRD-FR-038, ADR-015.
+- La función de dominio `isKeyAccountEligibleCategory(category)` (JS) e `is_key_account_eligible(category)` (Python) normaliza el texto de categoría: retorna `true` para `híbrido`, `hibrido`, `semilla`, `semillas`; y `false` para cualquier otra (`agroquímico`, `agroquimico`, `fertilizante`, etc.).
+- En `getNetPrice(prod, volMultiplier, keyAccountDiscount, activeSeason)`:
+  - `effectiveKeyAccountDiscount = isKeyAccountEligible(prod) ? (Number(keyAccountDiscount) || 0) : 0`
+  - `netPrice = Math.max(priceBeforeKeyAccount - effectiveKeyAccountDiscount, 0)`
+- En la API de cotizaciones (`/api/cotizaciones/calcular`), el ítem calculado retorna `descuento_cuenta_clave_mxn = 0` para productos no elegibles.
+- En `public/js/app.js`, como `hasKeyAccountDiscount` evalúa a falso cuando el descuento es cero, el elemento visual `item-key-account-step` se oculta automáticamente.
+- El oráculo `pricing_reference.py` modela `calculate_item_net_price` de forma determinista para pruebas cruzadas continuas.

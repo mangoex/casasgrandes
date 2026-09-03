@@ -8,3 +8,5 @@ scratch/
 *.pdf
 *.xlsx
 *.csv
+__pycache__/
+*.pyc

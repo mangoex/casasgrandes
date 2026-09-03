@@ -557,3 +557,49 @@ Given una cotización creada con Nucle
 When cambia posteriormente el catálogo mensual
 Then la cotización conserva la bandera, porcentaje e importes Nucle originales
 ```
+
+## Feature: CHG-016 — Precisión y sincronización bidireccional en Cotizador
+
+### BDD-SC-065 — Barra de descuento avanza en enteros de 1 en 1 peso
+
+```gherkin
+Given una partida en Cotizador con rango de descuento disponible
+When el asesor desplaza la barra de descuento
+Then la barra se mueve en incrementos enteros de 1 en 1 peso sin centavos arbitrarios
+```
+
+### BDD-SC-066 — Edición directa de Precio Final sincroniza descuento y barra
+
+```gherkin
+Given un producto con precio base neto 7015, piso de descuento 89 y tope acumulado 1089 (descuento asesor disponible 1000)
+When el asesor teclea 6000 en el campo de Precio Final
+Then el descuento aplicado se ajusta a 1015 (89 incorporado + 926 adicional)
+And la barra de descuento se posiciona en 1015
+And los totales de la cotización reflejan el precio final de 6000
+When el asesor teclea un precio menor a 5926 (precio mínimo con tope de 1000 pesos de asesor)
+Then el campo se acota automáticamente a 5926 y el descuento no excede el tope autorizado
+```
+
+## Feature: CHG-017 — Descuento de Cuenta Clave exclusivo para semillas
+
+### BDD-SC-067 — Semillas e híbridos reciben beneficio de Cuenta Clave
+
+```gherkin
+Given un cliente con nivel de Cuenta Clave Retener GOLD (descuento 100 MXN)
+And un producto Semilla o Híbrido como Hipopótamo o Calamar con precio base 7015
+When se cotiza el producto para ese cliente
+Then el sistema aplica el descuento de Cuenta Clave de 100 MXN
+And el precio base neto antes de beneficios del asesor es 6915 MXN
+And se visualiza el paso Cuenta Clave en Cotizador
+```
+
+### BDD-SC-068 — Agroquímicos y Fertilizantes excluyen beneficio de Cuenta Clave
+
+```gherkin
+Given un cliente con nivel de Cuenta Clave Retener GOLD (descuento 100 MXN)
+And un producto Agroquímico como Clavis con precio de catálogo 897.19 MXN
+When se cotiza el producto para ese cliente
+Then el sistema asigna 0 MXN de descuento de Cuenta Clave
+And el precio base neto de Clavis permanece en 897.19 MXN
+And el paso Cuenta Clave permanece oculto en Cotizador para esa partida
+```

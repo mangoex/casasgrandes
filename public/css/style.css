@@ -1316,6 +1316,36 @@ tr:hover td {
   cursor: not-allowed;
 }
 
+.item-final-price-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.item-final-price-input {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--success);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.item-final-price-input:focus {
+  border-color: var(--success);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  outline: none;
+}
+
+.item-final-price-input:disabled {
+  background: var(--bg);
+  color: var(--text-light);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .item-row:last-child {
   margin-bottom: 0;
 }

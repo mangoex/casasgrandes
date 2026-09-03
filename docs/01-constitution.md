@@ -96,6 +96,9 @@ Todo precio y descuento cotizado se resolverá en el servidor mediante un único
 | `docs/adr/ADR-010.md` | Representaciones vinculadas en Programación | Responsable de producto y técnico |
 | `docs/adr/ADR-011.md` | Tope mensual completo en Cotizador | Responsable de producto y técnico |
 | `docs/adr/ADR-012.md` | Barra acumulada y separación del tope autorizado | Responsable de producto y técnico |
+| `docs/adr/ADR-013.md` | Precio base, precio mensual y saldo Asesor | Responsable de producto y técnico |
+| `docs/adr/ADR-014.md` | Catálogo y beneficio Nucle | Responsable de producto y técnico |
+| `docs/adr/ADR-015.md` | Descuento de Cuenta Clave exclusivo para semillas | Responsable de producto y técnico |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites

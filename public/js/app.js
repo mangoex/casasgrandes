@@ -2158,7 +2158,7 @@ function addQuoteItemRow() {
       <div class="item-advisor-discount-control">
         <label>🎚️ Descuento del mes</label>
         <input type="range" class="discount-slider item-discount-slider"
-               min="0" max="0" step="0.01" value="0"
+               min="0" max="0" step="1" value="0"
                data-row="${rowNum}"
                oninput="onDiscountSliderChange(this)">
       </div>
@@ -2170,8 +2170,24 @@ function addQuoteItemRow() {
         </div>
       </div>
       <div style="text-align:right;">
-        <label>Precio Final (con descuento)</label>
-        <div class="item-final-price" style="font-weight:700; font-size:16px; color:var(--success);">-</div>
+        <label for="item-final-price-${rowNum}">Precio Final (con descuento)</label>
+        <div class="item-final-price-container" style="display:flex; align-items:center; justify-content:flex-end; gap:4px;">
+          <span style="font-weight:700; color:var(--success); font-size:16px;">$</span>
+          <input type="number"
+                 id="item-final-price-${rowNum}"
+                 class="form-input item-final-price-input"
+                 step="1"
+                 min="0"
+                 value="0"
+                 aria-label="Precio final con descuento"
+                 data-row="${rowNum}"
+                 style="font-weight:700; font-size:15px; color:var(--success); width:110px; text-align:right; padding:4px 8px;"
+                 onkeydown="if(event.key==='Enter') this.blur();"
+                 oninput="onFinalPriceInputChange(this)"
+                 onblur="onFinalPriceInputBlur(this)">
+          <span style="font-weight:700; color:var(--success); font-size:12px;">MXN</span>
+        </div>
+        <div class="item-final-price" style="display:none;">-</div>
       </div>
     </div>
   `;
@@ -2414,6 +2430,7 @@ function debouncedLiveCalculation() {
             if (hasAdvisorDiscount && slider) {
               slider.min = 0;
               slider.max = sliderMaxTotal;
+              slider.step = '1';
               slider.setAttribute('data-discount-floor', embeddedDiscount);
               slider.setAttribute('aria-valuemin', embeddedDiscount);
               const sliderContract = `${embeddedDiscount}:${sliderMaxTotal}`;
@@ -2431,6 +2448,7 @@ function debouncedLiveCalculation() {
               onDiscountSliderChange(slider);
             } else if (slider) {
               slider.value = 0;
+              slider.step = '1';
               slider.setAttribute('data-contract-prev', '0:0');
               slider.setAttribute('data-discount-floor', '0');
               slider.disabled = true;
@@ -2439,6 +2457,11 @@ function debouncedLiveCalculation() {
               slider.setAttribute('data-nucle-discount', nucleUnitDiscount);
               const finalEl = wrapper.querySelector('.item-final-price');
               if (finalEl) finalEl.textContent = `$${Number(calcItem.precio_final).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+              const finalInput = wrapper.querySelector('.item-final-price-input');
+              if (finalInput) {
+                finalInput.value = Number(calcItem.precio_final).toFixed(2);
+                finalInput.disabled = true;
+              }
             }
           }
         }
@@ -2467,11 +2490,16 @@ window.onDiscountSliderChange = function(slider) {
   
   const amountEl = wrapper.querySelector('.item-discount-amount');
   const finalEl = wrapper.querySelector('.item-final-price');
+  const finalInput = wrapper.querySelector('.item-final-price-input');
   const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
   const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
   
   if (amountEl) amountEl.textContent = `$${sliderTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   if (finalEl) finalEl.textContent = `$${finalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  if (finalInput && document.activeElement !== finalInput) {
+    finalInput.value = Number(finalPrice).toFixed(2);
+    finalInput.disabled = slider.disabled;
+  }
   if (mobileSubtotal) {
     mobileSubtotal.textContent = `Subtotal $${(finalPrice * quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
   }
@@ -2482,6 +2510,45 @@ window.onDiscountSliderChange = function(slider) {
   
   // Recalculate grand total with discounts applied
   recalcTotalsWithDiscounts();
+};
+
+window.onFinalPriceInputChange = function(input) {
+  const wrapper = input.closest('.item-row-wrapper');
+  if (!wrapper) return;
+  const slider = wrapper.querySelector('.item-discount-slider');
+  if (!slider) return;
+
+  const basePrice = parseFloat(slider.getAttribute('data-base-price')) || 0;
+  const nucleDiscount = parseFloat(slider.getAttribute('data-nucle-discount')) || 0;
+  const discountFloor = parseFloat(slider.getAttribute('data-discount-floor')) || 0;
+  const maxTotal = parseFloat(slider.max) || 0;
+  const maxAdditionalDiscount = Math.max(maxTotal - discountFloor, 0);
+
+  const enteredPrice = parseFloat(input.value);
+  if (isNaN(enteredPrice)) return;
+
+  const rawAdditional = (basePrice - nucleDiscount) - enteredPrice;
+  const clampedAdditional = Math.max(0, Math.min(rawAdditional, maxAdditionalDiscount));
+  const sliderTotal = discountFloor + clampedAdditional;
+
+  slider.value = sliderTotal;
+  onDiscountSliderChange(slider);
+};
+
+window.onFinalPriceInputBlur = function(input) {
+  const wrapper = input.closest('.item-row-wrapper');
+  if (!wrapper) return;
+  const slider = wrapper.querySelector('.item-discount-slider');
+  if (!slider) return;
+
+  const basePrice = parseFloat(slider.getAttribute('data-base-price')) || 0;
+  const nucleDiscount = parseFloat(slider.getAttribute('data-nucle-discount')) || 0;
+  const discountFloor = parseFloat(slider.getAttribute('data-discount-floor')) || 0;
+  const sliderTotal = Math.max(parseFloat(slider.value) || 0, discountFloor);
+  const additionalDiscount = Math.max(sliderTotal - discountFloor, 0);
+  const effectiveFinalPrice = Math.max(basePrice - additionalDiscount - nucleDiscount, 0);
+
+  input.value = effectiveFinalPrice.toFixed(2);
 };
 
 // Recalculate grand total factoring in any advisor discounts from sliders

@@ -316,3 +316,31 @@ Criterio de aceptación: con Híbrido mensual `900`, descuento asesor `100` y Nu
 
 - catálogo `7,015`, precio mensual `5,926`, descuento incorporado `1,089` y tope `1,089`: la barra inicia y termina en `1,089`, el precio inicial/final es `5,926` y el saldo adicional es cero;
 - catálogo `7,015`, precio mensual `6,926`, descuento incorporado `89` y tope `1,089`: la barra inicia visualmente en `89`, puede llegar a `1,089` y en el extremo descuenta únicamente `1,000` adicionales del precio mensual.
+
+## Incremento CHG-016 — Precisión en Cotizador con paso entero y captura directa de precio final
+
+### OBJ-017 — Ajuste de precisión y agilidad en cotizaciones comerciales
+
+### PRD-FR-037 — Control bidireccional y de precisión de precio y descuento en Cotizador
+
+El Cotizador permite establecer precios con total exactitud de dos formas complementarias y sincronizadas:
+1. La barra de descuento del asesor avanza en pasos enteros de 1 en 1 peso (`step="1"`), evitando brincos erráticos y centavos aleatorios en dispositivos móviles, tablets táctiles y pantallas de escritorio.
+2. El campo `Precio Final (con descuento)` es un control editable directamente por el usuario. Al escribir un precio objetivo, el sistema calcula automáticamente el descuento requerido, mueve la barra a la posición equivalente y actualiza el descuento aplicado y los totales generales.
+
+Reglas comerciales:
+- Si el usuario ingresa un precio inferior al mínimo permitido (que requeriría un descuento superior al tope autorizado para el mes), el sistema acota el valor al precio mínimo permitido sin rebasar el tope autorizado del servidor (PROJECT-PR-018).
+- Si el usuario ingresa un precio superior al precio base neto (descuento negativo), el sistema acota el valor al precio base neto (descuento adicional 0).
+- Al mover la barra de desplazamiento, el campo de precio final se actualiza de forma inmediata y continua.
+- Al modificar el precio final o la barra, los subtotales de la partida y el total global de la cotización se recalculan en tiempo real.
+
+## Incremento CHG-017 — Descuento de Cuenta Clave exclusivo para semillas
+
+### OBJ-018 — Aplicación estricta y determinista del beneficio de Cuenta Clave
+
+### PRD-FR-038 — Exclusión de Cuenta Clave en Agroquímicos y restricción a semillas
+
+El beneficio monetario por nivel de Cuenta Clave (ej. Adquirir, Desarrollar, Retener, Retener GOLD) es un incentivo exclusivo para la adquisición de semillas:
+1. Aplica únicamente a productos cuya categoría sea `Híbrido` o `Semilla` (ej. Hipopótamo, Calamar, Rinoceronte, Armadillo, Vitala, A-7573).
+2. Queda expresamente excluido de productos con categoría `Agroquímico` o `Fertilizante` (ej. Clavis, Faena, Muralla Max, Provivi, Urea).
+3. Para partidas no elegibles, el descuento por cuenta clave es $0.00 MXN, el precio neto no sufre deducción por cuenta clave y el bloque visual `🔑 Cuenta Clave` permanece oculto en Cotizador.
+4. Los cálculos deterministas en Python (`pricing_reference.py`, `cotizador.py`) y el runtime Node.js (`utils/pricing.js`, `server.js`) deben producir resultados idénticos y reproducibles.

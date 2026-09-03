@@ -192,9 +192,9 @@ def calculate_prices(product_key, quantity, season_key, client_key):
         mxn_volume_price = round(usd_price_for_tier * 4.00 * exchange_rate)
         net_price = mxn_volume_price - client["discount"]
     elif prod["type"] == "seed_no_discount":
-        net_price = round(season_price)
+        net_price = max(round(season_price) - client["discount"], 0)
     else:
-        net_price = season_price - prod["descuento_val"]
+        net_price = max(season_price - prod["descuento_val"], 0)
         
     total_price = net_price * quantity
     

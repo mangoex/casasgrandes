@@ -71,3 +71,38 @@ def calculate_discount_budget(
         "total_promotion_cap": f"{promotion_cap:.2f}",
         "advisor_discount_available": f"{available:.2f}",
     }
+
+
+def is_key_account_eligible(category: str | None) -> bool:
+    """Valida si una categoría de producto es elegible para descuento de Cuenta Clave.
+
+    El beneficio de Cuenta Clave es exclusivo para semillas (categorías Híbrido y Semilla,
+    como Hipopótamo y Calamar). No aplica a Agroquímicos ni Fertilizantes.
+    """
+    if not category:
+        return False
+    normalized = str(category).strip().lower()
+    return normalized in ("híbrido", "hibrido", "semilla", "semillas")
+
+
+def calculate_item_net_price(
+    *,
+    category: str | None,
+    list_price: object,
+    key_account_discount: object = "0",
+    chemical_discount: object = "0",
+) -> str:
+    """Calcula deterministamente el precio neto de una partida antes del descuento del asesor."""
+    base = money(list_price)
+    chem_discount = money(chemical_discount)
+    cc_discount = money(key_account_discount)
+
+    if is_key_account_eligible(category):
+        effective_cc = cc_discount
+        price_before_cc = base
+    else:
+        effective_cc = Decimal("0.00")
+        price_before_cc = max(base - chem_discount, Decimal("0.00"))
+
+    net_price = max(price_before_cc - effective_cc, Decimal("0.00"))
+    return f"{net_price:.2f}"

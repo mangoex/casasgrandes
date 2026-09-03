@@ -205,3 +205,31 @@
 - Pruebas focalizadas: `node --test test/nuclePricing.test.js test/nucleRoutes.test.js test/pricingDiscountBudget.test.js`, exit 0, 19/19.
 - Regresión: `npm test`, exit 0, 118/118.
 - Pendiente: commit, despliegue y verificación visual autenticada.
+
+## EVD-015 — Evidencia local CHG-016
+
+- Fecha: 2026-09-03.
+- Rojo controlado: 1 fallo focalizado confirmó que el slider requería `step="1"` y que los handlers bidireccionales `onFinalPriceInputChange` y `onFinalPriceInputBlur` estaban pendientes.
+- Implementación:
+  - `<input type="range" class="discount-slider item-discount-slider">` con `step="1"` tanto en plantilla como en configuración de ciclo de vida.
+  - `<input type="number" class="form-input item-final-price-input">` editable con `step="1"` y validación de acotamiento contra los topes autorizados de servidor (PROJECT-PR-018).
+  - Sincronización bidireccional inmediata: mover slider actualiza Precio Final; editar Precio Final actualiza slider, descuento aplicado y totales globales.
+- Pruebas focalizadas: `node --test test/pricingDiscountBudget.test.js`, exit 0, 12/12.
+- Regresión completa: `node --test test/*.test.js`, exit 0, 119/119.
+- Oráculo Python: `python -m unittest test.test_pricing_reference -v`, exit 0, 1/1.
+
+## EVD-016 — Evidencia local CHG-017
+
+- Fecha: 2026-09-03.
+- Calibración: Riesgo R3 (Financiero / Contrato monetario).
+- Rojo controlado:
+  - Python: `ImportError` inicial al faltar `is_key_account_eligible` y `calculate_item_net_price`.
+  - Node.js: `TypeError` inicial al faltar `isKeyAccountEligibleCategory`.
+- Implementación:
+  - `pricing_reference.py`: funciones `is_key_account_eligible` y `calculate_item_net_price` con exclusión de agroquímicos y fertilizantes.
+  - `cotizador.py`: lógica de precios alineada para aplicar descuento de cliente a semillas y excluir agroquímicos.
+  - `utils/pricing.js`: funciones `isKeyAccountEligibleCategory` e `isKeyAccountEligible` con aplicación condicionada en `getNetPrice`.
+- Pruebas focalizadas:
+  - Python: `python -m unittest test.test_pricing_reference -v`, exit 0, 2/2 (Híbrido Hipopótamo $7,015 -$100 -> $6,915; Agroquímico Clavis $897.19 -$0 -> $897.19).
+  - Node.js: `node --test test/monthlyPricing.test.js`, exit 0, 4/4.
+- Regresión completa: `node --test test/*.test.js`, exit 0, 120/120.

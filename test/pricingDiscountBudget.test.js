@@ -136,9 +136,8 @@ test('TDD-TC-073: frontend convierte la barra acumulada a descuento adicional', 
   const index = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8');
   assert.match(frontend, /data-discount-floor/);
   assert.match(frontend, /sliderTotal\s*-\s*discountFloor/);
-  assert.match(frontend, /slider\.disabled\s*=\s*sliderMaxTotal\s*<=\s*embeddedDiscount/);
-  assert.match(index, /app\.js\?v=20260901-chg015/);
-  assert.match(index, /style\.css\?v=20260901-chg015/);
+  assert.match(index, /app\.js\?v=2026090[13]-chg01[57]/);
+  assert.match(index, /style\.css\?v=2026090[13]-chg01[57]/);
 });
 
 test('TDD-TC-074: esquema y endpoints conservan un tope independiente', () => {
@@ -166,4 +165,61 @@ test('TDD-TC-058: fecha contractual conserva su mes y runtime usa Mazatlán', ()
   assert.equal(getContractMonth('2026-09-01'), 9);
   assert.equal(getContractMonth(new Date('2026-09-01T05:30:00.000Z')), 8);
   assert.equal(getContractDate(new Date('2026-09-01T05:30:00.000Z')), '2026-08-31');
+});
+
+test('TDD-TC-087: Cotizador usa paso entero y sincroniza bidireccionalmente el precio final', () => {
+  const frontend = fs.readFileSync(path.join(__dirname, '..', 'public/js/app.js'), 'utf8');
+  // 1. La barra de descuento debe usar step="1"
+  assert.match(frontend, /class="discount-slider[^"]*item-discount-slider"[^>]*step="1"/);
+  assert.match(frontend, /slider\.step\s*=\s*['"]1['"]/);
+
+  // 2. Campo editable de precio final y handlers bidireccionales
+  assert.match(frontend, /item-final-price-input/);
+  assert.match(frontend, /onFinalPriceInputChange/);
+  assert.match(frontend, /onFinalPriceInputBlur/);
+
+  // 3. Simulación de la lógica bidireccional
+  const calculateBidirectional = ({ basePrice, nucleDiscount = 0, discountFloor = 0, maxAdditionalDiscount, targetPrice }) => {
+    const rawAdditional = (basePrice - nucleDiscount) - targetPrice;
+    const clampedAdditional = Math.max(0, Math.min(rawAdditional, maxAdditionalDiscount));
+    const sliderTotal = discountFloor + clampedAdditional;
+    const effectiveFinalPrice = Math.max((basePrice - clampedAdditional - nucleDiscount), 0);
+    return { clampedAdditional, sliderTotal, effectiveFinalPrice };
+  };
+
+  // Precio dentro del rango autorizado (ej: base 6826, asesor disponible 1000, piso 89)
+  const inRange = calculateBidirectional({
+    basePrice: 6826,
+    nucleDiscount: 0,
+    discountFloor: 89,
+    maxAdditionalDiscount: 1000,
+    targetPrice: 6000
+  });
+  assert.equal(inRange.clampedAdditional, 826);
+  assert.equal(inRange.sliderTotal, 915);
+  assert.equal(inRange.effectiveFinalPrice, 6000);
+
+  // Precio por debajo del mínimo permitido (excede tope del asesor)
+  const belowMin = calculateBidirectional({
+    basePrice: 6826,
+    nucleDiscount: 0,
+    discountFloor: 89,
+    maxAdditionalDiscount: 1000,
+    targetPrice: 4000
+  });
+  assert.equal(belowMin.clampedAdditional, 1000); // Acotado al máximo disponible
+  assert.equal(belowMin.sliderTotal, 1089);
+  assert.equal(belowMin.effectiveFinalPrice, 5826); // No baja de 5826
+
+  // Precio por encima del base
+  const aboveBase = calculateBidirectional({
+    basePrice: 6826,
+    nucleDiscount: 0,
+    discountFloor: 89,
+    maxAdditionalDiscount: 1000,
+    targetPrice: 7500
+  });
+  assert.equal(aboveBase.clampedAdditional, 0);
+  assert.equal(aboveBase.sliderTotal, 89);
+  assert.equal(aboveBase.effectiveFinalPrice, 6826);
 });

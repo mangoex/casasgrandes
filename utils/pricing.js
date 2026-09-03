@@ -209,8 +209,34 @@ function getNetPrice(prod, volMultiplier, keyAccountDiscount, activeSeason) {
     priceBeforeKeyAccount = seasonPrice - (prod.descuento_fijo_quimicos || 0.0);
   }
 
-  // Cuenta Clave es un beneficio del agricultor y se aplica antes del descuento del asesor.
-  return Math.max(priceBeforeKeyAccount - (Number(keyAccountDiscount) || 0), 0);
+  // Cuenta Clave es un beneficio exclusivo para semillas (Híbridos) y se aplica antes del descuento del asesor.
+  const effectiveKeyAccountDiscount = isKeyAccountEligible(prod)
+    ? (Number(keyAccountDiscount) || 0)
+    : 0;
+  return Math.max(priceBeforeKeyAccount - effectiveKeyAccountDiscount, 0);
+}
+
+/**
+ * Determina si una categoría de producto es elegible para el beneficio de Cuenta Clave.
+ * El descuento por Cuenta Clave es exclusivo para semillas (categorías Híbrido y Semilla).
+ *
+ * @param {string|null|undefined} category - Nombre de la categoría
+ * @returns {boolean} true si es Semilla o Híbrido; false para Agroquímicos, Fertilizantes u otros.
+ */
+function isKeyAccountEligibleCategory(category) {
+  const normalized = String(category || '').trim().toLowerCase();
+  return normalized === 'híbrido' || normalized === 'hibrido' || normalized === 'semilla' || normalized === 'semillas';
+}
+
+/**
+ * Determina si un registro de producto es elegible para el beneficio de Cuenta Clave.
+ *
+ * @param {object|null|undefined} prod - Registro de producto
+ * @returns {boolean} true si el producto es elegible
+ */
+function isKeyAccountEligible(prod) {
+  if (!prod) return false;
+  return isKeyAccountEligibleCategory(prod.tipo_categoria);
 }
 
 /**
@@ -240,6 +266,8 @@ module.exports = {
   getVolumeMultiplier,
   getSeasonPrice,
   getNetPrice,
+  isKeyAccountEligibleCategory,
+  isKeyAccountEligible,
   calculateItemPricing,
   EXCHANGE_RATE,
   USD_FACTOR
