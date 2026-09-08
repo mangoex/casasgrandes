@@ -4,7 +4,8 @@ const ROLES = Object.freeze({
   DIRECTOR: 'Director',
   ADVISOR: 'Asesor',
   WAREHOUSE: 'Almacen',
-  COLLECTION: 'Acopio'
+  COLLECTION: 'Acopio',
+  OBSERVER: 'Observador'
 });
 
 const COMMERCIAL_ROLES = Object.freeze([
@@ -20,6 +21,14 @@ const INVENTORY_ROLES = Object.freeze([
   ROLES.DIRECTOR,
   ROLES.WAREHOUSE,
   ROLES.COLLECTION
+]);
+
+const PLANNING_READ_ROLES = Object.freeze([
+  ROLES.ADMIN,
+  ROLES.COORDINATOR,
+  ROLES.DIRECTOR,
+  ROLES.ADVISOR,
+  ROLES.OBSERVER
 ]);
 
 function requireRoles(...allowedRoles) {
@@ -47,6 +56,7 @@ function requireOwnedResource(user, ownerId, res, message = 'Access denied for t
 module.exports = {
   COMMERCIAL_ROLES,
   INVENTORY_ROLES,
+  PLANNING_READ_ROLES,
   ROLES,
   canAccessOwnedResource,
   requireOwnedResource,

@@ -266,6 +266,32 @@ async function showAppView() {
     tabProd.style.display = canProduce ? 'block' : 'none';
   }
 
+  // Handle Observador Interface Restrictions
+  const isObservador = user.nivel_rol === 'Observador';
+  if (isObservador) {
+    // In sidebar, only show Planning and Dashboard in read-only mode
+    const allowedTargets = new Set(['planeacion-view', 'dashboard-view']);
+    document.querySelectorAll('.nav-links .nav-item').forEach(item => {
+      const target = item.getAttribute('data-target');
+      if (!allowedTargets.has(target)) {
+        item.style.display = 'none';
+      }
+    });
+  }
+
+  // Handle Plan Advisor Filter Group Visibility
+  const canFilterAdvisor = ['Administrador', 'Coordinador', 'Observador'].includes(user.nivel_rol);
+  const planAdvFilterGroup = document.getElementById('plan-advisor-filter-group');
+  if (planAdvFilterGroup) {
+    planAdvFilterGroup.style.display = canFilterAdvisor ? 'block' : 'none';
+  }
+
+  // Handle Plan Agendar Visita Button Visibility
+  const btnOpenPlanModal = document.getElementById('btn-open-plan-modal');
+  if (btnOpenPlanModal) {
+    btnOpenPlanModal.style.display = user.nivel_rol === 'Observador' ? 'none' : 'inline-block';
+  }
+
   updateWarehouseMovementLayout();
   
   // Bind Nav Links
@@ -390,12 +416,21 @@ async function showAppView() {
     });
   }
   
-  // Load Default Dashboard View
-  switchView('dashboard-view', 'Tablero General');
+  // Load Default View
+  if (user?.nivel_rol === 'Observador') {
+    switchView('planeacion-view', 'Planificación');
+  } else {
+    switchView('dashboard-view', 'Tablero General');
+  }
 }
 
 // Navigation Router
 function switchView(viewId, title) {
+  if (user?.nivel_rol === 'Observador' && !['planeacion-view', 'dashboard-view'].includes(viewId)) {
+    switchView('planeacion-view', 'Planificación');
+    return;
+  }
+
   if (viewId === 'asignacion-view' && user && user.nivel_rol === 'Asesor') {
     viewId = 'asignacion-asesor-view';
     title = 'Asignación de Agricultores';
@@ -5545,7 +5580,7 @@ async function loadPlaneacionView() {
   }
   
   const loaders = [loadWeeklySchedule()];
-  if (user.nivel_rol === 'Administrador' || user.nivel_rol === 'Coordinador') loaders.push(loadPlanAdvisorOptions());
+  if (['Administrador', 'Coordinador', 'Observador'].includes(user.nivel_rol)) loaders.push(loadPlanAdvisorOptions());
   if (user.nivel_rol === 'Asesor') loaders.push(loadCatalogStageStates());
   await Promise.all(loaders);
 }
@@ -5716,10 +5751,13 @@ async function loadWeeklySchedule() {
         const amtText = p.pronostico_monto_mxn > 0 ? `💰 $${p.pronostico_monto_mxn.toLocaleString('es-MX', {maximumFractionDigits: 0})}` : '';
         const forecastText = (bagsText || amtText) ? `<div style="font-size: 11px; margin-top: 4px; font-weight: 600; color: var(--accent);">${bagsText} ${amtText}</div>` : '';
         
-        const canManageOwnPlan = p.asesor_id === user.id || user.nivel_rol === 'Administrador';
+        const isObserver = user?.nivel_rol === 'Observador';
+        const canManageOwnPlan = (p.asesor_id === user.id || user.nivel_rol === 'Administrador') && user.nivel_rol !== 'Observador';
         const isAdmin = user.nivel_rol === 'Administrador';
         let actions = '';
-        if (p.realizada === 0 && canManageOwnPlan) {
+        if (isObserver) {
+          actions = '';
+        } else if (p.realizada === 0 && canManageOwnPlan) {
           actions = `
             <div style="display: flex; gap: 8px; margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 8px; justify-content: flex-end;">
               <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 10px; margin: 0; width: auto;" onclick="openCompletePlanModal(${p.id})">✔️ Cerrar</button>
@@ -5979,6 +6017,7 @@ if (planClientSearch) {
 }
 
 document.getElementById('btn-open-plan-modal').addEventListener('click', () => {
+  if (user?.nivel_rol === 'Observador') return;
   activePlanModalPlan = null;
   document.getElementById('add-plan-form').reset();
   document.getElementById('plan-form-id').value = '';
@@ -6033,10 +6072,13 @@ window.openEditPlanModal = function(p) {
   const submitBtn = document.getElementById('plan-submit-btn');
   const convertBtn = document.getElementById('btn-convert-to-prospect');
   
-  const isReadOnly = p.realizada !== 0;
+  const isObserver = user?.nivel_rol === 'Observador';
+  const isReadOnly = p.realizada !== 0 || isObserver;
   
   if (modalTitle) {
-    if (p.realizada === 1) {
+    if (isObserver) {
+      modalTitle.textContent = 'Detalle de Visita (Solo Lectura)';
+    } else if (p.realizada === 1) {
       modalTitle.textContent = 'Detalle de Visita (Realizada)';
     } else if (p.realizada === 2) {
       modalTitle.textContent = 'Detalle de Visita (Cancelada)';
@@ -6050,9 +6092,15 @@ window.openEditPlanModal = function(p) {
     submitBtn.textContent = 'Guardar Cambios';
   }
   
-  if (convertBtn) configureProspectConversionButton(p);
+  if (convertBtn) {
+    if (isObserver) {
+      convertBtn.style.display = 'none';
+    } else {
+      configureProspectConversionButton(p);
+    }
+  }
   
-  // Disable fields if the visit has already been concluded
+  // Disable fields if the visit has already been concluded or if user is Observador
   const form = document.getElementById('add-plan-form');
   form.querySelectorAll('.form-input').forEach(input => {
     input.disabled = isReadOnly;

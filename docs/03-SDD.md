@@ -395,5 +395,41 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
     - El elemento de navegación `li.nav-item[data-target="almacen-view"]` se equipa con la clase de rol `inventory-access-only` y atributo inline `style="display: none;"` para evitar parpadeos visuales al cargar la página.
     - La sección contenedora `#almacen-view` se marca con `inventory-access-only`.
   - **Frontend Control & Routing (`public/js/app.js`)**:
-    - En la rutina de visibilidad por rol, los elementos con clase `.inventory-access-only` se muestran únicamente si `['Administrador', 'Almacen', 'Cobranza', 'Coordinador', 'Director'].includes(user.nivel_rol)` (ocultos para `Asesor`).
     - En la función `switchView(viewId, viewTitle)`, si `viewId === 'almacen-view'` y el rol es `Asesor`, se cancela la llamada a `loadAlmacenData()` y se redirige automáticamente al Tablero General (`dashboard-view`).
+
+## Componentes del Incremento CHG-023
+
+### SDD-CMP-046 — Matriz de Roles y Autorización de Observador en Backend
+
+- **Ubicación**: `middleware/authorization.js` y `server.js`.
+- **Diseño**:
+  - `ROLES.OBSERVER = 'Observador'` se formaliza en `middleware/authorization.js`.
+  - El rol no forma parte de `COMMERCIAL_ROLES` ni de `INVENTORY_ROLES`.
+  - En `server.js`:
+    - `POST /api/planificacion`: valida `if (req.user.nivel_rol === 'Observador') return res.status(403).json({ error: 'El perfil Observador no tiene permisos para programar o modificar actividades.' });`.
+    - `PUT /api/planificacion/:id`: valida `if (req.user.nivel_rol === 'Observador') return res.status(403).json({ error: 'El perfil Observador no tiene permisos para modificar actividades.' });`.
+    - `DELETE /api/planificacion/:id` y `POST /api/planificacion/bulk-delete`: restringidos a `Administrador` (Observador recibe 403).
+    - `POST /api/planificacion/:id/convertir-prospecto`: valida `if (req.user.nivel_rol === 'Observador') return res.status(403).json({ error: 'El perfil Observador no tiene permisos para convertir actividades.' });`.
+    - `POST /api/reportes-etapa`: valida `if (req.user.nivel_rol === 'Observador') return res.status(403).json({ error: 'El perfil Observador no tiene permisos para registrar reportes de visita.' });`.
+    - `GET /api/planificacion`: al no ser `Asesor`, permite consultar `?asesor_id=ALL` o `?asesor_id=<id>` sin restricciones.
+
+### SDD-CMP-047 — Adaptación de Interfaz y Enrutador Cliente para Perfil Observador
+
+- **Ubicación**: `public/index.html` y `public/js/app.js`.
+- **Diseño**:
+  - `public/index.html`:
+    - El modal de Administración `#asesor-role` incluye `<option value="Observador">Observador (Solo Lectura Visitas)</option>`.
+    - El contenedor del filtro de asesores en Planificación se adapta para mostrarse a `Administrador`, `Coordinador` y `Observador`.
+    - El botón `#btn-open-plan-modal` ("Agendar Visita") se condiciona por rol para ocultarse al Observador.
+  - `public/js/app.js`:
+    - `showAppView()`:
+      - Si `user.nivel_rol === 'Observador'`, oculta los elementos de navegación no autorizados y muestra Planificación y Tablero (lectura).
+      - Redirige el inicio a `switchView('planeacion-view', 'Planificación')`.
+    - `loadPlaneacionView()`:
+      - Invoca `loadPlanAdvisorOptions()` para que el selector de asesores se pueble con "Todos los Asesores" y los asesores activos.
+    - `loadWeeklySchedule()`:
+      - Evalúa que si `user.nivel_rol === 'Observador'`, no se renderizan botones de acción en las tarjetas (`actions = ''`).
+    - `openEditPlanModal(p)`:
+      - Si `user.nivel_rol === 'Observador'`, establece el título `Detalle de Visita (Solo Lectura)`, deshabilita todos los campos (`input.disabled = true`) y oculta los botones `#plan-submit-btn` y `#btn-convert-to-prospect`.
+    - `switchView(viewId, title)`:
+      - Si `user.nivel_rol === 'Observador'` e intenta conmutar a una vista restringida, redirige a `planeacion-view`.

@@ -274,3 +274,12 @@
 - Componentes cubiertos: SDD-CMP-045.
 - Escenarios BDD: BDD-SC-080, BDD-SC-081, BDD-SC-082, BDD-SC-083.
 - Casos TDD: TDD-TC-098, TDD-TC-099.
+
+## EVD-021 — Evidencia local CHG-023
+
+- Fecha: 2026-09-08.
+- Calibración: Riesgo R2 (Nuevo rol Observador, autorización en backend y aislamiento de interfaz).
+- Requisitos cubiertos: PRD-FR-050, PRD-FR-051.
+- Componentes cubiertos: SDD-CMP-046, SDD-CMP-047.
+- Escenarios BDD: BDD-SC-084, BDD-SC-085, BDD-SC-086, BDD-SC-087, BDD-SC-088.
+- Casos TDD: TDD-TC-100, TDD-TC-101, TDD-TC-102.

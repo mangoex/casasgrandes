@@ -30,6 +30,7 @@ const { authenticateToken, requireAdmin, requireAdminOrCoordinador, requireProgr
 const {
   COMMERCIAL_ROLES,
   INVENTORY_ROLES,
+  PLANNING_READ_ROLES,
   requireRoles
 } = require('./middleware/authorization');
 const { validateInitialPassword } = require('./utils/security');
@@ -103,21 +104,28 @@ app.use('/api/clientes', clientesRouter);
 
 app.use(
   [
-    '/api/asesores',
     '/api/asignacion',
     '/api/cotizaciones',
     '/api/cuentas-clave',
-    '/api/dashboard',
     '/api/metas',
     '/api/metas-globales',
     '/api/notificaciones',
-    '/api/planificacion',
     '/api/programacion',
     '/api/prospectos',
     '/api/reportes-etapa'
   ],
   authenticateToken,
   requireRoles(COMMERCIAL_ROLES)
+);
+
+app.use(
+  [
+    '/api/asesores',
+    '/api/dashboard',
+    '/api/planificacion'
+  ],
+  authenticateToken,
+  requireRoles(PLANNING_READ_ROLES)
 );
 app.use('/api/almacen', authenticateToken, requireRoles(INVENTORY_ROLES));
 
@@ -3381,6 +3389,9 @@ app.get('/api/planificacion', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/planificacion', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol === 'Observador') {
+    return res.status(403).json({ error: 'El perfil Observador no tiene permisos para programar o modificar actividades.' });
+  }
   const { cliente_id, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, asesor_id } = req.body;
   if (!cliente_id || !fecha_programada) {
     return res.status(400).json({ error: 'cliente_id and fecha_programada are required' });
@@ -3429,6 +3440,9 @@ app.post('/api/planificacion', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/planificacion/:id', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol === 'Observador') {
+    return res.status(403).json({ error: 'El perfil Observador no tiene permisos para modificar actividades.' });
+  }
   const { id } = req.params;
   const { realizada, comentarios_resultado, fecha_programada, objetivo_visita, pronostico_bolsas, pronostico_monto_mxn, bitacora, cliente_id, asesor_id } = req.body;
   
@@ -3582,6 +3596,9 @@ app.get('/api/planificacion/:id/prospecto-elegibilidad', authenticateToken, asyn
 });
 
 app.post('/api/planificacion/:id/convertir-prospecto', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol === 'Observador') {
+    return res.status(403).json({ error: 'El perfil Observador no tiene permisos para convertir actividades.' });
+  }
   try {
     const outcome = await db.transaction(async tx => {
       const plan = await tx.get(
@@ -4370,6 +4387,9 @@ app.get('/api/reportes-etapa', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/reportes-etapa', authenticateToken, async (req, res) => {
+  if (req.user.nivel_rol === 'Observador') {
+    return res.status(403).json({ error: 'El perfil Observador no tiene permisos para registrar reportes de visita.' });
+  }
   const payload = req.body || {};
   const {
     planificacion_id,

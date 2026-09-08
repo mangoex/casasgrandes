@@ -560,3 +560,32 @@
   2. `public/js/app.js` oculta los elementos `.inventory-access-only` para usuarios con rol `Asesor`.
   3. `public/js/app.js` en `switchView` redirige a `dashboard-view` si un `Asesor` intenta activar `almacen-view`.
 - Estado: passed-local
+
+## TDD-TC-100 — Definición de ROLES.OBSERVER y denegación de mutaciones a planificación
+
+- Cubre: BDD-SC-087, PRD-FR-051, SDD-CMP-046
+- Aserciones:
+  1. `ROLES.OBSERVER` está definido como `'Observador'` en `middleware/authorization.js`.
+  2. `POST /api/planificacion` rechaza solicitudes de `Observador` con HTTP 403 Forbidden.
+  3. `PUT /api/planificacion/:id` rechaza solicitudes de `Observador` con HTTP 403 Forbidden.
+  4. `POST /api/planificacion/:id/convertir-prospecto` rechaza solicitudes de `Observador` con HTTP 403 Forbidden.
+  5. `POST /api/reportes-etapa` rechaza solicitudes de `Observador` con HTTP 403 Forbidden.
+- Estado: passed-local
+
+## TDD-TC-101 — Interfaz de Planificación: exposición de filtro de asesores y modo solo lectura
+
+- Cubre: BDD-SC-084, BDD-SC-085, BDD-SC-086, PRD-FR-050, PRD-FR-051, SDD-CMP-047
+- Aserciones:
+  1. `public/index.html` y `public/js/app.js` exponen el filtro de asesores `#plan-advisor-filter` para el rol `Observador`.
+  2. `public/js/app.js` oculta el botón "Agendar Visita" (`#btn-open-plan-modal`) para el rol `Observador`.
+  3. `public/js/app.js` en `loadWeeklySchedule` omite botones de acción en tarjetas para `Observador`.
+  4. `public/js/app.js` en `openEditPlanModal` activa modo solo lectura deshabilitando inputs y ocultando botón de guardar cuando el rol es `Observador`.
+- Estado: passed-local
+
+## TDD-TC-102 — Catálogo de roles en Administración incluye opción Observador
+
+- Cubre: BDD-SC-088, PRD-FR-050, SDD-CMP-047
+- Aserciones:
+  1. `public/index.html` incluye `<option value="Observador">` dentro de `#asesor-role`.
+  2. `public/js/app.js` reconoce `Observador` al inicializar la sesión y enrutador.
+- Estado: passed-local

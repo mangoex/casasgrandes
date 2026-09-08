@@ -725,3 +725,34 @@ And la interfaz despliega el selector con la lista completa de asesores
 - **Cuando** inicia sesión en la aplicación
 - **Entonces** el ítem "Almacén" se visualiza en el menú lateral
 - **Y** puede consultar las existencias físicas de los productos e insumos sin restricción.
+
+## Escenarios BDD del Incremento CHG-023
+
+### BDD-SC-084 — Observador visualiza la planificación con selector de todos los asesores
+- **Dado** un usuario autenticado con rol "Observador"
+- **Cuando** ingresa a la aplicación
+- **Entonces** es ubicado de forma predeterminada en la vista de Planificación (`planeacion-view`)
+- **Y** el selector de asesores (`#plan-advisor-filter`) está visible y contiene la opción "Todos los Asesores".
+
+### BDD-SC-085 — Observador filtra actividades por un asesor específico
+- **Dado** un usuario autenticado con rol "Observador" en la vista de Planificación
+- **Cuando** selecciona un asesor particular en el dropdown `#plan-advisor-filter`
+- **Entonces** el sistema actualiza el cronograma semanal y las métricas de avance mostrando únicamente las actividades correspondientes a dicho asesor.
+
+### BDD-SC-086 — Ocultamiento de controles de agendar, cerrar y eliminar visitas para Observador
+- **Dado** un usuario autenticado con rol "Observador"
+- **Cuando** consulta el cronograma semanal
+- **Entonces** el botón "Agendar Visita" (`#btn-open-plan-modal`) está oculto
+- **Y** las tarjetas de visita no presentan botones para cerrar visita, pasar a prospecto o eliminar
+- **Y** al hacer clic en una tarjeta, el modal se abre en modo solo lectura con botones de guardado ocultos.
+
+### BDD-SC-087 — Rechazo en backend HTTP 403 para mutaciones de planificación por Observador
+- **Dado** un usuario autenticado con rol "Observador"
+- **Cuando** envía una solicitud HTTP POST o PUT a `/api/planificacion` o `/api/planificacion/:id`
+- **Entonces** el servidor rechaza la solicitud respondiendo con código HTTP 403 Forbidden impidiendo cualquier modificación.
+
+### BDD-SC-088 — Creación y asignación del rol Observador desde el panel de Administración
+- **Dado** un usuario autenticado con rol "Administrador" en el módulo de usuarios
+- **Cuando** abre el formulario para dar de alta o editar un asesor
+- **Entonces** el selector de rol (`#asesor-role`) incluye la opción "Observador"
+- **Y** al guardar, el usuario queda registrado en la base de datos con `nivel_rol = 'Observador'`.

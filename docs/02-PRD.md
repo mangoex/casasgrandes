@@ -454,3 +454,32 @@ Criterio de aceptación:
   - Al iniciar sesión como `Asesor`, el enlace "Almacén" no está visible en el sidebar ni en el DOM accesible.
   - Cualquier petición autenticada de un `Asesor` a `/api/almacen/*` es rechazada perimetralmente con HTTP 403 Forbidden.
   - Las invocaciones client-side a `switchView('almacen-view')` por un `Asesor` no renderizan el módulo y conmutan al Tablero General.
+
+## Requisitos del Incremento CHG-023 (Perfil de Usuario "Observador" para Supervisión de Visitas)
+
+### PRD-FR-050 — Perfil de Usuario "Observador" para Supervisión de Visitas y Planificación Semanal
+
+- **Descripción**: La plataforma debe incorporar un nuevo rol de usuario denominado `Observador` orientado exclusivamente a dar seguimiento visual a las visitas agendadas y al cronograma de la pestaña de **Planificación** (`planeacion-view`).
+- **Regla de Negocio**:
+  - Un usuario con rol `Observador` puede visualizar el avance semanal de actividades de **todos los asesores** (`asesor_id=ALL`) o **filtrar por un asesor específico** desde el selector correspondiente.
+  - Al autenticarse, la vista predeterminada de inicio para el rol `Observador` es la pestaña de Planificación.
+  - El menú de navegación lateral para el `Observador` expone únicamente las vistas de supervisión permitidas (Planificación y Tablero General en modo consulta), ocultando módulos comerciales o transaccionales.
+- **Criterios de Aceptación**:
+  - Un usuario con `nivel_rol === 'Observador'` puede iniciar sesión y acceder a `GET /api/planificacion` y `GET /api/asesores`.
+  - El selector `#plan-advisor-filter` está habilitado y contiene la opción "Todos los Asesores" así como la lista de asesores activos.
+  - El usuario puede cambiar de semana comercial y consultar el cronograma y KPIs agregados sin restricciones de visualización.
+
+### PRD-FR-051 — Restricción Estricta de Solo Lectura y Protección Perimetral para Observadores
+
+- **Descripción**: Los usuarios con rol `Observador` no deben tener la capacidad técnica ni visual de agendar, editar, cerrar, reasignar o eliminar actividades o encuestas de visitas.
+- **Regla de Negocio**:
+  - En la interfaz de usuario:
+    - El botón "📅 Agendar Visita" (`#btn-open-plan-modal`) se oculta para el Observador.
+    - El botón de eliminación por lote (`#btn-delete-selected-plans`) permanece oculto.
+    - Las tarjetas de actividad no renderizan botones de acción ("✔️ Cerrar", "📋 Prospecto", "🗑️").
+    - Al hacer clic sobre una tarjeta de actividad, se despliega el modal en modo consulta (`Detalle de Visita (Solo Lectura)`), con inputs deshabilitados y sin controles de guardado ni conversión.
+  - En el backend (API):
+    - Solicitudes a `POST /api/planificacion`, `PUT /api/planificacion/:id`, `DELETE /api/planificacion/:id`, `POST /api/planificacion/bulk-delete`, `POST /api/planificacion/:id/convertir-prospecto` y `POST /api/reportes-etapa` realizadas por un usuario con rol `Observador` responden estrictamente con HTTP 403 Forbidden.
+- **Criterios de Aceptación**:
+  - Ningún control interactivo de mutación está presente en la vista del Observador.
+  - Cualquier petición HTTP mutativa sobre planificación enviada con un token de `Observador` es bloqueada con HTTP 403 Forbidden.
