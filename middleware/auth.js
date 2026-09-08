@@ -76,12 +76,21 @@ function requireWarehouseOperator(req, res, next) {
   next();
 }
 
+function requireSeguimientoAccess(req, res, next) {
+  const allowed = ['Administrador', 'Coordinador', 'Director', 'Asesor'];
+  if (!req.user || !allowed.includes(req.user.nivel_rol)) {
+    return res.status(403).json({ error: 'Permisos insuficientes para acceder a seguimiento.' });
+  }
+  next();
+}
+
 module.exports = {
   authenticateToken,
   requireAdmin,
   requireAdminOrCoordinador,
   requireProgramacionManager,
   requireWarehouseOperator,
+  requireSeguimientoAccess,
   JWT_SECRET,
   JWT_EXPIRES_IN
 };

@@ -247,3 +247,12 @@
 - Trazabilidad:
   - PRD-FR-043 / SDD-CMP-039 / BDD-SC-072 -> TDD-TC-092
   - PRD-FR-044 / SDD-CMP-040 / BDD-SC-073 -> TDD-TC-093
+
+## EVD-018 â€” Evidencia local CHG-020
+
+- Fecha: 2026-09-08.
+- CalibraciÃ³n: Riesgo R2 (Aislamiento de cartera y autorizaciÃ³n comercial).
+- Requisitos cubiertos: PRD-FR-045, PRD-FR-046.
+- Componentes cubiertos: SDD-CMP-041, SDD-CMP-042.
+- Escenarios BDD: BDD-SC-074, BDD-SC-075, BDD-SC-076.
+- Casos TDD: TDD-TC-094, TDD-TC-095.

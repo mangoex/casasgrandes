@@ -506,3 +506,21 @@
   1. La consulta SQL en `/api/comisiones/reporte` proyecta `c.fecha_creacion AS fecha_cotizacion` evitando el error `column c.fecha_cotizacion does not exist`.
   2. El endpoint responde HTTP 200 con el listado de comisiones sin error 500.
 - Estado: passed-local
+
+## TDD-TC-094 â€” Aislamiento estricto de cartera en Seguimiento para Asesores
+
+- Cubre: BDD-SC-075, PRD-FR-046, SDD-CMP-042
+- Aserciones:
+  1. Solicitud con rol Asesor a `/api/seguimiento/dashboard` responde 200 y fuerza `targetAsesorId = req.user.id`.
+  2. Si el Asesor envÃ­a `?asesor_id=ALL` o `?asesor_id=99`, el backend descarta el parÃ¡metro y devuelve solo sus registros.
+  3. Roles sin permisos comerciales o directivos (ej. Almacen) reciben 403 Forbidden.
+- Estado: passed-local
+
+## TDD-TC-095 â€” NavegaciÃ³n e interfaz de Seguimiento para Asesores
+
+- Cubre: BDD-SC-074, BDD-SC-076, PRD-FR-045, SDD-CMP-041
+- Aserciones:
+  1. `public/index.html` y `public/js/app.js` exponen el elemento de menÃº de seguimiento para `Asesor`.
+  2. `switchView` permite cambiar a `seguimiento-view` con tÃ­tulo "Mi Seguimiento" para el rol Asesor.
+  3. Para el rol Asesor, el selector `#sf-filter-asesor` se oculta en la vista.
+- Estado: passed-local

@@ -652,3 +652,33 @@ Then la base de datos ejecuta la consulta mapeando fecha_creacion sin error 4270
 And el servidor responde HTTP 200 con la colección de comisiones
 And la interfaz renderiza el listado o mensaje sin bloquearse en "Cargando reporte de comisiones..."
 ```
+
+## Feature: CHG-020 — Acceso a Seguimiento para Asesores y Aislamiento de Cartera
+
+### BDD-SC-074 — Asesor accede a la pestaña Mi Seguimiento
+
+```gherkin
+Given un usuario autenticado con rol Asesor
+When visualiza el menú de navegación principal
+Then el elemento "Seguimiento" está visible
+And al seleccionarlo la vista cambia a "Mi Seguimiento"
+And el selector de filtro por asesor permanece oculto
+```
+
+### BDD-SC-075 — Aislamiento estricto de cartera para Asesor en endpoint
+
+```gherkin
+Given un asesor autenticado con ID 2
+When envía una solicitud a /api/seguimiento/dashboard con o sin parámetros de otro asesor o ALL
+Then el backend procesa la solicitud forzando el filtro exclusivamente al asesor ID 2
+And la respuesta contiene únicamente cotizaciones, clientes, metas y visitas del asesor 2
+```
+
+### BDD-SC-076 — Supervisión global para Administrador, Coordinador y Director
+
+```gherkin
+Given un usuario autenticado con rol Administrador, Coordinador o Director
+When consulta /api/seguimiento/dashboard con o sin filtro de asesor
+Then el backend autoriza la consulta y permite visualizar métricas globales o filtrar por cualquier asesor
+And la interfaz despliega el selector con la lista completa de asesores
+```

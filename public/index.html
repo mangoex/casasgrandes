@@ -54,9 +54,9 @@
             <span class="icon">📊</span> Tablero
           </a>
         </li>
-        <li class="nav-item admin-or-coordinator-only" data-target="seguimiento-view" style="display: none;">
+        <li class="nav-item commercial-or-director-only" data-target="seguimiento-view" style="display: none;">
           <a href="#">
-            <span class="icon">📈</span> Seguimiento
+            <span class="icon">📈</span> <span id="nav-seguimiento-label">Seguimiento</span>
           </a>
         </li>
         <li class="nav-item" data-target="crm-view">
@@ -332,7 +332,7 @@
       </div>
 
       <!-- SEGUIMIENTO SALESFORCE VIEW -->
-      <div id="seguimiento-view" class="view-section admin-or-coordinator-only">
+      <div id="seguimiento-view" class="view-section commercial-or-director-only">
         <div class="sf-dashboard-container">
           
           <!-- Header Ribbon & Controls -->
@@ -340,13 +340,13 @@
             <div class="sf-header-title-group">
               <div class="sf-brand-icon">⚡</div>
               <div>
-                <h2>Seguimiento de Operaciones & Asesores</h2>
-                <p>Supervisión ejecutiva de ventas, cotizaciones, inventario y cumplimiento de actividades en campo</p>
+                <h2 id="sf-header-title">Seguimiento de Operaciones & Asesores</h2>
+                <p id="sf-header-subtitle">Supervisión ejecutiva de ventas, cotizaciones, inventario y cumplimiento de actividades en campo</p>
               </div>
             </div>
             
             <div class="sf-filters-wrapper">
-              <div class="sf-filter-control">
+              <div class="sf-filter-control" id="sf-filter-asesor-container">
                 <label class="sf-filter-label" for="sf-filter-asesor">Asesor:</label>
                 <select id="sf-filter-asesor" class="sf-select" style="min-width: 170px;">
                   <option value="ALL">👤 Todos los Asesores</option>

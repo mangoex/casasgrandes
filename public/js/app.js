@@ -235,6 +235,20 @@ async function showAppView() {
     document.querySelectorAll('.admin-or-coordinator-only').forEach(el => el.style.display = 'none');
   }
 
+  // Handle Commercial or Director Visibility (Seguimiento)
+  const isCommercialOrDirector = ['Administrador', 'Coordinador', 'Director', 'Asesor'].includes(user.nivel_rol);
+  document.querySelectorAll('.commercial-or-director-only').forEach(el => {
+    if (el.classList.contains('view-section')) {
+      el.style.display = isCommercialOrDirector ? '' : 'none';
+    } else {
+      el.style.display = isCommercialOrDirector ? 'block' : 'none';
+    }
+  });
+  const navSegLabel = document.getElementById('nav-seguimiento-label');
+  if (navSegLabel) {
+    navSegLabel.textContent = user.nivel_rol === 'Asesor' ? 'Mi Seguimiento' : 'Seguimiento';
+  }
+
   // Handle production tab visibility
   const canProduce = ['Administrador', 'Almacen'].includes(user.nivel_rol);
   const tabProd = document.getElementById('tab-produccion');
@@ -381,19 +395,21 @@ function switchView(viewId, title) {
     return;
   }
 
-  if (viewId === 'seguimiento-view' && !['Administrador', 'Coordinador', 'Director'].includes(user?.nivel_rol)) {
+  if (viewId === 'seguimiento-view' && !['Administrador', 'Coordinador', 'Director', 'Asesor'].includes(user?.nivel_rol)) {
     return;
   }
   
   if (!title) {
     const defaultTitles = {
       'dashboard-view': 'Tablero General',
-      'seguimiento-view': 'Seguimiento de Operaciones & Asesores',
+      'seguimiento-view': user?.nivel_rol === 'Asesor' ? 'Mi Seguimiento' : 'Seguimiento de Operaciones & Asesores',
       'clientes-view': 'Catálogo de Clientes / Agricultores',
       'cotizador-view': 'Cotizador de Productos',
       'catalog-view': 'Catálogo de Semillas e Insumos'
     };
     title = defaultTitles[viewId] || 'AgriSales Pro';
+  } else if (viewId === 'seguimiento-view' && user?.nivel_rol === 'Asesor') {
+    title = 'Mi Seguimiento';
   }
   
   document.getElementById('view-title').textContent = title;
@@ -4426,6 +4442,29 @@ function initSeguimientoEvents() {
 async function loadSeguimientoDashboard() {
   initSeguimientoEvents();
 
+  const isAdvisor = user?.nivel_rol === 'Asesor';
+  const advisorContainer = document.getElementById('sf-filter-asesor-container') || document.getElementById('sf-filter-asesor')?.closest('.sf-filter-control');
+  if (advisorContainer) {
+    advisorContainer.style.display = isAdvisor ? 'none' : '';
+  }
+
+  // Header texts customization for advisor
+  const titleEl = document.getElementById('sf-header-title');
+  const subEl = document.getElementById('sf-header-subtitle');
+  if (titleEl) {
+    titleEl.textContent = isAdvisor ? 'Mi Seguimiento Comercial' : 'Seguimiento de Operaciones & Asesores';
+  }
+  if (subEl) {
+    subEl.textContent = isAdvisor
+      ? 'Resumen de mis ventas, cotizaciones, inventario y actividades en campo'
+      : 'Supervisión ejecutiva de ventas, cotizaciones, inventario y cumplimiento de actividades en campo';
+  }
+
+  if (isAdvisor) {
+    sfSelectedAsesorId = user.id;
+    sfSelectedAdvisorSpotlightId = user.id;
+  }
+
   // Populate cycles if empty
   const cicloSelect = document.getElementById('sf-filter-ciclo');
   if (cicloSelect && cicloSelect.options.length === 0) {
@@ -4441,7 +4480,7 @@ async function loadSeguimientoDashboard() {
   }
 
   const currentCiclo = cicloSelect?.value || 'O-I 2026';
-  const asesorId = sfSelectedAsesorId || 'ALL';
+  const asesorId = isAdvisor ? user.id : (sfSelectedAsesorId || 'ALL');
 
   let url = `${API_URL}/api/seguimiento/dashboard?ciclo_agricola=${encodeURIComponent(currentCiclo)}&asesor_id=${encodeURIComponent(asesorId)}&preset=${encodeURIComponent(sfActivePreset)}`;
   if (sfCustomStartDate && sfCustomEndDate) {
@@ -4460,7 +4499,7 @@ async function loadSeguimientoDashboard() {
 
     // Populate advisor select if not populated yet
     const advisorSelect = document.getElementById('sf-filter-asesor');
-    if (advisorSelect && (advisorSelect.options.length <= 1 || advisorSelect.getAttribute('data-loaded') !== 'true')) {
+    if (!isAdvisor && advisorSelect && (advisorSelect.options.length <= 1 || advisorSelect.getAttribute('data-loaded') !== 'true')) {
       const currentVal = advisorSelect.value || 'ALL';
       const advisers = data.advisers_table || [];
       advisorSelect.innerHTML = '<option value="ALL">👤 Todos los Asesores</option>' +

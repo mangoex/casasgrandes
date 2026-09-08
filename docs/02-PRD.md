@@ -395,3 +395,24 @@ Criterio de aceptación: Al abrir o recargar la aplicación e iniciar sesión co
 El endpoint `GET /api/comisiones/reporte` debe proyectar la fecha de cotización mapeando la columna real del esquema de base de datos (`c.fecha_creacion AS fecha_cotizacion`), garantizando compatibilidad con PostgreSQL sin errores de columna inexistente.
 
 Criterio de aceptación: La consulta de reporte de comisiones retorna código HTTP 200 con el listado de comisiones generadas, y la interfaz renderiza la tabla o el mensaje de ausencia de registros sin permanecer en estado de carga.
+
+## Incremento CHG-020 — Acceso a Seguimiento para Asesores con Aislamiento Estricto de Cartera
+
+### OBJ-021 — Visibilidad operativa personalizada y segura para asesores
+
+Permitir que los asesores comerciales monitoreen su propio desempeño, cotizaciones, visitas y cumplimiento desde una vista especializada de Seguimiento, manteniendo estricto aislamiento respecto a los datos de los demás asesores.
+
+### PRD-FR-045 — Disponibilidad de la pestaña Seguimiento para rol Asesor
+
+La interfaz web debe exponer la opción de navegación hacia la vista de Seguimiento a los usuarios con rol `Asesor` (rotulada contextualmente como "Mi Seguimiento"), permitiéndoles ingresar a la pantalla de métricas ejecutivas.
+
+Criterio de aceptación: Al iniciar sesión como Asesor, el enlace de navegación "Seguimiento" es visible en el menú lateral y la vista se renderiza sin errores de acceso ni redirecciones forzadas.
+
+### PRD-FR-046 — Aislamiento estricto de cartera y métricas en Seguimiento
+
+El endpoint `/api/seguimiento/dashboard` debe aplicar una regla mandatoria de aislamiento cuando el solicitante tiene rol `Asesor`: el backend fija irrevocablemente `targetAsesorId = req.user.id`, ignorando cualquier parámetro de consulta como `?asesor_id=ALL` o identificadores de terceros.
+
+Criterio de aceptación:
+1. Las métricas de pipeline, ventas ganadas, cotizaciones, cumplimiento de agenda, tabla de desempeño, funnel y actividades corresponden exclusivamente a la cartera del asesor autenticado.
+2. El control selector de asesor se oculta en la interfaz del Asesor para evitar la exposición de la lista de compañeros.
+3. Los roles `Administrador`, `Coordinador` y `Director` conservan la supervisión global con selector de todos los asesores.

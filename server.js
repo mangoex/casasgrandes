@@ -26,7 +26,7 @@ const { normalizeProductSizes } = require('./utils/productos');
 const { normalizeMovementItems, buildWarehouseMovementsQuery } = require('./utils/almacen');
 const { getActiveStageCodesForDate, isStageActiveOnDate, validateStageReportPayload } = require('./utils/stageReports');
 const { calculateComplianceRate, calculateWinRate, calculateAverageDealValue, classifyActivityStatus, buildPipelineFunnel, resolveDateRange } = require('./utils/seguimientoHelpers');
-const { authenticateToken, requireAdmin, requireAdminOrCoordinador, requireProgramacionManager } = require('./middleware/auth');
+const { authenticateToken, requireAdmin, requireAdminOrCoordinador, requireProgramacionManager, requireSeguimientoAccess } = require('./middleware/auth');
 const {
   COMMERCIAL_ROLES,
   INVENTORY_ROLES,
@@ -2362,7 +2362,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
 // -------------------------------------------------------------
 // SALESFORCE STYLE TRACKING DASHBOARD ENDPOINT
 // -------------------------------------------------------------
-app.get('/api/seguimiento/dashboard', authenticateToken, requireAdminOrCoordinador, async (req, res) => {
+app.get('/api/seguimiento/dashboard', authenticateToken, requireSeguimientoAccess, async (req, res) => {
   try {
     const localToday = getLocalISODate();
     const ciclo = req.query.ciclo_agricola || 'O-I 2026';
@@ -2375,8 +2375,10 @@ app.get('/api/seguimiento/dashboard', authenticateToken, requireAdminOrCoordinad
     const dateRange = resolveDateRange(preset, customStart, customEnd, localToday);
     const { fecha_inicio, fecha_fin } = dateRange;
 
-    const isAdvisorFiltered = asesorIdParam && asesorIdParam !== 'ALL' && !isNaN(Number(asesorIdParam));
-    const targetAsesorId = isAdvisorFiltered ? Number(asesorIdParam) : null;
+    const isAdvisorRole = req.user && req.user.nivel_rol === 'Asesor';
+    const isAdvisorFiltered = !isAdvisorRole && asesorIdParam && asesorIdParam !== 'ALL' && !isNaN(Number(asesorIdParam));
+    const targetAsesorId = isAdvisorRole ? Number(req.user.id) : (isAdvisorFiltered ? Number(asesorIdParam) : null);
+    const effectiveAsesorFilter = isAdvisorRole ? String(req.user.id) : (asesorIdParam || 'ALL');
 
     // 1. Asesores catalog (active)
     let asesoresQuery = "SELECT id, nombre, usuario, email, telefono, COALESCE(calificacion, 5.0) as calificacion FROM asesores WHERE activo = 1 AND nivel_rol = 'Asesor'";
@@ -2406,9 +2408,16 @@ app.get('/api/seguimiento/dashboard', authenticateToken, requireAdminOrCoordinad
       SELECT COALESCE(asesor_id, 0) as asesor_id, COUNT(DISTINCT COALESCE(cliente_principal_id, id)) as client_count
       FROM clientes
       WHERE activo = 1
+    `;
+    const clientsParams = [];
+    if (targetAsesorId) {
+      clientsQuery += " AND asesor_id = ?";
+      clientsParams.push(targetAsesorId);
+    }
+    clientsQuery += `
       GROUP BY asesor_id
     `;
-    const clientsRows = await db.all(clientsQuery);
+    const clientsRows = await db.all(clientsQuery, clientsParams);
     const clientsMap = {};
     clientsRows.forEach(c => {
       clientsMap[c.asesor_id] = Number(c.client_count);
@@ -2736,7 +2745,7 @@ app.get('/api/seguimiento/dashboard', authenticateToken, requireAdminOrCoordinad
     res.json({
       filters: {
         ciclo_agricola: ciclo,
-        asesor_id: asesorIdParam || 'ALL',
+        asesor_id: effectiveAsesorFilter,
         preset,
         fecha_inicio,
         fecha_fin,

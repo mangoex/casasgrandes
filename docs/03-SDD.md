@@ -332,3 +332,24 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - En `server.js` (endpoint `GET /api/comisiones/reporte`), la consulta SQL a la tabla `cotizaciones` se actualiza para proyectar:
   `c.folio_cotizacion, c.fecha_creacion AS fecha_cotizacion, c.condiciones_pago`
 - Garantiza total compatibilidad con la base de datos PostgreSQL en Railway sin romper el contrato esperado por el frontend en `row.fecha_cotizacion`.
+
+## Diseño CHG-020 — Acceso a Seguimiento para Asesores y Aislamiento de Cartera
+
+### SDD-CMP-041 — Adaptación contextual de interfaz y selector de asesor
+
+- Cubre: PRD-FR-045, PRD-FR-046
+- En `public/index.html`, la opción de navegación (`data-target="seguimiento-view"`) y la sección de vista se etiquetan con la clase `commercial-or-director-only`.
+- En `public/js/app.js`:
+  - `showAppView` activa la visibilidad para `['Administrador', 'Coordinador', 'Director', 'Asesor']`.
+  - `switchView` permite el ingreso a la vista y personaliza el título: `"Mi Seguimiento"` para rol `Asesor` y `"Seguimiento de Operaciones & Asesores"` para roles directivos/supervisores.
+  - `loadSeguimientoDashboard` oculta el contenedor del selector `#sf-filter-asesor` cuando el usuario es Asesor, previniendo exposición de nombres de otros asesores y manipulación en cliente.
+
+### SDD-CMP-042 — Forzado autoritativo de identidad y Cartera en Backend
+
+- Cubre: PRD-FR-046
+- El middleware de autorización en `GET /api/seguimiento/dashboard` autoriza roles comerciales y directivos (`['Administrador', 'Coordinador', 'Director', 'Asesor']`).
+- Si `req.user.nivel_rol === 'Asesor'`:
+  - `targetAsesorId` se fija irrevocablemente a `req.user.id`.
+  - Se ignora cualquier valor enviado en `req.query.asesor_id`.
+  - La respuesta JSON en `filters.asesor_id` retorna `String(req.user.id)`.
+- Todas las consultas del dashboard (`asesoresQuery`, `metasQuery`, `clientsQuery`, `quotesQuery`, `detailsQuery`, `planQuery`, `visitsQuery`) ejecutan la cláusula `WHERE asesor_id = ?`, asegurando aislamiento total en la base de datos.
