@@ -489,3 +489,20 @@
 - Cubre: BDD-SC-069, BDD-SC-070, PRD-FR-040
 - Aserciones: el agregador detecta visitas de hoy pendientes para el Asesor y cotizaciones por revisar/autorizar para el Administrador.
 - Estado: passed-local
+
+## TDD-TC-092 — Resolución de ciclo y carga de estadísticas en Tablero General
+
+- Cubre: BDD-SC-072, PRD-FR-043, SDD-CMP-039
+- Aserciones:
+  1. `public/js/app.js` define adecuadamente la variable local `selectedCycle` en `loadDashboardData` a partir del selector `cycleSelect?.value || ''`.
+  2. No existen referencias huérfanas o no declaradas a `selectedCycle` en el frontend.
+  3. El endpoint `/api/dashboard/stats` responde 200 con la estructura completa de KPIs y progreso de metas con o sin parámetro de ciclo.
+- Estado: passed-local
+
+## TDD-TC-093 — Compatibilidad de columnas SQL en Reporte de Comisiones
+
+- Cubre: BDD-SC-073, PRD-FR-044, SDD-CMP-040
+- Aserciones:
+  1. La consulta SQL en `/api/comisiones/reporte` proyecta `c.fecha_creacion AS fecha_cotizacion` evitando el error `column c.fecha_cotizacion does not exist`.
+  2. El endpoint responde HTTP 200 con el listado de comisiones sin error 500.
+- Estado: passed-local

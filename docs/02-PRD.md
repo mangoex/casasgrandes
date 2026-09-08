@@ -377,3 +377,21 @@ Criterio de aceptación: hacer clic en una notificación navega al recurso (visi
 ### PRD-FR-042 — Componentes base shadcn / React / TypeScript
 
 Se proveen los componentes `/components/ui/vercel-notification-popover.tsx` y `demo.tsx` compatibles con shadcn UI, Tailwind CSS y TypeScript.
+
+## Incremento CHG-019 — Disponibilidad y carga continua en Tablero General y Reporte de Comisiones
+
+### OBJ-020 — Resiliencia en la inicialización del Tablero y consultas de Comisiones
+
+Garantizar que el Tablero General y el Módulo de Comisiones carguen y desplieguen sus datos sin bloquearse en estado de carga ni detonar excepciones no controladas.
+
+### PRD-FR-043 — Resolución segura del ciclo agrícola en el Tablero General
+
+El Tablero General debe resolver de forma segura el ciclo agrícola activo o seleccionado desde el control de ciclo (`dashboard-ciclo-select`) o usar un valor predeterminado antes de consultar `/api/dashboard/stats`, evitando referencias a variables indefinidas que aborten la renderización del DOM.
+
+Criterio de aceptación: Al abrir o recargar la aplicación e iniciar sesión con cualquier rol, el Tablero General despliega inmediatamente las métricas, tarjetas y tablas sin arrojar errores en consola ni congelarse en textos de "Cargando...".
+
+### PRD-FR-044 — Compatibilidad de esquema en la consulta de comisiones
+
+El endpoint `GET /api/comisiones/reporte` debe proyectar la fecha de cotización mapeando la columna real del esquema de base de datos (`c.fecha_creacion AS fecha_cotizacion`), garantizando compatibilidad con PostgreSQL sin errores de columna inexistente.
+
+Criterio de aceptación: La consulta de reporte de comisiones retorna código HTTP 200 con el listado de comisiones generadas, y la interfaz renderiza la tabla o el mensaje de ausencia de registros sin permanecer en estado de carga.

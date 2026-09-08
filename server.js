@@ -5078,7 +5078,7 @@ app.get('/api/comisiones/reporte', authenticateToken, async (req, res) => {
     let sql = `
       SELECT cg.*, 
              a.nombre AS asesor_nombre, 
-             c.folio_cotizacion, c.fecha_cotizacion, c.condiciones_pago,
+             c.folio_cotizacion, c.fecha_creacion AS fecha_cotizacion, c.condiciones_pago,
              p.producto AS producto_nombre
       FROM comisiones_generadas cg
       JOIN asesores a ON cg.asesor_id = a.id

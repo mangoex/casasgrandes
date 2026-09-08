@@ -549,6 +549,7 @@ async function loadDashboardData() {
   fetchAccountNotifications();
 
   try {
+    const selectedCycle = cycleSelect?.value || '';
     const res = await fetch(`${API_URL}/api/dashboard/stats?ciclo_agricola=${encodeURIComponent(selectedCycle)}`, { headers: getHeaders() });
     const stats = await res.json();
     

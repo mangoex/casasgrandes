@@ -315,3 +315,20 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 
 - Cubre: PRD-FR-042
 - Se alojan los componentes `/components/ui/vercel-notification-popover.tsx` y `demo.tsx` con arquitectura shadcn/Radix UI.
+
+## Diseño CHG-019 — Resiliencia en Tablero General y Reporte de Comisiones
+
+### SDD-CMP-039 — Resolución canónica de ciclo en Tablero General
+
+- Cubre: PRD-FR-043
+- En `public/js/app.js`, la función `loadDashboardData` resuelve el ciclo agrícola activo:
+  `const selectedCycle = cycleSelect?.value || '';`
+- Si `cycleSelect` no tiene valor seleccionado o no está montado en el DOM, el fallback envía una cadena vacía o toma el valor predeterminado del primer ciclo disponible en `allCycles`.
+- Al garantizar la existencia de la variable local en scope, no se produce `ReferenceError` y el flujo asíncrono completa la renderización de KPIs, barras de progreso y pedidos recientes.
+
+### SDD-CMP-040 — Mapeo canónico de columnas en Reporte de Comisiones
+
+- Cubre: PRD-FR-044
+- En `server.js` (endpoint `GET /api/comisiones/reporte`), la consulta SQL a la tabla `cotizaciones` se actualiza para proyectar:
+  `c.folio_cotizacion, c.fecha_creacion AS fecha_cotizacion, c.condiciones_pago`
+- Garantiza total compatibilidad con la base de datos PostgreSQL en Railway sin romper el contrato esperado por el frontend en `row.fecha_cotizacion`.

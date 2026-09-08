@@ -630,3 +630,25 @@ Given el centro de notificaciones abierto en la interfaz
 When el usuario navega entre las pestañas Todas, No leídas y Archivadas
 Then filtra correctamente los elementos y se cierra limpiamente al hacer clic fuera o presionar Escape
 ```
+
+## Feature: CHG-019 — Disponibilidad y resiliencia en Tablero y Comisiones
+
+### BDD-SC-072 — Tablero General despliega datos sin errores de scope
+
+```gherkin
+Given un usuario con sesión activa en el sistema
+When ingresa a la aplicación o navega a la sección Tablero General
+Then el sistema resuelve el ciclo agrícola seleccionado sin lanzar ReferenceError
+And renderiza los indicadores de ventas, metas y pedidos recientes
+And ningún contenedor permanece con el texto "Cargando..."
+```
+
+### BDD-SC-073 — Reporte de Comisiones ejecuta consulta compatible
+
+```gherkin
+Given un usuario autenticado con permisos comerciales o directivos
+When consulta el reporte de comisiones en /api/comisiones/reporte
+Then la base de datos ejecuta la consulta mapeando fecha_creacion sin error 42703
+And el servidor responde HTTP 200 con la colección de comisiones
+And la interfaz renderiza el listado o mensaje sin bloquearse en "Cargando reporte de comisiones..."
+```

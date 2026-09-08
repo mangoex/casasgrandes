@@ -236,3 +236,14 @@
   - Python: `python -m unittest test.test_pricing_reference -v`, exit 0, 2/2.
   - Node.js: `node --test test/monthlyPricing.test.js test/pricingDiscountBudget.test.js`, exit 0, 16/16.
 - Regresión completa: `node --test test/*.test.js`, exit 0, 122/122.
+
+## EVD-017 — Evidencia local CHG-019
+
+- Fecha: 2026-09-08.
+- Calibración: Riesgo R2 (Producción Estándar - Recuperación de disponibilidad de Tablero y Comisiones).
+- Causa raíz identificada:
+  1. `ReferenceError: selectedCycle is not defined` en `public/js/app.js:552` (función `loadDashboardData`).
+  2. Error PostgreSQL 42703 (`column c.fecha_cotizacion does not exist`) en `server.js:5081` (endpoint `GET /api/comisiones/reporte`).
+- Trazabilidad:
+  - PRD-FR-043 / SDD-CMP-039 / BDD-SC-072 -> TDD-TC-092
+  - PRD-FR-044 / SDD-CMP-040 / BDD-SC-073 -> TDD-TC-093
