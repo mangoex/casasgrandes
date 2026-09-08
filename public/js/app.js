@@ -249,6 +249,16 @@ async function showAppView() {
     navSegLabel.textContent = user.nivel_rol === 'Asesor' ? 'Mi Seguimiento' : 'Seguimiento';
   }
 
+  // Handle Inventory / Warehouse Access (Excludes Asesor)
+  const canAccessInventory = ['Administrador', 'Almacen', 'Cobranza', 'Coordinador', 'Director'].includes(user.nivel_rol);
+  document.querySelectorAll('.inventory-access-only').forEach(el => {
+    if (el.classList.contains('view-section')) {
+      el.style.display = canAccessInventory ? '' : 'none';
+    } else {
+      el.style.display = canAccessInventory ? 'block' : 'none';
+    }
+  });
+
   // Handle production tab visibility
   const canProduce = ['Administrador', 'Almacen'].includes(user.nivel_rol);
   const tabProd = document.getElementById('tab-produccion');
@@ -453,6 +463,10 @@ function switchView(viewId, title) {
   } else if (viewId === 'catalog-view') {
     loadCatalogData();
   } else if (viewId === 'almacen-view') {
+    if (user.nivel_rol === 'Asesor') {
+      switchView('dashboard-view', 'Tablero General');
+      return;
+    }
     loadAlmacenData();
   } else if (viewId === 'admin-view') {
     loadAdminData();

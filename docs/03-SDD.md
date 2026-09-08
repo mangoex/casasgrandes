@@ -379,4 +379,21 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
     - Incorpora `#bids-search-input`, `#bids-count-badge` y `#bids-pagination` (con `#bids-page-prev`, `#bids-page-next`, `#bids-pagination-summary`, `#bids-pagination-current`).
   - `public/js/app.js` (`loadClientBidsPool`):
     - Consume `/api/asignacion/sin-asesor?puja=1`.
-    - PaginaciÃ³n cliente de 50 registros por pÃ¡gina con filtrado instantÃ¡neo por bÃºsqueda.
+    - Paginación cliente de 50 registros por página con filtrado instantáneo por búsqueda.
+
+## Componentes del Incremento CHG-022
+
+### SDD-CMP-045 — Exclusión de Almacén del Panel del Vendedor y Blindaje Perimetral de Inventario
+
+- **Ubicación**: `middleware/authorization.js`, `public/index.html` y `public/js/app.js`.
+- **Diseño**:
+  - **Backend (`middleware/authorization.js`)**:
+    - `INVENTORY_ROLES` excluye terminantemente a `ROLES.ADVISOR` (`Asesor`), quedando restringido a:
+      `[ROLES.ADMIN, ROLES.COORDINATOR, ROLES.DIRECTOR, ROLES.WAREHOUSE, ROLES.COLLECTION]`.
+    - El middleware perimetral `app.use('/api/almacen', authenticateToken, requireRoles(INVENTORY_ROLES))` rechaza con HTTP 403 Forbidden cualquier solicitud originada por un Asesor.
+  - **Frontend Markup (`public/index.html`)**:
+    - El elemento de navegación `li.nav-item[data-target="almacen-view"]` se equipa con la clase de rol `inventory-access-only` y atributo inline `style="display: none;"` para evitar parpadeos visuales al cargar la página.
+    - La sección contenedora `#almacen-view` se marca con `inventory-access-only`.
+  - **Frontend Control & Routing (`public/js/app.js`)**:
+    - En la rutina de visibilidad por rol, los elementos con clase `.inventory-access-only` se muestran únicamente si `['Administrador', 'Almacen', 'Cobranza', 'Coordinador', 'Director'].includes(user.nivel_rol)` (ocultos para `Asesor`).
+    - En la función `switchView(viewId, viewTitle)`, si `viewId === 'almacen-view'` y el rol es `Asesor`, se cancela la llamada a `loadAlmacenData()` y se redirige automáticamente al Tablero General (`dashboard-view`).

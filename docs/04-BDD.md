@@ -695,8 +695,33 @@ And la interfaz despliega el selector con la lista completa de asesores
 - **Cuando** intenta realizar una peticiÃ³n POST a `/api/almacen/existencias/:id/ajuste` o a `/api/almacen/movimientos`
 - **Entonces** el servidor responde HTTP 403 Forbidden impidiendo modificaciones no autorizadas al inventario.
 
-### BDD-SC-079 â€” Filtrado y paginaciÃ³n rÃ¡pida del pool de pujas
-- **Dado** que existen mÃ¡s de 3,000 agricultores en el pool de pujas
-- **Cuando** el asesor abre la secciÃ³n de pujas
+### BDD-SC-079 — Filtrado y paginación rápida del pool de pujas
+- **Dado** que existen más de 3,000 agricultores en el pool de pujas
+- **Cuando** el asesor abre la sección de pujas
 - **Entonces** el sistema consulta `/api/asignacion/sin-asesor?puja=1` trayendo solo agricultores en puja
-- **Y** renderiza una pÃ¡gina de 50 registros con controles de paginaciÃ³n y buscador rÃ¡pido sin bloquear el navegador.
+- **Y** renderiza una página de 50 registros con controles de paginación y buscador rápido sin bloquear el navegador.
+
+## Escenarios BDD del Incremento CHG-022
+
+### BDD-SC-080 — Ocultamiento del elemento de menú Almacén para el rol Asesor
+- **Dado** un usuario autenticado con rol "Asesor"
+- **Cuando** carga la aplicación web y se evalúan los permisos de interfaz
+- **Entonces** el ítem de navegación "Almacén" (`li[data-target="almacen-view"]`) permanece oculto (`display: none`)
+- **Y** no aparece ninguna opción de inventario en el menú lateral del vendedor.
+
+### BDD-SC-081 — Redirección y bloqueo en conmutación directa a Almacén para rol Asesor
+- **Dado** un usuario autenticado con rol "Asesor"
+- **Cuando** se ejecuta la función `switchView('almacen-view')`
+- **Entonces** el sistema detecta que el usuario carece de perfil de almacén
+- **Y** cancela la carga de existencias redirigiéndolo de forma segura al Tablero General (`dashboard-view`).
+
+### BDD-SC-082 — Denegación perimetral HTTP 403 a rutas /api/almacen para rol Asesor
+- **Dado** un usuario autenticado con rol "Asesor"
+- **Cuando** intenta realizar cualquier petición HTTP GET o POST a los endpoints de `/api/almacen`
+- **Entonces** el middleware `requireRoles(INVENTORY_ROLES)` rechaza la petición con estado HTTP 403 Forbidden.
+
+### BDD-SC-083 — Conservación de acceso a Almacén para Administrador y Encargado de Almacén
+- **Dado** un usuario autenticado con rol "Administrador", "Almacen", "Cobranza", "Coordinador" o "Director"
+- **Cuando** inicia sesión en la aplicación
+- **Entonces** el ítem "Almacén" se visualiza en el menú lateral
+- **Y** puede consultar las existencias físicas de los productos e insumos sin restricción.

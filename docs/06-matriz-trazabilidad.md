@@ -265,3 +265,12 @@
 - Componentes cubiertos: SDD-CMP-043, SDD-CMP-044.
 - Escenarios BDD: BDD-SC-077, BDD-SC-078, BDD-SC-079.
 - Casos TDD: TDD-TC-096, TDD-TC-097.
+
+## EVD-020 — Evidencia local CHG-022
+
+- Fecha: 2026-09-08.
+- Calibración: Riesgo R1 (Aislamiento de módulos operativos y protección de interfaz para Asesores).
+- Requisitos cubiertos: PRD-FR-049.
+- Componentes cubiertos: SDD-CMP-045.
+- Escenarios BDD: BDD-SC-080, BDD-SC-081, BDD-SC-082, BDD-SC-083.
+- Casos TDD: TDD-TC-098, TDD-TC-099.

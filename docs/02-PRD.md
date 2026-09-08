@@ -430,12 +430,27 @@ Criterio de aceptación:
   - La interfaz de AlmacÃ©n en el panel de vendedor no muestra mensaje de error al cargar las existencias fÃ­sicas.
   - Intentos de ajuste manual o registro de movimientos por un `Asesor` son rechazados con HTTP 403 Forbidden.
 
-### PRD-FR-048 â€” Filtrado y PaginaciÃ³n de Agricultores en Pool de Puja
+### PRD-FR-048 — Filtrado y Paginación de Agricultores en Pool de Puja
 
-- **DescripciÃ³n**: La carga del pool de agricultores disponibles para puja en la vista del asesor (`loadClientBidsPool`) y asignaciÃ³n debe ser Ã³ptima e inmediata, evitando la congelaciÃ³n del navegador ocasionada por miles de registros sin asesor.
+- **Descripción**: La carga del pool de agricultores disponibles para puja en la vista del asesor (`loadClientBidsPool`) y asignación debe ser óptima e inmediata, evitando la congelación del navegador ocasionada por miles de registros sin asesor.
 - **Regla de Negocio**:
-  - El endpoint `GET /api/asignacion/sin-asesor` debe permitir el filtrado directo en servidor mediante el parÃ¡metro `puja=1` (o `disponible_para_puja=1`), proyectando Ãºnicamente las columnas indispensables de la ficha.
-  - La interfaz de usuario debe implementar paginaciÃ³n (50 agricultores por pÃ¡gina), buscador reactivo en tiempo real y contador de registros en el pool de pujas.
-- **Criterios de AceptaciÃ³n**:
-  - Solicitud con `?puja=1` retorna Ãºnicamente agricultores con `disponible_para_puja = 1`.
+  - El endpoint `GET /api/asignacion/sin-asesor` debe permitir el filtrado directo en servidor mediante el parámetro `puja=1` (o `disponible_para_puja=1`), proyectando únicamente las columnas indispensables de la ficha.
+  - La interfaz de usuario debe implementar paginación (50 agricultores por página), buscador reactivo en tiempo real y contador de registros en el pool de pujas.
+- **Criterios de Aceptación**:
+  - Solicitud con `?puja=1` retorna únicamente agricultores con `disponible_para_puja = 1`.
   - La tabla de pujas del asesor se despliega de forma reactiva en bloques paginados sin congelar la ventana del navegador.
+
+## Requisitos del Incremento CHG-022 (Aislamiento y Remoción de Almacén del Panel del Vendedor / Asesor)
+
+### PRD-FR-049 — Exclusión de la Opción Almacén en el Panel del Asesor y Blindaje Perimetral RBAC
+
+- **Descripción**: Los usuarios con rol `Asesor` (vendedores) no deben visualizar la opción "Almacén" en el menú de navegación lateral ni tener acceso a la vista `almacen-view`. La gestión de inventario y existencias físicas queda restringida exclusivamente a roles logísticos, de cobranza, coordinación, dirección y administración.
+- **Regla de Negocio**:
+  - En el panel del vendedor (`user.nivel_rol === 'Asesor'`), el ítem "Almacén" (`data-target="almacen-view"`) se oculta completamente de la navegación.
+  - La ruta base `/api/almacen` revoca el acceso al rol `Asesor`, retornando HTTP 403 Forbidden para cualquier intento de consumo de sus endpoints.
+  - Si un usuario con rol `Asesor` intenta activar o forzar la vista `almacen-view`, el enrutador del cliente lo redirige de inmediato al Tablero General (`dashboard-view`).
+  - Los roles operativos y directivos (`Administrador`, `Almacen`, `Cobranza`, `Coordinador`, `Director`) conservan su acceso y visibilidad completa sobre el módulo de Almacén.
+- **Criterios de Aceptación**:
+  - Al iniciar sesión como `Asesor`, el enlace "Almacén" no está visible en el sidebar ni en el DOM accesible.
+  - Cualquier petición autenticada de un `Asesor` a `/api/almacen/*` es rechazada perimetralmente con HTTP 403 Forbidden.
+  - Las invocaciones client-side a `switchView('almacen-view')` por un `Asesor` no renderizan el módulo y conmutan al Tablero General.

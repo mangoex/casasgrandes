@@ -19,8 +19,7 @@ const INVENTORY_ROLES = Object.freeze([
   ROLES.COORDINATOR,
   ROLES.DIRECTOR,
   ROLES.WAREHOUSE,
-  ROLES.COLLECTION,
-  ROLES.ADVISOR
+  ROLES.COLLECTION
 ]);
 
 function requireRoles(...allowedRoles) {

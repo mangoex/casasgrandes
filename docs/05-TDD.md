@@ -525,14 +525,14 @@
   3. Para el rol Asesor, el selector `#sf-filter-asesor` se oculta en la vista.
 - Estado: passed-local
 
-## TDD-TC-096 â€” AutorizaciÃ³n de lectura de existencias y protecciÃ³n de mutaciones para Asesores
+## TDD-TC-096 — Autorización de lectura de existencias y protección de mutaciones para Asesores (Superado por TDD-TC-098 en CHG-022)
 
 - Cubre: BDD-SC-077, BDD-SC-078, PRD-FR-047, SDD-CMP-043
 - Aserciones:
-  1. `INVENTORY_ROLES` incluye `Asesor`, permitiendo que peticiones autenticadas de Asesor a `/api/almacen/existencias` respondan HTTP 200.
+  1. `INVENTORY_ROLES` incluye `Asesor` (superado en CHG-022 donde se excluye).
   2. Peticiones de Asesor a `POST /api/almacen/existencias/:id/ajuste` responden HTTP 403 Forbidden.
   3. Peticiones de Asesor a `POST /api/almacen/movimientos` responden HTTP 403 Forbidden.
-- Estado: passed-local
+- Estado: superado-por-chg022
 
 ## TDD-TC-097 — Filtrado por servidor y paginación de agricultores en puja
 
@@ -541,4 +541,22 @@
   1. `GET /api/asignacion/sin-asesor?puja=1` filtra estrictamente por `disponible_para_puja = 1`.
   2. `public/index.html` declara `#bids-search-input`, `#bids-count-badge` y `#bids-pagination`.
   3. `public/js/app.js` consume `/api/asignacion/sin-asesor?puja=1` y pagina en bloques de 50 registros.
+- Estado: passed-local
+
+## TDD-TC-098 — Exclusión de Asesor en INVENTORY_ROLES y denegación perimetral HTTP 403
+
+- Cubre: BDD-SC-082, PRD-FR-049, SDD-CMP-045
+- Aserciones:
+  1. `INVENTORY_ROLES` excluye terminantemente a `ROLES.ADVISOR` (`Asesor`).
+  2. Middleware `requireRoles(INVENTORY_ROLES)` rechaza a cualquier usuario con `user.nivel_rol === 'Asesor'` con HTTP 403 Forbidden y no llama a `next()`.
+  3. `server.js` mantiene blindada la ruta `/api/almacen` con `authenticateToken` y `requireRoles(INVENTORY_ROLES)`.
+- Estado: passed-local
+
+## TDD-TC-099 — Ocultamiento de Almacén en interfaz y guardia en enrutador de cliente
+
+- Cubre: BDD-SC-080, BDD-SC-081, BDD-SC-083, PRD-FR-049, SDD-CMP-045
+- Aserciones:
+  1. `public/index.html` asigna la clase `inventory-access-only` y estilo `display: none;` al elemento `li.nav-item[data-target="almacen-view"]`.
+  2. `public/js/app.js` oculta los elementos `.inventory-access-only` para usuarios con rol `Asesor`.
+  3. `public/js/app.js` en `switchView` redirige a `dashboard-view` si un `Asesor` intenta activar `almacen-view`.
 - Estado: passed-local
