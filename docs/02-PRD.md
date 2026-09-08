@@ -416,3 +416,26 @@ Criterio de aceptación:
 1. Las métricas de pipeline, ventas ganadas, cotizaciones, cumplimiento de agenda, tabla de desempeño, funnel y actividades corresponden exclusivamente a la cartera del asesor autenticado.
 2. El control selector de asesor se oculta en la interfaz del Asesor para evitar la exposición de la lista de compañeros.
 3. Los roles `Administrador`, `Coordinador` y `Director` conservan la supervisión global con selector de todos los asesores.
+
+## Requisitos del Incremento CHG-021 (Consulta de Existencias para Asesores y PaginaciÃ³n de Pujas)
+
+### PRD-FR-047 â€” Consulta de Existencias FÃ­sicas de Inventario para Asesores Comerciales
+
+- **DescripciÃ³n**: Los usuarios con rol `Asesor` y `Coordinador` deben poder consultar las existencias fÃ­sicas actuales de los productos e insumos (`GET /api/almacen/existencias`) para conocer la disponibilidad de stock al momento de generar cotizaciones comerciales.
+- **Regla de Negocio**:
+  - La lectura de existencias fÃ­sicas estÃ¡ permitida para roles comerciales (`Asesor`, `Coordinador`).
+  - Las operaciones mutables de inventario (ajuste manual de existencias fÃ­sicas, registro de entradas/salidas y eliminaciÃ³n de movimientos) se mantienen estrictamente prohibidas para el rol `Asesor`.
+- **Criterios de AceptaciÃ³n**:
+  - Solicitud de `Asesor` a `GET /api/almacen/existencias` responde HTTP 200 con el listado de productos y sus existencias resultantes.
+  - La interfaz de AlmacÃ©n en el panel de vendedor no muestra mensaje de error al cargar las existencias fÃ­sicas.
+  - Intentos de ajuste manual o registro de movimientos por un `Asesor` son rechazados con HTTP 403 Forbidden.
+
+### PRD-FR-048 â€” Filtrado y PaginaciÃ³n de Agricultores en Pool de Puja
+
+- **DescripciÃ³n**: La carga del pool de agricultores disponibles para puja en la vista del asesor (`loadClientBidsPool`) y asignaciÃ³n debe ser Ã³ptima e inmediata, evitando la congelaciÃ³n del navegador ocasionada por miles de registros sin asesor.
+- **Regla de Negocio**:
+  - El endpoint `GET /api/asignacion/sin-asesor` debe permitir el filtrado directo en servidor mediante el parÃ¡metro `puja=1` (o `disponible_para_puja=1`), proyectando Ãºnicamente las columnas indispensables de la ficha.
+  - La interfaz de usuario debe implementar paginaciÃ³n (50 agricultores por pÃ¡gina), buscador reactivo en tiempo real y contador de registros en el pool de pujas.
+- **Criterios de AceptaciÃ³n**:
+  - Solicitud con `?puja=1` retorna Ãºnicamente agricultores con `disponible_para_puja = 1`.
+  - La tabla de pujas del asesor se despliega de forma reactiva en bloques paginados sin congelar la ventana del navegador.

@@ -984,6 +984,12 @@
           <!-- Section 2: Biddable Pool for Advisors -->
           <div id="client-bids-section" style="display: none;" class="table-container">
             <p style="font-size: 13px; color: var(--text-light); margin-bottom: 16px;">Aquí se muestran los agricultores sin asesor asignado actualmente que están disponibles para asignación. Puedes pujar por ellos enviando tu propuesta.</p>
+
+            <div class="bids-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
+              <input type="text" id="bids-search-input" class="form-control" placeholder="🔍 Buscar agricultor en puja por nombre o ubicación..." style="max-width: 380px; font-size: 13px; padding: 6px 12px;">
+              <span id="bids-count-badge" class="badge badge-info" style="font-size: 12px; padding: 6px 12px;">Cargando agricultores...</span>
+            </div>
+
             <table>
               <thead>
                 <tr>
@@ -1002,6 +1008,15 @@
                 </tr>
               </tbody>
             </table>
+
+            <div id="bids-pagination" class="catalog-pagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding: 8px 0;">
+              <span id="bids-pagination-summary" style="font-size: 13px; color: var(--text-light);"></span>
+              <div class="catalog-pagination-actions" style="display: flex; gap: 8px; align-items: center;">
+                <button id="bids-page-prev" class="btn btn-secondary" type="button" style="padding: 4px 10px; font-size: 12px;">‹ Anterior</button>
+                <span id="bids-pagination-current" style="font-weight: 600; font-size: 13px;"></span>
+                <button id="bids-page-next" class="btn btn-secondary" type="button" style="padding: 4px 10px; font-size: 12px;">Siguiente ›</button>
+              </div>
+            </div>
           </div>
 
         </div>

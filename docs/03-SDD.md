@@ -353,3 +353,30 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
   - Se ignora cualquier valor enviado en `req.query.asesor_id`.
   - La respuesta JSON en `filters.asesor_id` retorna `String(req.user.id)`.
 - Todas las consultas del dashboard (`asesoresQuery`, `metasQuery`, `clientsQuery`, `quotesQuery`, `detailsQuery`, `planQuery`, `visitsQuery`) ejecutan la cláusula `WHERE asesor_id = ?`, asegurando aislamiento total en la base de datos.
+
+## Componentes del Incremento CHG-021
+
+### SDD-CMP-043 â€” Matriz de AutorizaciÃ³n Perimetral de Inventario y AlmacÃ©n
+
+- **UbicaciÃ³n**: `middleware/authorization.js` y `server.js`.
+- **DiseÃ±o**:
+  - `INVENTORY_ROLES` en `middleware/authorization.js` se amplÃ­a a `[ADMIN, COORDINATOR, DIRECTOR, WAREHOUSE, COLLECTION, ADVISOR]` para permitir que las rutas de solo lectura de existencias (`GET /api/almacen/existencias`, `GET /api/almacen/lotes-disponibles`, `GET /api/almacen/movimientos/tipos`) sean consumibles por la fuerza de ventas.
+  - La seguridad de mutaciÃ³n se preserva de manera granular:
+    - `POST /api/almacen/existencias/:id/ajuste`: `requireAdmin` (HTTP 403 para Asesor).
+    - `POST /api/almacen/movimientos`: `allowedWarehouseRoles = ['Administrador', 'Coordinador', 'Almacen', 'Director']` (HTTP 403 para Asesor).
+    - `DELETE /api/almacen/movimientos/:id`: `requireAdmin` (HTTP 403 para Asesor).
+
+### SDD-CMP-044 â€” OptimizaciÃ³n de Consulta y PaginaciÃ³n de Pujas
+
+- **UbicaciÃ³n**: `server.js`, `db.js`, `public/index.html` y `public/js/app.js`.
+- **DiseÃ±o**:
+  - `server.js` (`GET /api/asignacion/sin-asesor`):
+    - ParÃ¡metro opcional `puja=1` (o `disponible_para_puja=1`) aplica filtro SQL `AND c.disponible_para_puja = 1`.
+    - ProyecciÃ³n explÃ­cita de campos: `c.id, c.nombre, c.contacto, c.telefono, c.ubicacion, c.superficie_text, c.disponible_para_puja, c.asesor_id, c.cuenta_clave_id, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn`.
+  - `db.js`:
+    - Ãndice compuesto en PostgreSQL: `CREATE INDEX IF NOT EXISTS idx_clientes_sin_asesor_puja ON clientes (activo, asesor_id, disponible_para_puja);`.
+  - `public/index.html`:
+    - Incorpora `#bids-search-input`, `#bids-count-badge` y `#bids-pagination` (con `#bids-page-prev`, `#bids-page-next`, `#bids-pagination-summary`, `#bids-pagination-current`).
+  - `public/js/app.js` (`loadClientBidsPool`):
+    - Consume `/api/asignacion/sin-asesor?puja=1`.
+    - PaginaciÃ³n cliente de 50 registros por pÃ¡gina con filtrado instantÃ¡neo por bÃºsqueda.

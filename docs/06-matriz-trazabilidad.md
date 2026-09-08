@@ -256,3 +256,12 @@
 - Componentes cubiertos: SDD-CMP-041, SDD-CMP-042.
 - Escenarios BDD: BDD-SC-074, BDD-SC-075, BDD-SC-076.
 - Casos TDD: TDD-TC-094, TDD-TC-095.
+
+## EVD-019 â€” Evidencia local CHG-021
+
+- Fecha: 2026-09-08.
+- CalibraciÃ³n: Riesgo R2 (Disponibilidad de existencias comerciales y rendimiento de asignaciÃ³n/pujas).
+- Requisitos cubiertos: PRD-FR-047, PRD-FR-048.
+- Componentes cubiertos: SDD-CMP-043, SDD-CMP-044.
+- Escenarios BDD: BDD-SC-077, BDD-SC-078, BDD-SC-079.
+- Casos TDD: TDD-TC-096, TDD-TC-097.

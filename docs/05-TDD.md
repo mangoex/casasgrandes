@@ -524,3 +524,21 @@
   2. `switchView` permite cambiar a `seguimiento-view` con tÃ­tulo "Mi Seguimiento" para el rol Asesor.
   3. Para el rol Asesor, el selector `#sf-filter-asesor` se oculta en la vista.
 - Estado: passed-local
+
+## TDD-TC-096 â€” AutorizaciÃ³n de lectura de existencias y protecciÃ³n de mutaciones para Asesores
+
+- Cubre: BDD-SC-077, BDD-SC-078, PRD-FR-047, SDD-CMP-043
+- Aserciones:
+  1. `INVENTORY_ROLES` incluye `Asesor`, permitiendo que peticiones autenticadas de Asesor a `/api/almacen/existencias` respondan HTTP 200.
+  2. Peticiones de Asesor a `POST /api/almacen/existencias/:id/ajuste` responden HTTP 403 Forbidden.
+  3. Peticiones de Asesor a `POST /api/almacen/movimientos` responden HTTP 403 Forbidden.
+- Estado: passed-local
+
+## TDD-TC-097 — Filtrado por servidor y paginación de agricultores en puja
+
+- Cubre: BDD-SC-079, PRD-FR-048, SDD-CMP-044
+- Aserciones:
+  1. `GET /api/asignacion/sin-asesor?puja=1` filtra estrictamente por `disponible_para_puja = 1`.
+  2. `public/index.html` declara `#bids-search-input`, `#bids-count-badge` y `#bids-pagination`.
+  3. `public/js/app.js` consume `/api/asignacion/sin-asesor?puja=1` y pagina en bloques de 50 registros.
+- Estado: passed-local

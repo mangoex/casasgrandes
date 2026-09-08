@@ -1,6 +1,7 @@
 const ROLES = Object.freeze({
   ADMIN: 'Administrador',
   COORDINATOR: 'Coordinador',
+  DIRECTOR: 'Director',
   ADVISOR: 'Asesor',
   WAREHOUSE: 'Almacen',
   COLLECTION: 'Acopio'
@@ -9,13 +10,17 @@ const ROLES = Object.freeze({
 const COMMERCIAL_ROLES = Object.freeze([
   ROLES.ADMIN,
   ROLES.COORDINATOR,
+  ROLES.DIRECTOR,
   ROLES.ADVISOR
 ]);
 
 const INVENTORY_ROLES = Object.freeze([
   ROLES.ADMIN,
+  ROLES.COORDINATOR,
+  ROLES.DIRECTOR,
   ROLES.WAREHOUSE,
-  ROLES.COLLECTION
+  ROLES.COLLECTION,
+  ROLES.ADVISOR
 ]);
 
 function requireRoles(...allowedRoles) {

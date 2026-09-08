@@ -682,3 +682,21 @@ When consulta /api/seguimiento/dashboard con o sin filtro de asesor
 Then el backend autoriza la consulta y permite visualizar métricas globales o filtrar por cualquier asesor
 And la interfaz despliega el selector con la lista completa de asesores
 ```
+
+## Escenarios BDD del Incremento CHG-021
+
+### BDD-SC-077 â€” Consulta exitosa de existencias fÃ­sicas por un Asesor
+- **Dado** un usuario autenticado con rol "Asesor"
+- **Cuando** realiza una peticiÃ³n GET a `/api/almacen/existencias`
+- **Entonces** el servidor responde HTTP 200 con el arreglo de productos y sus existencias actuales sin error de acceso.
+
+### BDD-SC-078 â€” DenegaciÃ³n de mutaciones de almacÃ©n para rol Asesor
+- **Dado** un usuario autenticado con rol "Asesor"
+- **Cuando** intenta realizar una peticiÃ³n POST a `/api/almacen/existencias/:id/ajuste` o a `/api/almacen/movimientos`
+- **Entonces** el servidor responde HTTP 403 Forbidden impidiendo modificaciones no autorizadas al inventario.
+
+### BDD-SC-079 â€” Filtrado y paginaciÃ³n rÃ¡pida del pool de pujas
+- **Dado** que existen mÃ¡s de 3,000 agricultores en el pool de pujas
+- **Cuando** el asesor abre la secciÃ³n de pujas
+- **Entonces** el sistema consulta `/api/asignacion/sin-asesor?puja=1` trayendo solo agricultores en puja
+- **Y** renderiza una pÃ¡gina de 50 registros con controles de paginaciÃ³n y buscador rÃ¡pido sin bloquear el navegador.

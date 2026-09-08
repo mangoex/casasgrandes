@@ -2935,14 +2935,21 @@ app.put('/api/asignacion/clientes/bulk-puja-status', authenticateToken, async (r
 // Fetch clients without advisors
 app.get('/api/asignacion/sin-asesor', authenticateToken, async (req, res) => {
   try {
-    const query = `
-      SELECT c.*, cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn
+    const isPujaOnly = req.query.puja === '1' || req.query.disponible_para_puja === '1';
+    let query = `
+      SELECT c.id, c.nombre, c.contacto, c.telefono, c.ubicacion, c.superficie_text,
+             c.disponible_para_puja, c.asesor_id, c.cuenta_clave_id,
+             cc.tier_name as cuenta_clave_nombre, cc.descuento_mxn
       FROM clientes c
       LEFT JOIN cuentas_clave cc ON c.cuenta_clave_id = cc.id
       WHERE c.activo = 1 AND c.asesor_id IS NULL
-      ORDER BY c.nombre ASC
     `;
-    const clients = await db.all(query);
+    const params = [];
+    if (isPujaOnly) {
+      query += " AND c.disponible_para_puja = 1";
+    }
+    query += " ORDER BY c.nombre ASC";
+    const clients = await db.all(query, params);
     res.json(clients);
   } catch (err) {
     console.error(err);

@@ -7832,77 +7832,199 @@ window.switchClientTab = function(tabName) {
   }
 };
 
+let bidsAllPool = [];
+let bidsCurrentPage = 1;
+const bidsPageSize = 50;
+let bidsSearchTerm = '';
+let bidsQuotesMap = new Map();
+let bidsMyBidsMap = new Map();
+
+function getFilteredBids() {
+  if (!bidsSearchTerm) return bidsAllPool;
+  return bidsAllPool.filter(c =>
+    (c.nombre && c.nombre.toLowerCase().includes(bidsSearchTerm)) ||
+    (c.contacto && c.contacto.toLowerCase().includes(bidsSearchTerm)) ||
+    (c.ubicacion && c.ubicacion.toLowerCase().includes(bidsSearchTerm))
+  );
+}
+
+function renderClientBidsTable() {
+  const tbody = document.getElementById('client-bids-tbody');
+  if (!tbody) return;
+
+  const filtered = getFilteredBids();
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / bidsPageSize) || 1;
+
+  if (bidsCurrentPage > totalPages) bidsCurrentPage = totalPages;
+  if (bidsCurrentPage < 1) bidsCurrentPage = 1;
+
+  // Update count badge
+  const badge = document.getElementById('bids-count-badge');
+  if (badge) {
+    badge.textContent = `${totalItems.toLocaleString('es-MX')} agricultores en puja`;
+  }
+
+  if (totalItems === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light); padding: 24px;">' +
+      (bidsSearchTerm ? 'No se encontraron agricultores que coincidan con la búsqueda.' : 'No hay agricultores disponibles para puja en este momento.') +
+      '</td></tr>';
+    updateBidsPaginationControls(0, 0, 1);
+    return;
+  }
+
+  const startIdx = (bidsCurrentPage - 1) * bidsPageSize;
+  const pageItems = filtered.slice(startIdx, startIdx + bidsPageSize);
+
+  tbody.innerHTML = pageItems.map(c => {
+    const totalPurchases = bidsQuotesMap.get(c.id) || 0;
+    const bid = bidsMyBidsMap.get(c.id);
+
+    let statusHtml = '<span class="badge badge-secondary">Ninguna</span>';
+    let actionText = '✏️ Enviar Propuesta';
+    if (bid) {
+      let badgeClass = 'badge-warning';
+      if (bid.estatus === 'Aprobada') badgeClass = 'badge-success';
+      if (bid.estatus === 'Rechazada') badgeClass = 'badge-danger';
+      statusHtml = `<span class="badge ${badgeClass}" title="${escapeHtml(bid.justificacion || '')}">${escapeHtml(bid.estatus)}</span>`;
+      actionText = bid.estatus === 'Pendiente' ? '✏️ Editar Propuesta' : '👁️ Ver';
+    }
+
+    const isActionDisabled = bid && bid.estatus !== 'Pendiente';
+
+    return `
+      <tr>
+        <td><strong>${escapeHtml(c.nombre)}</strong></td>
+        <td>${escapeHtml(c.contacto || '-')}</td>
+        <td>${escapeHtml(c.ubicacion || '-')}</td>
+        <td>${escapeHtml(c.superficie_text || '-')}</td>
+        <td>$${totalPurchases.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</td>
+        <td>${statusHtml}</td>
+        <td style="text-align: center;">
+          <button class="btn btn-primary" style="width: auto; padding: 4px 10px; font-size: 11px; margin: 0;"
+            onclick="openBidForm(${c.id}, '${escapeHtml(c.nombre).replace(/'/g, "\\'")}', '${bid ? escapeHtml(bid.justificacion || '').replace(/'/g, "\\'").replace(/"/g, '&quot;') : ''}')"
+            ${isActionDisabled ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+            ${actionText}
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  updateBidsPaginationControls(totalItems, startIdx, totalPages);
+}
+
+function updateBidsPaginationControls(totalItems, startIdx, totalPages) {
+  const paginationContainer = document.getElementById('bids-pagination');
+  const summaryEl = document.getElementById('bids-pagination-summary');
+  const currentEl = document.getElementById('bids-pagination-current');
+  const prevBtn = document.getElementById('bids-page-prev');
+  const nextBtn = document.getElementById('bids-page-next');
+
+  if (!paginationContainer) return;
+
+  if (totalItems <= bidsPageSize && bidsCurrentPage === 1) {
+    paginationContainer.style.display = totalItems > 0 ? 'flex' : 'none';
+  } else {
+    paginationContainer.style.display = 'flex';
+  }
+
+  if (summaryEl) {
+    const from = totalItems === 0 ? 0 : startIdx + 1;
+    const to = Math.min(startIdx + bidsPageSize, totalItems);
+    summaryEl.textContent = `Mostrando ${from}–${to} de ${totalItems.toLocaleString('es-MX')} agricultores`;
+  }
+
+  if (currentEl) {
+    currentEl.textContent = `Página ${bidsCurrentPage} de ${totalPages}`;
+  }
+
+  if (prevBtn) {
+    prevBtn.disabled = bidsCurrentPage <= 1;
+    prevBtn.style.opacity = bidsCurrentPage <= 1 ? '0.5' : '1';
+  }
+
+  if (nextBtn) {
+    nextBtn.disabled = bidsCurrentPage >= totalPages;
+    nextBtn.style.opacity = bidsCurrentPage >= totalPages ? '0.5' : '1';
+  }
+}
+
 // Load client bids pool (Advisors)
 window.loadClientBidsPool = async function() {
   const tbody = document.getElementById('client-bids-tbody');
   if (!tbody) return;
-  
+
+  // Bind controls once
+  const searchInput = document.getElementById('bids-search-input');
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.dataset.bound = 'true';
+    searchInput.addEventListener('input', (e) => {
+      bidsSearchTerm = (e.target.value || '').trim().toLowerCase();
+      bidsCurrentPage = 1;
+      renderClientBidsTable();
+    });
+  }
+
+  const prevBtn = document.getElementById('bids-page-prev');
+  const nextBtn = document.getElementById('bids-page-next');
+  if (prevBtn && !prevBtn.dataset.bound) {
+    prevBtn.dataset.bound = 'true';
+    prevBtn.addEventListener('click', () => {
+      if (bidsCurrentPage > 1) {
+        bidsCurrentPage--;
+        renderClientBidsTable();
+      }
+    });
+  }
+  if (nextBtn && !nextBtn.dataset.bound) {
+    nextBtn.dataset.bound = 'true';
+    nextBtn.addEventListener('click', () => {
+      const totalPages = Math.ceil(getFilteredBids().length / bidsPageSize) || 1;
+      if (bidsCurrentPage < totalPages) {
+        bidsCurrentPage++;
+        renderClientBidsTable();
+      }
+    });
+  }
+
   try {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">Cargando pool de clientes...</td></tr>';
-    
-    // Fetch biddable clients and bids list
-    const clientsRes = await fetch(`${API_URL}/api/asignacion/sin-asesor`, { headers: getHeaders() });
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light); padding: 24px;">Cargando pool de agricultores en puja...</td></tr>';
+
+    // Fetch biddable clients optimized with ?puja=1
+    const clientsRes = await fetch(`${API_URL}/api/asignacion/sin-asesor?puja=1`, { headers: getHeaders() });
     const allClients = await clientsRes.json();
-    
+
     const bidsRes = await fetch(`${API_URL}/api/asignacion/pujas`, { headers: getHeaders() });
     const myBids = await bidsRes.json();
-    
-    // Filter to only biddable ones
-    const biddableClients = allClients.filter(c => c.disponible_para_puja === 1);
-    
+
+    bidsAllPool = Array.isArray(allClients) ? allClients : [];
+
     // Load historical purchases metrics if available, or just fetch quotes
     const quotesRes = await fetch(`${API_URL}/api/cotizaciones`, { headers: getHeaders() });
     const quotes = await quotesRes.json();
-    
-    let bidsHtml = '';
-    
-    if (biddableClients.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-light);">No hay agricultores disponibles para puja en este momento.</td></tr>';
-      return;
-    }
-    
-    biddableClients.forEach(c => {
-      // Calculate purchase volume
-      const totalPurchases = quotes
-        .filter(q => q.cliente_id === c.id && (q.estatus === 'Vendido' || q.estatus === 'Entregado'))
-        .reduce((sum, q) => sum + q.total_mxn, 0);
-      
-      const bid = myBids.find(b => b.cliente_id === c.id && b.asesor_id === user.id);
-      
-      let statusHtml = '<span class="badge badge-secondary">Ninguna</span>';
-      let actionText = '✏️ Enviar Propuesta';
-      if (bid) {
-        let badgeClass = 'badge-warning';
-        if (bid.estatus === 'Aprobada') badgeClass = 'badge-success';
-        if (bid.estatus === 'Rechazada') badgeClass = 'badge-danger';
-        statusHtml = `<span class="badge ${badgeClass}" title="${bid.justificacion}">${bid.estatus}</span>`;
-        actionText = bid.estatus === 'Pendiente' ? '✏️ Editar Propuesta' : '👁️ Ver';
+
+    // Pre-index quotes into fast lookup map
+    bidsQuotesMap = new Map();
+    (Array.isArray(quotes) ? quotes : []).forEach(q => {
+      if (q.estatus === 'Vendido' || q.estatus === 'Entregado') {
+        bidsQuotesMap.set(q.cliente_id, (bidsQuotesMap.get(q.cliente_id) || 0) + Number(q.total_mxn || 0));
       }
-      
-      const isActionDisabled = bid && bid.estatus !== 'Pendiente';
-      
-      bidsHtml += `
-        <tr>
-          <td><strong>${c.nombre}</strong></td>
-          <td>${c.contacto || '-'}</td>
-          <td>${c.ubicacion || '-'}</td>
-          <td>${c.superficie_text || '-'}</td>
-          <td>$${totalPurchases.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN</td>
-          <td>${statusHtml}</td>
-          <td style="text-align: center;">
-            <button class="btn btn-primary" style="width: auto; padding: 4px 10px; font-size: 11px; margin: 0;" 
-              onclick="openBidForm(${c.id}, '${c.nombre.replace(/'/g, "\\'")}', '${bid ? bid.justificacion.replace(/'/g, "\\'").replace(/"/g, '&quot;') : ''}')"
-              ${isActionDisabled ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
-              ${actionText}
-            </button>
-          </td>
-        </tr>
-      `;
     });
-    tbody.innerHTML = bidsHtml;
+
+    // Pre-index bids into fast lookup map
+    bidsMyBidsMap = new Map();
+    (Array.isArray(myBids) ? myBids : []).forEach(b => {
+      if (b.asesor_id === user?.id) {
+        bidsMyBidsMap.set(b.cliente_id, b);
+      }
+    });
+
+    bidsCurrentPage = 1;
+    renderClientBidsTable();
   } catch (err) {
     console.error('Failed to load client bids pool:', err);
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger);">Error: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 24px;">Error: ${err.message}</td></tr>`;
   }
 };
 

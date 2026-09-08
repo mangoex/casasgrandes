@@ -96,6 +96,7 @@ async function initSchema() {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_activos_nombre ON clientes (nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_asesor_activo_nombre ON clientes (asesor_id, nombre) WHERE activo = 1');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_principal ON clientes (cliente_principal_id) WHERE cliente_principal_id IS NOT NULL');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_clientes_sin_asesor_puja ON clientes (activo, asesor_id, disponible_para_puja)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_fecha ON cotizaciones (asesor_id, fecha_creacion DESC)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_asesor_ciclo_estatus ON cotizaciones (asesor_id, ciclo_agricola, estatus)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_cliente_estatus ON cotizaciones (cliente_id, estatus)');
