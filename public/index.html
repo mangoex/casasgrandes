@@ -880,26 +880,26 @@
                 </div>
                 
                 <!-- Loyalty/Benefits Banner across the page -->
-                <div class="loyalty-benefits-banner" style="margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                  <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.08)); border: 1px solid rgba(245, 158, 11, 0.15); border-radius: var(--radius); padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 20px;">⭐</span>
-                      <div>
+                <div class="loyalty-benefits-banner" style="margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 15px; display: flex; flex-wrap: wrap; gap: 16px;">
+                  <div style="flex: 1 1 200px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.08)); border: 1px solid rgba(245, 158, 11, 0.15); border-radius: var(--radius); padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                      <span style="font-size: 20px; flex-shrink: 0;">⭐</span>
+                      <div style="min-width: 0; word-break: break-word;">
                         <div style="font-size: 11px; font-weight: 700; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px;">Puntos Acumulables</div>
                         <div style="font-size: 9px; color: var(--text-light);">3% del valor de la cotización</div>
                       </div>
                     </div>
-                    <strong id="preview-puntos-val" style="font-size: 14px; color: #b45309; font-weight: 800;">$0.00 MXN</strong>
+                    <strong id="preview-puntos-val" style="font-size: 14px; color: #b45309; font-weight: 800; white-space: nowrap;">$0.00 MXN</strong>
                   </div>
-                  <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.08)); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: var(--radius); padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 20px;">🎟️</span>
-                      <div>
+                  <div style="flex: 1 1 200px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.08)); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: var(--radius); padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                      <span style="font-size: 20px; flex-shrink: 0;">🎟️</span>
+                      <div style="min-width: 0; word-break: break-word;">
                         <div style="font-size: 11px; font-weight: 700; color: #065f46; text-transform: uppercase; letter-spacing: 0.5px;">Cupón de Descuento</div>
                         <div style="font-size: 9px; color: var(--text-light);">1% del valor de la cotización</div>
                       </div>
                     </div>
-                    <strong id="preview-cupon-val" style="font-size: 14px; color: #065f46; font-weight: 800;">$0.00 MXN</strong>
+                    <strong id="preview-cupon-val" style="font-size: 14px; color: #065f46; font-weight: 800; white-space: nowrap;">$0.00 MXN</strong>
                   </div>
                 </div>
               </div>

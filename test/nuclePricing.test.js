@@ -32,11 +32,11 @@ test('TDD-TC-081: Nucle se calcula sobre precio mensual y se acumula después de
   assert.deepEqual(result, {
     eligible: true,
     percentage: 10,
-    requestedUnitDiscount: 90,
-    appliedUnitDiscount: 90,
-    finalUnitPrice: 710,
-    subtotal: 1420,
-    totalDiscount: 180
+    requestedUnitDiscount: 80,
+    appliedUnitDiscount: 80,
+    finalUnitPrice: 720,
+    subtotal: 1440,
+    totalDiscount: 160
   });
 });
 

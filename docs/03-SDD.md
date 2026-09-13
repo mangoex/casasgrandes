@@ -255,7 +255,7 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 
 - Cubre: PRD-FR-036.
 - `crm_nucle_mensual` conserva doce porcentajes validados entre 0 y 100; solo Administrador puede leerlos y modificarlos desde el catálogo administrativo.
-- `applyNucleDiscount` determina elegibilidad por categoría y calcula en centavos el porcentaje sobre el precio mensual, después del descuento del asesor y con piso cero.
+- `applyNucleDiscount` determina elegibilidad por categoría y calcula en centavos el porcentaje sobre el precio neto (después del descuento del asesor) y con piso cero.
 - Previsualización, creación y edición consultan el porcentaje del mes en servidor; el cliente solo envía `nucle_aplicado`.
 - `cotizaciones` guarda bandera, porcentaje y descuento total; `cotizacion_detalles` guarda el descuento Nucle unitario y la versión `CHG-014`.
 - El frontend muestra la casilla, el descuento en el resumen y el snapshot en el detalle de la cotización.

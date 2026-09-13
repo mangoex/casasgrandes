@@ -413,9 +413,9 @@
 - Estado: passed-local
 
 ## TDD-TC-081 — Acumulación después del asesor
-
-- Cubre: BDD-SC-062
-- Aserciones: Nucle usa el precio mensual como base aunque ya exista descuento del asesor
+**Descripción:** `applyNucleDiscount` debe calcular el descuento sobre el precio neto (después del asesor) y sumar este beneficio.
+**Entrada:** `category = 'Híbrido'`, `monthlyPrice = 900`, `priceAfterAdvisor = 800`, `percentage = 10`, `quantity = 2`
+**Salida esperada:** `requestedUnitDiscount = 80`, `finalUnitPrice = 720`, `subtotal = 1440`
 - Estado: passed-local
 
 ## TDD-TC-082 — Exclusión de Agroquímicos

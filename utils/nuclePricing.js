@@ -28,7 +28,7 @@ function applyNucleDiscount({
   const qty = Number(quantity);
   if (!Number.isFinite(qty) || qty <= 0) throw new PricingDomainError('invalid_quote_quantity');
 
-  const requestedUnitDiscount = eligible ? roundMoney(monthly * safePercentage / 100) : 0;
+  const requestedUnitDiscount = eligible ? roundMoney(currentPrice * safePercentage / 100) : 0;
   const finalUnitPrice = roundMoney(Math.max(currentPrice - requestedUnitDiscount, 0));
   const appliedUnitDiscount = roundMoney(currentPrice - finalUnitPrice);
   const subtotal = roundMoney(finalUnitPrice * qty);

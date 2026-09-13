@@ -539,7 +539,7 @@ Then los doce porcentajes quedan disponibles para cotizaciones de su mes contrac
 ```gherkin
 Given un Híbrido con precio mensual 900, descuento asesor 100 y Nucle de 10 por ciento
 When el usuario marca Nucle
-Then el descuento Nucle es 90 y el precio final unitario es 710
+Then el descuento Nucle es 80 y el precio final unitario es 720
 ```
 
 ### BDD-SC-063 — Excluir Agroquímicos
