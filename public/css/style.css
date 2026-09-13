@@ -1216,6 +1216,7 @@ tr:hover td {
 
 .item-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   align-items: flex-end;
   margin-bottom: 0;
@@ -1233,13 +1234,13 @@ tr:hover td {
 }
 
 .item-qty-group {
-  width: 140px;
-  flex-shrink: 0;
+  min-width: 140px;
+  flex: 1;
 }
 
 .item-price-group {
-  width: 140px;
-  flex-shrink: 0;
+  min-width: 180px;
+  flex: 1.5;
 }
 
 .item-row-wrapper {
