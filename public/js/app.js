@@ -2074,16 +2074,30 @@ function registerLiveCalculatorEvents() {
     }
   });
 
+function handleBuilderContainerInput(event) {
+  if (event && event.target && event.target.classList && event.target.classList.contains('item-final-price-input')) {
+    return;
+  }
+  debouncedLiveCalculation();
+}
+
+function handleBuilderContainerChange(event) {
+  if (event && event.target && event.target.classList && event.target.classList.contains('item-final-price-input')) {
+    return;
+  }
+  debouncedLiveCalculation();
+}
+
   // Watch product changes inside builder box
   const builderContainer = document.getElementById('items-builder-container');
   if (builderContainer) {
-    builderContainer.removeEventListener('input', debouncedLiveCalculation);
-    builderContainer.removeEventListener('change', debouncedLiveCalculation);
+    builderContainer.removeEventListener('input', handleBuilderContainerInput);
+    builderContainer.removeEventListener('change', handleBuilderContainerChange);
     builderContainer.removeEventListener('focusin', handleQuoteQuantityFocus);
     builderContainer.removeEventListener('focusout', handleQuoteQuantityBlur);
     
-    builderContainer.addEventListener('input', debouncedLiveCalculation);
-    builderContainer.addEventListener('change', debouncedLiveCalculation);
+    builderContainer.addEventListener('input', handleBuilderContainerInput);
+    builderContainer.addEventListener('change', handleBuilderContainerChange);
     builderContainer.addEventListener('focusin', handleQuoteQuantityFocus);
     builderContainer.addEventListener('focusout', handleQuoteQuantityBlur);
   }
@@ -2253,7 +2267,7 @@ function addQuoteItemRow() {
                  aria-label="Precio final con descuento"
                  data-row="${rowNum}"
                  style="font-weight:700; font-size:15px; color:var(--success); width:110px; text-align:right; padding:4px 8px;"
-                 onkeydown="if(event.key==='Enter') this.blur();"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();this.blur();}"
                  oninput="onFinalPriceInputChange(this)"
                  onchange="onFinalPriceInputBlur(this)"
                  onblur="onFinalPriceInputBlur(this)">
@@ -2610,7 +2624,11 @@ window.onDiscountSliderChange = function(slider) {
   recalcTotalsWithDiscounts();
 };
 
-window.onFinalPriceInputChange = function(input) {
+window.onFinalPriceInputChange = function(input, event) {
+  const evt = event || (typeof window !== 'undefined' ? window.event : null);
+  if (evt && typeof evt.stopPropagation === 'function') {
+    evt.stopPropagation();
+  }
   const wrapper = input.closest('.item-row-wrapper');
   if (!wrapper) return;
   const slider = wrapper.querySelector('.item-discount-slider');
@@ -2622,35 +2640,42 @@ window.onFinalPriceInputChange = function(input) {
   const maxTotal = parseFloat(slider.max) || 0;
   const maxAdditionalDiscount = Math.max(maxTotal - discountFloor, 0);
 
-  const minAllowedPrice = Math.round(Math.max((basePrice - nucleDiscount) - maxAdditionalDiscount, 0));
-  const maxAllowedPrice = Math.round(Math.max(basePrice - nucleDiscount, 0));
+  const rawVal = String(input.value || '').trim();
+  if (rawVal === '') return;
 
-  let enteredPrice = parseFloat(input.value);
+  let enteredPrice = parseFloat(rawVal);
   if (isNaN(enteredPrice)) return;
 
-  // Límite superior: no exceder precio base
-  if (enteredPrice > maxAllowedPrice) {
-    enteredPrice = maxAllowedPrice;
-    input.value = maxAllowedPrice;
-  }
-
-  // Límite inferior: no se puede descontar más de lo autorizado por mes (PROJECT-PR-018)
-  const minDigits = String(Math.floor(minAllowedPrice)).length;
-  const enteredDigits = String(Math.floor(enteredPrice)).length;
-  if (enteredPrice < minAllowedPrice && enteredDigits >= minDigits) {
-    enteredPrice = minAllowedPrice;
-    input.value = minAllowedPrice;
-  }
-
+  // Sincronizar el slider y la previsualización en vivo sin mutar el texto mientras el usuario escribe:
   const rawAdditional = (basePrice - nucleDiscount) - enteredPrice;
   const clampedAdditional = Math.max(0, Math.min(rawAdditional, maxAdditionalDiscount));
   const sliderTotal = discountFloor + clampedAdditional;
 
   slider.value = sliderTotal;
-  onDiscountSliderChange(slider);
+
+  const amountEl = wrapper.querySelector('.item-discount-amount');
+  const finalEl = wrapper.querySelector('.item-final-price');
+  const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
+  const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
+  const currentFinalPrice = Math.max(basePrice - clampedAdditional - nucleDiscount, 0);
+
+  if (amountEl) amountEl.textContent = `$${sliderTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  if (finalEl) finalEl.textContent = `$${currentFinalPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  if (mobileSubtotal) {
+    mobileSubtotal.textContent = `Subtotal $${(currentFinalPrice * quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+  }
+  const max = parseFloat(slider.max) || 1;
+  const pct = max > 0 ? (sliderTotal / max) * 100 : 0;
+  slider.style.setProperty('--slider-pct', `${pct}%`);
+
+  recalcTotalsWithDiscounts();
 };
 
-window.onFinalPriceInputBlur = function(input) {
+window.onFinalPriceInputBlur = function(input, event) {
+  const evt = event || (typeof window !== 'undefined' ? window.event : null);
+  if (evt && typeof evt.stopPropagation === 'function') {
+    evt.stopPropagation();
+  }
   const wrapper = input.closest('.item-row-wrapper');
   if (!wrapper) return;
   const slider = wrapper.querySelector('.item-discount-slider');

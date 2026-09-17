@@ -558,7 +558,6 @@ When cambia posteriormente el catálogo mensual
 Then la cotización conserva la bandera, porcentaje e importes Nucle originales
 ```
 
-<<<<<<< HEAD
 ## Feature: CHG-016 — Precisión y sincronización bidireccional en Cotizador
 
 ### BDD-SC-065 — Barra de descuento avanza en enteros de 1 en 1 peso
@@ -577,6 +576,8 @@ When el asesor teclea 6000 en el campo de Precio Final
 Then el descuento aplicado se ajusta a 1015 (89 incorporado + 926 adicional)
 And la barra de descuento se posiciona en 1015
 And los totales de la cotización reflejan el precio final de 6000
+When el asesor pulsa Enter para confirmar el precio
+Then el sistema fija el precio en la partida sin disparar el envío automático de la cotización
 When el asesor intenta teclear un precio menor a 5926 (límite inferior según condición mensual autorizada)
 Then el control restringe la entrada impidiendo valores inferiores a 5926 y acota el campo al mínimo autorizado
 ```

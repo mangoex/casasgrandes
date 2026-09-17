@@ -180,6 +180,10 @@ test('TDD-TC-087: Cotizador usa paso entero y sincroniza bidireccionalmente el p
   assert.match(frontend, /finalInput\.min\s*=\s*String\(minAllowedPrice\)/);
   assert.match(frontend, /item-final-price-min-val/);
   assert.match(frontend, /onchange="onFinalPriceInputBlur\(this\)"/);
+  // Enter previene el envío automático de la cotización
+  assert.match(frontend, /onkeydown="[^"]*event\.key\s*===\s*['"]Enter['"][^"]*preventDefault/);
+  // Aislamiento de eventos de tecleo manual para evitar sobreescritura prematura
+  assert.match(frontend, /onFinalPriceInputChange[\s\S]*?event\.stopPropagation/);
 
   // 3. Simulación de la lógica bidireccional con restricción de precio mínimo
   const calculateBidirectional = ({ basePrice, nucleDiscount = 0, discountFloor = 0, maxAdditionalDiscount, targetPrice }) => {
@@ -236,4 +240,17 @@ test('TDD-TC-087: Cotizador usa paso entero y sincroniza bidireccionalmente el p
   assert.equal(aboveBase.clampedAdditional, 0);
   assert.equal(aboveBase.sliderTotal, 89);
   assert.equal(aboveBase.effectiveFinalPrice, 6826);
+
+  // 4. Caso real Hipopótamo Accel (Cuenta Clave -$90, mensual $772, asesor $317)
+  const hipopotamoScenario = calculateBidirectional({
+    basePrice: 6153,
+    nucleDiscount: 0,
+    discountFloor: 772,
+    maxAdditionalDiscount: 317,
+    targetPrice: 6000
+  });
+  assert.equal(hipopotamoScenario.minAllowedPrice, 5836);
+  assert.equal(hipopotamoScenario.clampedAdditional, 153);
+  assert.equal(hipopotamoScenario.sliderTotal, 925);
+  assert.equal(hipopotamoScenario.effectiveFinalPrice, 6000);
 });

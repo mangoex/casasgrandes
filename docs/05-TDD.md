@@ -456,6 +456,8 @@
   2. Existe el campo editable `item-final-price-input` con control bidireccional.
   3. Al ingresar un precio final objetivo dentro de rango, se calcula el descuento adicional exacto y se sincroniza la posición del slider y totales.
   4. Al ingresar un precio inferior al mínimo permitido por el tope del asesor, se acota al límite máximo autorizado sin violar PROJECT-PR-018.
+  5. Presionar Enter en `item-final-price-input` previene la acción por defecto (`event.preventDefault()`) impidiendo el auto-envío de la cotización.
+  6. Los eventos de tecleo manual aíslan su propagación (`stopPropagation()`) evitando que `debouncedLiveCalculation` sobreescriba el campo mientras el usuario edita.
 - Estado: passed-local
 
 ## TDD-TC-088 — Oráculo determinista Python de elegibilidad de Cuenta Clave (Calamar e Hipopótamo)
