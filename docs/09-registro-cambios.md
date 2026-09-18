@@ -20,6 +20,7 @@
 | CHG-016 | 2026-09-03 | Barra de descuento con paso entero de 1 en 1 peso, edición directa bidireccional y límite inferior estricto de Precio Final en Cotizador | PRD-FR-037 | TDD-TC-087; EVD-015 | implemented-local |
 | CHG-017 | 2026-09-03 | Descuento de Cuenta Clave exclusivo para Calamar e Hipopótamo, excluyendo demás semillas, agroquímicos y fertilizantes | ADR-015, PRD-FR-038 | TDD-TC-088, TDD-TC-089; EVD-016 | implemented-local |
 | CHG-018 | 2026-09-18 | Recálculo en vivo al fijar precio final manual (blur/Enter) y sincronización de payload para conservar precio al modificar bolsas | PRD-FR-037 | TDD-TC-087; EVD-017 | implemented-local |
+| CHG-019 | 2026-09-18 | Recálculo reactivo inmediato de total y subtotales en Cotizador al modificar precio o cantidad, y visibilidad universal del resumen de cotización | PRD-FR-037 | TDD-TC-103; EVD-018 | implemented-local |
 
 ## Reglas
 

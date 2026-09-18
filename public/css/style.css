@@ -2813,19 +2813,89 @@ tr:hover td {
 }
 
 .mobile-quote-header,
-.mobile-quote-summary,
 .mobile-submit-label,
 .mobile-save-draft,
 .mobile-quote-review-hint,
 .mobile-items-title,
 .mobile-product-icon,
 .mobile-item-package,
-.mobile-item-subtotal,
 .mobile-add-item-label,
 .mobile-remove-icon,
 .mobile-quantity-label,
 .mobile-quantity-hint {
   display: none;
+}
+
+.mobile-item-subtotal {
+  display: block;
+  margin-top: 4px;
+  color: var(--primary, #15803d);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mobile-quote-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 20px;
+  margin-bottom: 5px;
+}
+
+.mobile-quote-total-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(21, 128, 61, 0.25);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mobile-quote-total-row strong {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 850;
+  letter-spacing: -0.5px;
+}
+
+.mobile-quote-benefit {
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 18px;
+  background: #ffffff;
+  color: var(--text, #1e293b);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.mobile-quote-benefit.coupon {
+  border-color: rgba(234, 88, 12, 0.25);
+  background: var(--accent-light, #fff7ed);
+  color: var(--accent, #ea580c);
+}
+
+.mobile-quote-benefit strong {
+  color: var(--text, #1e293b);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.mobile-quote-benefit.coupon strong {
+  color: var(--accent, #ea580c);
+}
+
+.mobile-quote-benefit small {
+  color: var(--text-light, #64748b);
+  font-size: 9px;
 }
 
 .mobile-quantity-stepper {
@@ -3876,7 +3946,8 @@ tr:hover td {
     text-align: right;
   }
 
-  body.role-asesor.mobile-quote-active .mobile-item-subtotal {
+  body.role-asesor.mobile-quote-active .mobile-item-subtotal,
+  .mobile-item-subtotal {
     display: block;
     margin-top: 2px;
     color: var(--mobile-text-secondary);
@@ -3884,7 +3955,8 @@ tr:hover td {
   }
 
   /* Total Summary Card (Emerald Green Highlight) */
-  body.role-asesor.mobile-quote-active .mobile-quote-summary {
+  body.role-asesor.mobile-quote-active .mobile-quote-summary,
+  .mobile-quote-summary {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;

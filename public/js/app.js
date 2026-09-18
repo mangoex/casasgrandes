@@ -2078,12 +2078,18 @@ function handleBuilderContainerInput(event) {
   if (event && event.target && event.target.classList && event.target.classList.contains('item-final-price-input')) {
     return;
   }
+  if (event && event.target && event.target.classList && event.target.classList.contains('item-qty-input')) {
+    recalcTotalsWithDiscounts();
+  }
   debouncedLiveCalculation();
 }
 
 function handleBuilderContainerChange(event) {
   if (event && event.target && event.target.classList && event.target.classList.contains('item-final-price-input')) {
     return;
+  }
+  if (event && event.target && event.target.classList && (event.target.classList.contains('item-qty-input') || event.target.classList.contains('item-product-select'))) {
+    recalcTotalsWithDiscounts();
   }
   debouncedLiveCalculation();
 }
@@ -2107,6 +2113,7 @@ function setQuoteQuantity(input, quantity) {
   if (!input) return;
   const normalizedQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
   input.value = String(normalizedQuantity);
+  recalcTotalsWithDiscounts();
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
@@ -2315,6 +2322,7 @@ function removeQuoteItemRow(rowNum) {
   const row = document.getElementById(`quote-item-row-${rowNum}`);
   if (row) {
     row.remove();
+    recalcTotalsWithDiscounts();
     debouncedLiveCalculation();
   }
 }
@@ -2515,7 +2523,8 @@ function debouncedLiveCalculation() {
             const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
             const quantity = Number(wrapper.querySelector('.item-qty-input')?.value) || 1;
             if (mobileSubtotal) {
-              mobileSubtotal.textContent = `Subtotal $${(Number(calcItem.precio_neto) * quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+              const effectivePrice = Number(calcItem.precio_final != null ? calcItem.precio_final : calcItem.precio_neto);
+              mobileSubtotal.textContent = `Subtotal $${(effectivePrice * quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
             }
             if (keyAccountStep) keyAccountStep.style.display = hasKeyAccountDiscount ? 'block' : 'none';
             if (keyAccountName) keyAccountName.textContent = calc.cuenta_clave_nombre || 'Cuenta Clave';
@@ -2726,34 +2735,68 @@ window.onFinalPriceInputBlur = function(input, event) {
   debouncedLiveCalculation();
 };
 
-// Recalculate grand total factoring in any advisor discounts from sliders
+// Recalculate grand total factoring in any advisor discounts from sliders or manual price inputs
 function recalcTotalsWithDiscounts() {
   let adjustedTotal = 0;
   const wrappers = document.querySelectorAll('#items-builder-container .item-row-wrapper');
-  wrappers.forEach(wrapper => {
+  wrappers.forEach((wrapper, idx) => {
     const select = wrapper.querySelector('.item-product-select');
     const qtyInput = wrapper.querySelector('.item-qty-input');
     const slider = wrapper.querySelector('.item-discount-slider');
+    const finalInput = wrapper.querySelector('.item-final-price-input');
+    const mobileSubtotal = wrapper.querySelector('.mobile-item-subtotal');
+
+    if (!select || !select.value) return;
+
     const basePrice = slider ? parseFloat(slider.getAttribute('data-base-price') || 0) : 0;
     const nucleDiscount = slider ? parseFloat(slider.getAttribute('data-nucle-discount') || 0) : 0;
     const discountVal = getSliderAdditionalDiscount(slider);
-    const qty = qtyInput ? (parseFloat(qtyInput.value) || 1) : 1;
-    
-    if (select && select.value && basePrice > 0) {
-      adjustedTotal += Math.max(basePrice - discountVal - nucleDiscount, 0) * qty;
+    const qty = qtyInput ? Math.max(1, parseFloat(qtyInput.value) || 1) : 1;
+
+    let unitPrice = 0;
+    const enteredFinal = finalInput ? parseFloat(finalInput.value) : NaN;
+    if (!isNaN(enteredFinal) && enteredFinal > 0) {
+      unitPrice = enteredFinal;
+    } else if (basePrice > 0) {
+      unitPrice = Math.max(basePrice - discountVal - nucleDiscount, 0);
+    } else {
+      const prodId = Number(select.value);
+      const prod = (allProducts || []).find(p => p.id === prodId);
+      unitPrice = prod ? Number(prod.list_price_mxn || 0) : 0;
+    }
+
+    const lineSubtotal = Math.round(unitPrice * qty * 100) / 100;
+    adjustedTotal += lineSubtotal;
+
+    if (mobileSubtotal) {
+      mobileSubtotal.textContent = `Subtotal $${lineSubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+    }
+
+    // Also update virtual sheet preview table row if rendered
+    const previewRows = document.querySelectorAll('#preview-table-body tr');
+    if (previewRows && previewRows[idx]) {
+      const cells = previewRows[idx].querySelectorAll('td');
+      if (cells.length >= 6) {
+        cells[1].textContent = String(qty);
+        cells[4].textContent = `$${unitPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+        cells[5].textContent = `$${lineSubtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+      }
     }
   });
-  
-  if (adjustedTotal > 0) {
-    document.getElementById('preview-total-val').textContent =
-      `$${adjustedTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
-    // Update Puntos and Cupón
-    document.getElementById('preview-puntos-val').textContent =
-      `$${(adjustedTotal * 0.03).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
-    document.getElementById('preview-cupon-val').textContent =
-      `$${(adjustedTotal * 0.01).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
-    updateMobileQuoteSummary(adjustedTotal);
+
+  const totalEl = document.getElementById('preview-total-val');
+  if (totalEl) {
+    totalEl.textContent = `$${adjustedTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   }
+  const puntosEl = document.getElementById('preview-puntos-val');
+  if (puntosEl) {
+    puntosEl.textContent = `$${(adjustedTotal * 0.03).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  }
+  const cuponEl = document.getElementById('preview-cupon-val');
+  if (cuponEl) {
+    cuponEl.textContent = `$${(adjustedTotal * 0.01).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  }
+  updateMobileQuoteSummary(adjustedTotal);
 }
 
 function updateMobileQuoteSummary(total) {
@@ -2849,28 +2892,28 @@ function updateVirtualSheet(calc, payload) {
   
   const tbody = document.getElementById('preview-table-body');
   tbody.innerHTML = '';
-  let grandTotalWithDiscounts = 0;
+  let sumSubtotals = 0;
   
   calc.items.forEach((i, itemIndex) => {
-    const listPrice = i.precio_lista;
-    const netPrice = i.precio_neto;
-    const advisorDiscount = sliderDiscounts[itemIndex] || 0;
-    const additionalDiscount = sliderAdditionalDiscounts[itemIndex] || 0;
+    const listPrice = Number(i.precio_lista || 0);
+    const netPrice = Number(i.precio_neto || 0);
     const nucleDiscount = Number(i.descuento_nucle_unitario || 0);
-    const finalPrice = Math.max(netPrice - additionalDiscount - nucleDiscount, 0);
-    const totalVolumeDiscount = listPrice - netPrice;
-    const subtotalFinal = finalPrice * i.cantidad;
-    grandTotalWithDiscounts += subtotalFinal;
-    
-    // Format advisor discount for the DCTO NETO column
-    const formattedDiscount = `-$${advisorDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+    const additionalDiscount = sliderAdditionalDiscounts[itemIndex] || 0;
+    const finalPrice = Number(i.precio_final != null ? i.precio_final : Math.max(netPrice - additionalDiscount - nucleDiscount, 0));
+    const subtotalFinal = Number(i.subtotal != null ? i.subtotal : (finalPrice * i.cantidad));
+    sumSubtotals += subtotalFinal;
+
+    const advisorDiscount = (Number(i.descuento_asesor_aplicado_mxn || 0) + Number(i.descuento_mensual_mxn || 0)) || (sliderDiscounts[itemIndex] || 0);
+    const formattedDiscount = advisorDiscount > 0
+      ? `-$${advisorDiscount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+      : '-$0.00';
     const discountStyle = advisorDiscount > 0
       ? 'color: var(--accent); font-weight: 600;'
       : 'color: var(--text-light);';
     
     tbody.innerHTML += `
       <tr>
-        <td><strong>${i.producto_nombre}</strong><br><span style="font-size: 9px; color: var(--text-light);">${i.tipo_categoria}</span></td>
+        <td><strong>${escapeHtml(i.producto_nombre || '')}</strong><br><span style="font-size: 9px; color: var(--text-light);">${escapeHtml(i.tipo_categoria || '')}</span></td>
         <td style="text-align: center; font-weight: 600;">${i.cantidad}</td>
         <td style="text-align: right;">$${listPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
         <td style="text-align: right; ${discountStyle}">${formattedDiscount}</td>
@@ -2902,15 +2945,16 @@ function updateVirtualSheet(calc, payload) {
     nucleRow.style.display = 'none';
   }
   
-  // Total (with advisor discounts applied)
-  document.getElementById('preview-total-val').textContent = `$${grandTotalWithDiscounts.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  // Total (with advisor discounts applied) - Prioritize authoritative total from server
+  const grandTotalEffective = Number(calc.total_mxn != null ? calc.total_mxn : sumSubtotals);
+  document.getElementById('preview-total-val').textContent = `$${grandTotalEffective.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   
   // Puntos (3%) y Cupón (1%) — informational benefit for the client
   document.getElementById('preview-puntos-val').textContent =
-    `$${(grandTotalWithDiscounts * 0.03).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+    `$${(grandTotalEffective * 0.03).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
   document.getElementById('preview-cupon-val').textContent =
-    `$${(grandTotalWithDiscounts * 0.01).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
-  updateMobileQuoteSummary(grandTotalWithDiscounts);
+    `$${(grandTotalEffective * 0.01).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN`;
+  updateMobileQuoteSummary(grandTotalEffective);
   
   document.getElementById('preview-notes-content').textContent = payload.notas || 'El precio final calculado incluye los descuentos por volumen y campaña en base a las reglas de la distribuidora. Sujeto a cambios sin previo aviso.';
 }

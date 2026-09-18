@@ -760,3 +760,14 @@ And la interfaz despliega el selector con la lista completa de asesores
 - **Cuando** abre el formulario para dar de alta o editar un asesor
 - **Entonces** el selector de rol (`#asesor-role`) incluye la opción "Observador"
 - **Y** al guardar, el usuario queda registrado en la base de datos con `nivel_rol = 'Observador'`.
+
+## Escenarios BDD del Incremento CHG-019
+
+### BDD-SC-089 — Recálculo reactivo inmediato de total y subtotales en Cotizador al modificar precio o cantidad
+- **Dado** una cotización abierta con uno o más productos en el Cotizador
+- **Cuando** el usuario modifica el precio final manual en `item-final-price-input` o la cantidad de bolsas en `item-qty-input` (mediante teclado o botones de incremento/decremento `+`/`-`)
+- **Entonces** el sistema recalcula de inmediato y reactivamente el subtotal de la partida (`.mobile-item-subtotal`) multiplicando el precio unitario activo por la nueva cantidad
+- **Y** actualiza de forma síncrona el costo total de la cotización (`#preview-total-val` y `#mobile-quote-total`), así como los beneficios de puntos (`#preview-puntos-val` y `#mobile-quote-points`) y cupón (`#preview-cupon-val` y `#mobile-quote-coupon`)
+- **Y** la tarjeta de resumen del total (`.mobile-quote-summary`) permanece visible en el formulario para cualquier tamaño de pantalla (móvil, tableta o escritorio) y rol de usuario
+- **Y** al resolverse el cálculo del backend, la hoja virtual y la tabla de cotización se consolidan con los valores autorizados del servidor.
+

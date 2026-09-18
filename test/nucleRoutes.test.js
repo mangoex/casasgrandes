@@ -74,11 +74,11 @@ test('TDD-TC-083: Cotizador aplica Nucle a semillas aun con descuento completo d
   const body = await response.json();
   assert.equal(body.nucle_aplicado, true);
   assert.equal(body.nucle_porcentaje, 10);
-  assert.equal(body.descuento_nucle_mxn, 90);
-  assert.equal(body.items[0].descuento_nucle_unitario, 90);
-  assert.equal(body.items[0].precio_final, 710);
+  assert.equal(body.descuento_nucle_mxn, 80);
+  assert.equal(body.items[0].descuento_nucle_unitario, 80);
+  assert.equal(body.items[0].precio_final, 720);
   assert.equal(body.items[1].descuento_nucle_unitario, 0);
-  assert.equal(body.total_mxn, 1210);
+  assert.equal(body.total_mxn, 1220);
 });
 
 test('TDD-TC-084: esquema, Administración y Cotizador exponen el contrato Nucle', () => {

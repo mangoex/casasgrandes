@@ -136,8 +136,8 @@ test('TDD-TC-073: frontend convierte la barra acumulada a descuento adicional', 
   const index = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8');
   assert.match(frontend, /data-discount-floor/);
   assert.match(frontend, /sliderTotal\s*-\s*discountFloor/);
-  assert.match(index, /app\.js\?v=202609(0[13]|18)-chg01[578]/);
-  assert.match(index, /style\.css\?v=202609(0[13]|18)-chg01[578]/);
+  assert.match(index, /app\.js\?v=202609(0[13]|18)-chg01[5789]/);
+  assert.match(index, /style\.css\?v=202609(0[13]|18)-chg01[5789]/);
 });
 
 test('TDD-TC-074: esquema y endpoints conservan un tope independiente', () => {
@@ -258,3 +258,111 @@ test('TDD-TC-087: Cotizador usa paso entero y sincroniza bidireccionalmente el p
   assert.equal(hipopotamoScenario.sliderTotal, 925);
   assert.equal(hipopotamoScenario.effectiveFinalPrice, 6000);
 });
+
+test('TDD-TC-103: Cotizador recalcula inmediatamente subtotales y total al modificar precio o cantidad', () => {
+  function calculateRowPricing({ finalPriceInput, sliderValue, discountFloor, basePrice, nucleDiscount, quantity }) {
+    let unitPrice = 0;
+    const entered = parseFloat(finalPriceInput);
+    if (!isNaN(entered) && entered > 0) {
+      unitPrice = entered;
+    } else if (basePrice > 0) {
+      const sliderTotal = parseFloat(sliderValue) || 0;
+      const floor = parseFloat(discountFloor) || 0;
+      const additional = Math.max(sliderTotal - floor, 0);
+      unitPrice = Math.max(basePrice - additional - (parseFloat(nucleDiscount) || 0), 0);
+    }
+    const qty = Math.max(1, parseFloat(quantity) || 1);
+    const subtotal = Math.round(unitPrice * qty * 100) / 100;
+    return { unitPrice, qty, subtotal };
+  }
+
+  function calculateQuoteTotals(rows) {
+    let grandTotal = 0;
+    const computedRows = rows.map(r => {
+      const computed = calculateRowPricing(r);
+      grandTotal += computed.subtotal;
+      return computed;
+    });
+    grandTotal = Math.round(grandTotal * 100) / 100;
+    const puntos = Math.round(grandTotal * 0.03 * 100) / 100;
+    const cupon = Math.round(grandTotal * 0.01 * 100) / 100;
+    return { grandTotal, puntos, cupon, computedRows };
+  }
+
+  // 1. Estado inicial con Hipopótamo Accel (precio base 6153, 1 bolsa)
+  const initial = calculateQuoteTotals([{
+    finalPriceInput: '',
+    sliderValue: 772,
+    discountFloor: 772,
+    basePrice: 6153,
+    nucleDiscount: 0,
+    quantity: 1
+  }]);
+  assert.equal(initial.computedRows[0].unitPrice, 6153);
+  assert.equal(initial.computedRows[0].subtotal, 6153);
+  assert.equal(initial.grandTotal, 6153);
+  assert.equal(initial.puntos, 184.59);
+  assert.equal(initial.cupon, 61.53);
+
+  // 2. Modificación de precio manual a 6000: actualiza subtotal y total inmediatamente
+  const priceChange = calculateQuoteTotals([{
+    finalPriceInput: '6000',
+    sliderValue: 925,
+    discountFloor: 772,
+    basePrice: 6153,
+    nucleDiscount: 0,
+    quantity: 1
+  }]);
+  assert.equal(priceChange.computedRows[0].unitPrice, 6000);
+  assert.equal(priceChange.computedRows[0].subtotal, 6000);
+  assert.equal(priceChange.grandTotal, 6000);
+  assert.equal(priceChange.puntos, 180);
+  assert.equal(priceChange.cupon, 60);
+
+  // 3. Modificación de cantidad a 5 bolsas con precio manual: actualiza subtotal a 30,000 y total inmediatamente
+  const qtyChange = calculateQuoteTotals([{
+    finalPriceInput: '6000',
+    sliderValue: 925,
+    discountFloor: 772,
+    basePrice: 6153,
+    nucleDiscount: 0,
+    quantity: 5
+  }]);
+  assert.equal(qtyChange.computedRows[0].unitPrice, 6000);
+  assert.equal(qtyChange.computedRows[0].subtotal, 30000);
+  assert.equal(qtyChange.grandTotal, 30000);
+  assert.equal(qtyChange.puntos, 900);
+  assert.equal(qtyChange.cupon, 300);
+
+  // 4. Múltiples partidas: Hipopótamo 5 bolsas @ $6000 + Calamar 2 bolsas @ $4500
+  const multiItem = calculateQuoteTotals([
+    {
+      finalPriceInput: '6000',
+      sliderValue: 925,
+      discountFloor: 772,
+      basePrice: 6153,
+      nucleDiscount: 0,
+      quantity: 5
+    },
+    {
+      finalPriceInput: '4500',
+      sliderValue: 500,
+      discountFloor: 500,
+      basePrice: 4800,
+      nucleDiscount: 0,
+      quantity: 2
+    }
+  ]);
+  assert.equal(multiItem.computedRows[0].subtotal, 30000);
+  assert.equal(multiItem.computedRows[1].subtotal, 9000);
+  assert.equal(multiItem.grandTotal, 39000);
+  assert.equal(multiItem.puntos, 1170);
+  assert.equal(multiItem.cupon, 390);
+
+  // 5. Validar que app.js contiene los disparadores inmediatos para recálculo
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
+  assert.match(appJs, /function recalcTotalsWithDiscounts\(\)/);
+  assert.match(appJs, /changeQuoteQuantity/);
+  assert.match(appJs, /setQuoteQuantity/);
+});
+

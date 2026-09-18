@@ -593,3 +593,15 @@
   1. `public/index.html` incluye `<option value="Observador">` dentro de `#asesor-role`.
   2. `public/js/app.js` reconoce `Observador` al inicializar la sesión y enrutador.
 - Estado: passed-local
+
+## TDD-TC-103 — Recálculo reactivo inmediato y sincronización de totales en Cotizador para cualquier rol y dispositivo
+
+- Cubre: BDD-SC-089, PRD-FR-037, SDD-CMP-034
+- Aserciones:
+  1. `recalcTotalsWithDiscounts` prioriza el precio unitario del campo numérico manual `item-final-price-input` si contiene un valor válido, o en su defecto el precio derivado del slider (`basePrice - additional - nucle`).
+  2. Modificar la cantidad (`item-qty-input` o botones `+`/`-`) invoca `recalcTotalsWithDiscounts` inmediatamente, actualizando los subtotales por partida y el gran total sin esperar la respuesta asíncrona del backend.
+  3. Modificar el precio final manual (`item-final-price-input`) actualiza en vivo el subtotal de la partida, el total de la cotización y los montos de puntos y cupón.
+  4. `.mobile-quote-summary` y `.mobile-item-subtotal` permanecen visibles en el formulario en cualquier tamaño de pantalla y para todos los roles de usuario (incluyendo Administrador).
+  5. `updateVirtualSheet` asigna directamente los totales y subtotales autorizados del servidor (`calc.total_mxn`, `item.subtotal`, `item.precio_final`), garantizando consistencia absoluta.
+- Estado: passed-local
+
