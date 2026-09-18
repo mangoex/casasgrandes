@@ -458,6 +458,8 @@
   4. Al ingresar un precio inferior al mínimo permitido por el tope del asesor, se acota al límite máximo autorizado sin violar PROJECT-PR-018.
   5. Presionar Enter en `item-final-price-input` previene la acción por defecto (`event.preventDefault()`) impidiendo el auto-envío de la cotización.
   6. Los eventos de tecleo manual aíslan su propagación (`stopPropagation()`) evitando que `debouncedLiveCalculation` sobreescriba el campo mientras el usuario edita.
+  7. Al desenfocar o confirmar (`blur` / `change` / `Enter`), `onFinalPriceInputBlur` invoca `debouncedLiveCalculation()`, solicitando el recálculo al servidor y refrescando la hoja virtual.
+  8. `getQuotePayload` sincroniza el ítem derivando el descuento aplicado tanto del precio numérico manual como del slider, garantizando que el recálculo por cambio de bolsas preserve el precio fijado.
 - Estado: passed-local
 
 ## TDD-TC-088 — Oráculo determinista Python de elegibilidad de Cuenta Clave (Calamar e Hipopótamo)

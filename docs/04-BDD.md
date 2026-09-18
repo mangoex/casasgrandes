@@ -576,10 +576,13 @@ When el asesor teclea 6000 en el campo de Precio Final
 Then el descuento aplicado se ajusta a 1015 (89 incorporado + 926 adicional)
 And la barra de descuento se posiciona en 1015
 And los totales de la cotización reflejan el precio final de 6000
-When el asesor pulsa Enter para confirmar el precio
+When el asesor pulsa Enter o desenfoca para confirmar el precio
 Then el sistema fija el precio en la partida sin disparar el envío automático de la cotización
+And el sistema solicita el recálculo en vivo al servidor y actualiza la tabla de cotización y hoja virtual
 When el asesor intenta teclear un precio menor a 5926 (límite inferior según condición mensual autorizada)
 Then el control restringe la entrada impidiendo valores inferiores a 5926 y acota el campo al mínimo autorizado
+When el asesor modifica la cantidad de bolsas tras fijar un precio final manual
+Then la cotización conserva el precio unitario fijado y recalcula el subtotal por las nuevas bolsas
 ```
 
 ## Feature: CHG-017 — Descuento de Cuenta Clave exclusivo para Calamar e Hipopótamo

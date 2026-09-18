@@ -19,6 +19,7 @@
 | CHG-015 | 2026-09-01 | Corregir el guardado PostgreSQL de Nucle y normalizar sus porcentajes a dos decimales | PRD-FR-036 | TDD-TC-079, TDD-TC-084..086; EVD-014 | implemented-local |
 | CHG-016 | 2026-09-03 | Barra de descuento con paso entero de 1 en 1 peso, edición directa bidireccional y límite inferior estricto de Precio Final en Cotizador | PRD-FR-037 | TDD-TC-087; EVD-015 | implemented-local |
 | CHG-017 | 2026-09-03 | Descuento de Cuenta Clave exclusivo para Calamar e Hipopótamo, excluyendo demás semillas, agroquímicos y fertilizantes | ADR-015, PRD-FR-038 | TDD-TC-088, TDD-TC-089; EVD-016 | implemented-local |
+| CHG-018 | 2026-09-18 | Recálculo en vivo al fijar precio final manual (blur/Enter) y sincronización de payload para conservar precio al modificar bolsas | PRD-FR-037 | TDD-TC-087; EVD-017 | implemented-local |
 
 ## Reglas
 

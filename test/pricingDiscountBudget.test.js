@@ -136,8 +136,8 @@ test('TDD-TC-073: frontend convierte la barra acumulada a descuento adicional', 
   const index = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8');
   assert.match(frontend, /data-discount-floor/);
   assert.match(frontend, /sliderTotal\s*-\s*discountFloor/);
-  assert.match(index, /app\.js\?v=2026090[13]-chg01[57]/);
-  assert.match(index, /style\.css\?v=2026090[13]-chg01[57]/);
+  assert.match(index, /app\.js\?v=202609(0[13]|18)-chg01[578]/);
+  assert.match(index, /style\.css\?v=202609(0[13]|18)-chg01[578]/);
 });
 
 test('TDD-TC-074: esquema y endpoints conservan un tope independiente', () => {
@@ -184,6 +184,10 @@ test('TDD-TC-087: Cotizador usa paso entero y sincroniza bidireccionalmente el p
   assert.match(frontend, /onkeydown="[^"]*event\.key\s*===\s*['"]Enter['"][^"]*preventDefault/);
   // Aislamiento de eventos de tecleo manual para evitar sobreescritura prematura
   assert.match(frontend, /onFinalPriceInputChange[\s\S]*?event\.stopPropagation/);
+  // Confirmar precio manual (blur / change / enter) ejecuta recálculo en vivo dentro del handler
+  assert.match(frontend, /window\.onFinalPriceInputBlur\s*=\s*function[\s\S]*?debouncedLiveCalculation\(\);\s*\n\};/);
+  // getQuotePayload sincroniza el descuento desde el precio numérico manual o slider
+  assert.match(frontend, /function getQuotePayload\(\)[\s\S]*?item-final-price-input[\s\S]*?return \{/);
 
   // 3. Simulación de la lógica bidireccional con restricción de precio mínimo
   const calculateBidirectional = ({ basePrice, nucleDiscount = 0, discountFloor = 0, maxAdditionalDiscount, targetPrice }) => {

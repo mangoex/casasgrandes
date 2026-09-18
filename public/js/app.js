@@ -2343,13 +2343,27 @@ function getQuotePayload() {
     const tamanoSelect = w.querySelector('.item-tamano-select');
     const qtyInput = w.querySelector('.item-qty-input');
     const slider = w.querySelector('.item-discount-slider');
+    const finalInput = w.querySelector('.item-final-price-input');
     
     if (select && select.value && qtyInput && qtyInput.value) {
+      let additionalDiscount = getSliderAdditionalDiscount(slider);
+      if (finalInput && slider) {
+        const basePrice = parseFloat(slider.getAttribute('data-base-price')) || 0;
+        const nucleDiscount = parseFloat(slider.getAttribute('data-nucle-discount')) || 0;
+        const discountFloor = parseFloat(slider.getAttribute('data-discount-floor')) || 0;
+        const maxTotal = parseFloat(slider.max) || 0;
+        const maxAdditional = Math.max(maxTotal - discountFloor, 0);
+        const entered = parseFloat(finalInput.value);
+        if (!isNaN(entered) && basePrice > 0) {
+          const rawAdd = (basePrice - nucleDiscount) - entered;
+          additionalDiscount = Math.max(0, Math.min(rawAdd, maxAdditional));
+        }
+      }
       items.push({
         producto_id: Number(select.value),
         cantidad: Number(qtyInput.value),
         tamano: (tamanoSelect && tamanoSelect.value) ? tamanoSelect.value.trim() : null,
-        descuento_aplicado: getSliderAdditionalDiscount(slider)
+        descuento_aplicado: additionalDiscount
       });
     }
   });
@@ -2526,6 +2540,8 @@ function debouncedLiveCalculation() {
               if (slider.getAttribute('data-contract-prev') !== sliderContract) {
                 slider.value = embeddedDiscount + Number(calcItem.descuento_asesor_aplicado_mxn || 0);
                 slider.setAttribute('data-contract-prev', sliderContract);
+              } else if (document.activeElement !== slider) {
+                slider.value = embeddedDiscount + Number(calcItem.descuento_asesor_aplicado_mxn || 0);
               }
               slider.value = Math.min(Math.max(Number(slider.value), embeddedDiscount), sliderMaxTotal);
               slider.disabled = sliderMaxTotal <= embeddedDiscount;
@@ -2707,6 +2723,7 @@ window.onFinalPriceInputBlur = function(input, event) {
 
   slider.value = sliderTotal;
   onDiscountSliderChange(slider);
+  debouncedLiveCalculation();
 };
 
 // Recalculate grand total factoring in any advisor discounts from sliders
