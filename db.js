@@ -45,22 +45,28 @@ async function initSchema() {
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS lote TEXT');
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS tamano TEXT');
 
-    // Seed default known sizes for existing products if not configured yet
+    // Reclassify agrochemicals miscategorized as hybrid seed
     await pool.query(`
       UPDATE productos 
-      SET tamanos = 'PW1, PW2' 
-      WHERE tamanos IS NULL AND (UPPER(producto) LIKE '%A-7573%PONCHO%' OR UPPER(producto) LIKE '%A7573%PONCHO%')
+      SET tipo_categoria = 'Agroquímicos', tamanos = NULL 
+      WHERE (UPPER(producto) LIKE '%MURALLA MAX%' OR UPPER(producto) LIKE '%VITANIC%') 
+        AND tipo_categoria = 'Híbrido'
     `);
+
+    // Standardize the official 10 seed sizes for corn hybrids
+    const standardSeedSizes = 'BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3, PW1, PW2';
     await pool.query(`
       UPDATE productos 
-      SET tamanos = 'BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3' 
-      WHERE tamanos IS NULL AND (UPPER(producto) LIKE '%A-7573%ACCELERON%' OR UPPER(producto) LIKE '%A-7573%ACELERON%' OR UPPER(producto) LIKE '%A7573%ACCELERON%')
-    `);
-    await pool.query(`
-      UPDATE productos 
-      SET tamanos = 'BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3, PW1, PW2' 
-      WHERE tamanos IS NULL AND (UPPER(producto) LIKE '%HIPOP%ACCELERON%' OR UPPER(producto) LIKE '%CALAMAR%')
-    `);
+      SET tamanos = $1 
+      WHERE (tipo_categoria = 'Híbrido' OR tipo_categoria = 'Semilla')
+        AND (
+          UPPER(producto) LIKE '%A-7573%' 
+          OR UPPER(producto) LIKE '%HIPOP%' 
+          OR UPPER(producto) LIKE '%CALAMAR%'
+          OR UPPER(producto) LIKE '%ARMADILLO%'
+          OR UPPER(producto) LIKE '%RINOCERONTE%'
+        )
+    `, [standardSeedSizes]);
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS opcion_operacion TEXT');
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_remision TEXT');
     await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_movimiento TEXT');

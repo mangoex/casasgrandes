@@ -2076,6 +2076,7 @@ function registerLiveCalculatorEvents() {
 
 function handleBuilderContainerInput(event) {
   if (event && event.target && event.target.classList && event.target.classList.contains('item-final-price-input')) {
+    onFinalPriceInputChange(event.target, event);
     return;
   }
   if (event && event.target && event.target.classList && event.target.classList.contains('item-qty-input')) {
@@ -2086,6 +2087,7 @@ function handleBuilderContainerInput(event) {
 
 function handleBuilderContainerChange(event) {
   if (event && event.target && event.target.classList && event.target.classList.contains('item-final-price-input')) {
+    onFinalPriceInputBlur(event.target, event);
     return;
   }
   if (event && event.target && event.target.classList && (event.target.classList.contains('item-qty-input') || event.target.classList.contains('item-product-select'))) {
@@ -2313,6 +2315,14 @@ function addQuoteItemRow() {
       changeQuoteQuantity(button, Number(button.dataset.quantityDelta || 0));
     });
   });
+
+  const finalPriceInput = wrapper.querySelector('.item-final-price-input');
+  if (finalPriceInput) {
+    finalPriceInput.addEventListener('input', e => onFinalPriceInputChange(finalPriceInput, e));
+    finalPriceInput.addEventListener('change', e => onFinalPriceInputBlur(finalPriceInput, e));
+    finalPriceInput.addEventListener('blur', e => onFinalPriceInputBlur(finalPriceInput, e));
+  }
+
   debouncedLiveCalculation();
 }
 
@@ -4013,6 +4023,7 @@ async function deleteWarehouseMovement(id) {
     alert('Error: ' + err.message);
   }
 }
+window.deleteWarehouseMovement = deleteWarehouseMovement;
 
 async function loadWarehouseMovements() {
   const category = document.getElementById('movement-filter-category')?.value || '';

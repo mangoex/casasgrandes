@@ -605,3 +605,30 @@
   5. `updateVirtualSheet` asigna directamente los totales y subtotales autorizados del servidor (`calc.total_mxn`, `item.subtotal`, `item.precio_final`), garantizando consistencia absoluta.
 - Estado: passed-local
 
+## TDD-TC-104 — Lista blanca de manejadores en SecurityUtils permite eliminar salidas de almacén y capturar precios
+
+- Cubre: BDD-SC-090, BDD-SC-091, SDD-SEC-012
+- Aserciones:
+  1. `allowedHandlerFunctions` en `public/js/security.js` contiene `deleteWarehouseMovement`, `onFinalPriceInputChange` y `onFinalPriceInputBlur`.
+  2. `SecurityUtils.isAllowedHandler` valida positivamente llamadas directas a estas funciones con argumentos numéricos o `this`.
+  3. `SecurityUtils.installInnerHtmlGuard` preserva intactos los atributos `onclick="deleteWarehouseMovement(...)"` y `oninput="onFinalPriceInputChange(this)"` tras la inyección HTML.
+- Estado: passed-local
+
+## TDD-TC-105 — Captura reactiva de precio final manual y coordinación con cantidad en Cotizador
+
+- Cubre: BDD-SC-091, PRD-FR-037, SDD-CMP-034
+- Aserciones:
+  1. En `addQuoteItemRow`, `.item-final-price-input` se enlaza directamente con listeners para los eventos `input`, `change` y `blur`.
+  2. `handleBuilderContainerInput` y `handleBuilderContainerChange` no descartan ni abortan prematuramente los eventos originados en `.item-final-price-input`.
+  3. `recalcTotalsWithDiscounts` sincroniza el subtotal de la fila y el gran total al valor exacto del precio manual por la cantidad.
+- Estado: passed-local
+
+## TDD-TC-106 — Estandarización de 10 calibres en híbridos y corrección de categoría Muralla Max
+
+- Cubre: BDD-SC-092, PRD-CAT-005, SDD-DB-018
+- Aserciones:
+  1. La base de datos y `db.js` configuran los 10 calibres oficiales (`BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3, PW1, PW2`) para los productos híbridos activos.
+  2. `MURALLA MAX 250ML` tiene `tipo_categoria = 'Agroquímicos'`.
+  3. `getSizesForProduct` devuelve los 10 calibres para `A-7573 ACCELERON` y `A-7573 PONCHO`.
+- Estado: passed-local
+

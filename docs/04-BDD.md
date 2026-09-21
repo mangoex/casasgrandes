@@ -771,3 +771,25 @@ And la interfaz despliega el selector con la lista completa de asesores
 - **Y** la tarjeta de resumen del total (`.mobile-quote-summary`) permanece visible en el formulario para cualquier tamaño de pantalla (móvil, tableta o escritorio) y rol de usuario
 - **Y** al resolverse el cálculo del backend, la hoja virtual y la tabla de cotización se consolidan con los valores autorizados del servidor.
 
+## Escenarios BDD del Incremento CHG-020
+
+### BDD-SC-090 — Autorización de eliminación de salidas de almacén por Administrador en UI sin bloqueo de seguridad
+- **Dado** un usuario autenticado con rol "Administrador" consultando el Kardex de Almacén
+- **Cuando** hace clic en el botón de eliminar movimiento (`.btn-icon` con icono 🗑️)
+- **Entonces** el sanitizador de seguridad (`SecurityUtils`) preserva intacto el atributo `onclick` y permite ejecutar `deleteWarehouseMovement`
+- **Y** el navegador solicita confirmación al usuario antes de proceder
+- **Y** al confirmar, el cliente envía `DELETE /api/almacen/movimientos/:id` al servidor, eliminando el movimiento y recalculando los saldos posteriores.
+
+### BDD-SC-091 — Reactividad de captura manual de precio final y cantidad sin despojo de eventos por sanitizador
+- **Dado** una cotización activa en el Cotizador con una partida de producto
+- **Cuando** el usuario teclea un precio en el campo `item-final-price-input`
+- **Entonces** el sanitizador de seguridad preserva los manejadores de eventos (`onFinalPriceInputChange` y `onFinalPriceInputBlur`) y los listeners directos capturan la entrada en tiempo real
+- **Y** el sistema recalcula instantáneamente el slider de descuento, el subtotal de la partida y el total general de la cotización
+- **Y** al modificar la cantidad mediante teclado o botones `+`/`-`, el total refleja fielmente el producto del precio final capturado por la nueva cantidad.
+
+### BDD-SC-092 — Integridad y estandarización de calibres oficiales de semilla y reclasificación de agroquímicos
+- **Dado** el catálogo de productos y el cotizador
+- **Cuando** se consultan los híbridos de semilla (`HIPOPÓTAMO ACCELERON`, `CALAMAR - VITALA`, `A-7573 ACCELERON`, `A-7573 PONCHO`)
+- **Entonces** todos los híbridos cuentan con el catálogo completo de 10 calibres oficiales (`BT1, BT2, BT3, BW1, BW2, PT1, PT2, PT3, PW1, PW2`)
+- **Y** el producto `MURALLA MAX 250ML` está clasificado correctamente como `Agroquímicos`, impidiendo que el sistema exija calibres de semilla para este insumo.
+

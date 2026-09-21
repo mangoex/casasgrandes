@@ -29,11 +29,12 @@
   }
 
   const allowedHandlerFunctions = new Set([
-    'addProductDirectlyToBuilder', 'assignClientDirectly', 'click', 'closeModal',
+    'addProductDirectlyToBuilder', 'assignClientDirectly', 'changeQuoteQuantity', 'click', 'closeModal',
     'deleteCatalogClient', 'deleteCiclo', 'deleteCuentaClave', 'deleteEtapa',
-    'deleteGlobalMeta', 'deletePlanActivity', 'deleteProducto',
+    'deleteGlobalMeta', 'deletePlanActivity', 'deleteProducto', 'deleteWarehouseMovement',
     'desasociarCliente', 'disolverGrupoAsociados', 'editCatalogClient',
     'editEtapa', 'find', 'moveQuoteStatus', 'onDiscountSliderChange',
+    'onFinalPriceInputChange', 'onFinalPriceInputBlur',
     'openAdminDecisionModal', 'openBidForm', 'openCompletePlanModal',
     'openEditAsesorModal', 'openEditCicloModal', 'openEditCuentaClaveModal',
     'openEditGlobalMetaModal', 'openEditMetaModal', 'openEditPlanModal',
@@ -67,7 +68,7 @@
       for (const attribute of [...element.attributes]) {
         const name = attribute.name.toLowerCase();
         if (name.startsWith('on')) {
-          const eventAllowed = ['onclick', 'onchange', 'oninput'].includes(name);
+          const eventAllowed = ['onclick', 'onchange', 'oninput', 'onblur'].includes(name);
           if (!eventAllowed || !isAllowedHandler(attribute.value)) element.removeAttribute(attribute.name);
           continue;
         }
@@ -105,5 +106,5 @@
     Object.defineProperty(Element.prototype, '__agriSafeInnerHtml', { value: true });
   }
 
-  return { escapeHtml, installInnerHtmlGuard, renderSafeMarkdown };
+  return { escapeHtml, installInnerHtmlGuard, renderSafeMarkdown, isAllowedHandler, allowedHandlerFunctions };
 }));

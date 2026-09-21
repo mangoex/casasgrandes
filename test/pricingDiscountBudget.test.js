@@ -136,8 +136,8 @@ test('TDD-TC-073: frontend convierte la barra acumulada a descuento adicional', 
   const index = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8');
   assert.match(frontend, /data-discount-floor/);
   assert.match(frontend, /sliderTotal\s*-\s*discountFloor/);
-  assert.match(index, /app\.js\?v=202609(0[13]|18)-chg01[5789]/);
-  assert.match(index, /style\.css\?v=202609(0[13]|18)-chg01[5789]/);
+  assert.match(index, /app\.js\?v=202609(0[13]|18|21)-chg0(1[5789]|20)/);
+  assert.match(index, /style\.css\?v=202609(0[13]|18|21)-chg0(1[5789]|20)/);
 });
 
 test('TDD-TC-074: esquema y endpoints conservan un tope independiente', () => {
