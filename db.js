@@ -9,13 +9,15 @@ types.setTypeParser(1082, (val) => val);
 
 const connectionString = process.env.DATABASE_URL;
 
-// SSL is usually required in production, but not for localhost
+// SSL is usually required in production, but not for localhost or internal Docker networks
+const isSslExplicitlyDisabled = process.env.PGSSL === 'false' || (connectionString && connectionString.includes('sslmode=disable'));
 const isLocal = !connectionString || connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+const useSsl = !isLocal && !isSslExplicitlyDisabled;
 
 const pool = connectionString
   ? new Pool({
       connectionString,
-      ssl: isLocal ? false : { rejectUnauthorized: false }
+      ssl: useSsl ? { rejectUnauthorized: false } : false
     })
   : new Pool({
       host: process.env.PGHOST || 'localhost',
@@ -23,7 +25,7 @@ const pool = connectionString
       user: process.env.PGUSER || 'postgres',
       password: process.env.PGPASSWORD || '',
       database: process.env.PGDATABASE || 'casas_grandes',
-      ssl: (process.env.PGHOST === 'localhost' || !process.env.PGHOST) ? false : { rejectUnauthorized: false }
+      ssl: (process.env.PGHOST === 'localhost' || !process.env.PGHOST || isSslExplicitlyDisabled) ? false : { rejectUnauthorized: false }
     });
 
 // Database auto-migration / schema updates
