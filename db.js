@@ -31,6 +31,15 @@ const pool = connectionString
 // Database auto-migration / schema updates
 async function initSchema() {
   try {
+    const tableCheck = await pool.query(`
+      SELECT count(*) as cnt FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name IN ('clientes', 'asesores', 'metas_ventas', 'productos', 'cotizaciones', 'cotizacion_detalles', 'almacen_movimientos')
+    `);
+    if (parseInt(tableCheck.rows[0]?.cnt || '0', 10) < 7) {
+      initSchemaPromise = null;
+      return;
+    }
+
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS disponible_para_puja INTEGER DEFAULT 0');
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cliente_principal_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL');
     await pool.query('ALTER TABLE asesores ADD COLUMN IF NOT EXISTS calificacion REAL DEFAULT 5.0');
@@ -553,6 +562,9 @@ function rewriteQuery(sql) {
 
 let initSchemaPromise = null;
 function ensureSchema() {
+  if (process.env.SKIP_INIT_SCHEMA === 'true') {
+    return Promise.resolve();
+  }
   if (!initSchemaPromise) {
     initSchemaPromise = initSchema();
   }

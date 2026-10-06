@@ -1,3 +1,4 @@
+process.env.SKIP_INIT_SCHEMA = 'true';
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
@@ -74,24 +75,10 @@ async function runMigration() {
   try {
     // 1. Drop existing tables to start fresh
     console.log('Dropping existing tables if any...');
-    await db.run('DROP TABLE IF EXISTS crm_pujas CASCADE');
-    await db.run('DROP TABLE IF EXISTS crm_notificaciones CASCADE');
-    await db.run('DROP TABLE IF EXISTS planificacion_semanal CASCADE');
-    await db.run('DROP TABLE IF EXISTS metas_ventas CASCADE');
-    await db.run('DROP TABLE IF EXISTS crm_visitas CASCADE');
-    await db.run('DROP TABLE IF EXISTS almacen_movimientos CASCADE');
-    await db.run('DROP TABLE IF EXISTS cotizacion_detalles CASCADE');
-    await db.run('DROP TABLE IF EXISTS cotizaciones CASCADE');
-    await db.run('DROP TABLE IF EXISTS temporadas CASCADE');
-    await db.run('DROP TABLE IF EXISTS productos CASCADE');
-    await db.run('DROP TABLE IF EXISTS clientes CASCADE');
-    await db.run('DROP TABLE IF EXISTS cuentas_clave CASCADE');
-    await db.run('DROP TABLE IF EXISTS asesores CASCADE');
-    await db.run('DROP TABLE IF EXISTS crm_agentes_config CASCADE');
-    await db.run('DROP TABLE IF EXISTS crm_agentes_logs CASCADE');
-    await db.run('DROP TABLE IF EXISTS crm_ceo_propuestas CASCADE');
-    await db.run('DROP TABLE IF EXISTS metas_globales CASCADE');
-    await db.run('DROP TABLE IF EXISTS ciclos CASCADE');
+    const existingTables = await db.all("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'");
+    for (const row of existingTables) {
+      await db.run(`DROP TABLE IF EXISTS "${row.table_name}" CASCADE`);
+    }
 
     // 2. Create tables using Postgres SERIAL
     console.log('Creating tables...');
@@ -913,6 +900,10 @@ async function runMigration() {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [fecha, tipoMov, prodId, cantEnt, cantSal, existencias, cotId, asesorId, ordenFolio, notas]);
     }
+
+    // Run incremental schema updates now that all base tables exist
+    delete process.env.SKIP_INIT_SCHEMA;
+    await db.initSchema();
 
     // 10. Print Diagnostics
     console.log('Migration and seeding completed successfully!');
