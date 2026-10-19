@@ -815,4 +815,8 @@ And la interfaz despliega el selector con la lista completa de asesores
 - **Entonces** la tabla de inventario muestra el total consolidado del producto (150.000)
 - **Y** presenta directamente el desglose de cada uno de sus lotes activos con sus respectivas existencias.
 
-
+### BDD-SC-096 — Resiliencia de esquema y autorrecuperación de columna `ciclo_agricola` en entradas y salidas de Almacén
+- **Dado** un entorno de base de datos donde `almacen_movimientos` aún no tiene creada la columna `ciclo_agricola` (por ejemplo, si el conteo parcial de tablas base o el orden de inicialización omitió la migración previa)
+- **Cuando** el servidor ejecuta `initSchema()` o recibe un registro de Entrada o Salida en `POST /api/almacen/movimientos`
+- **Entonces** `initSchema()` crea previamente cualquier tabla base faltante (como `metas_ventas`) y aplica sin bloqueos `ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS ciclo_agricola TEXT`
+- **Y** si durante `POST /api/almacen/movimientos` ocurre un error de columna inexistente (`42703` / `column "ciclo_agricola" of relation "almacen_movimientos" does not exist`), el backend asegura la columna y reintenta la transacción automáticamente sin devolver error al usuario.

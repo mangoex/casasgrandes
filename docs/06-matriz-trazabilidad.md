@@ -286,14 +286,14 @@
 
 ## EVD-022 — Evidencia local CHG-024
 
-- Fecha: 2026-10-15.
-- Calibración: Riesgo R2 (Ciclos manuales en entradas de almacén y desglose de existencias por lote).
+- Fecha: 2026-10-19.
+- Calibración: Riesgo R2 (Ciclos manuales en entradas de almacén, desglose de existencias por lote y resiliencia de esquema para `almacen_movimientos.ciclo_agricola`).
 - Requisitos cubiertos: PRD-FR-052, PRD-FR-053.
-- Escenarios BDD: BDD-SC-093, BDD-SC-094, BDD-SC-095.
-- Casos TDD: TDD-TC-107, TDD-TC-108, TDD-TC-109.
-- Ajuste de alcance: Reubicación de captura manual de Ciclo exclusivamente a nivel de cada partida en Entradas (`.move-item-ciclo-group` en entradas, eliminando el campo global `#move-ciclo-entrada` de la cabecera); preservación del modo de operación al registrar y actualización del versionado de assets (`?v=20261016-chg025`) para evitar retención de caché.
+- Escenarios BDD: BDD-SC-093, BDD-SC-094, BDD-SC-095, BDD-SC-096.
+- Casos TDD: TDD-TC-107, TDD-TC-108, TDD-TC-109, TDD-TC-110.
+- Ajuste de alcance:
+  - Reubicación de captura manual de Ciclo exclusivamente a nivel de cada partida en Entradas (`.move-item-ciclo-group` en entradas, eliminando el campo global `#move-ciclo-entrada` de la cabecera); preservación del modo de operación al registrar y actualización del versionado de assets (`?v=20261016-chg025`) para evitar retención de caché.
+  - Garantía de migración en `db.js` (`ensureWarehouseMovementsSchema`, creación previa de `metas_ventas` y consulta con `current_schema()` sin bloqueo `cnt < 7`) y autorrecuperación en caliente en `POST /api/almacen/movimientos` ante error PostgreSQL `42703` (`column "ciclo_agricola" of relation "almacen_movimientos" does not exist`).
 - Fase Roja: `node --test test/chg024_almacen_ciclos_lotes.test.js`, exit 1.
-- Fase Verde: `node --test test/chg024_almacen_ciclos_lotes.test.js`, exit 0, 3/3 aprobadas.
-- Regresión completa: `npm test`, exit 0, 141/141 pruebas aprobadas (0 fallos).
-
-
+- Fase Verde: `node --test test/chg024_almacen_ciclos_lotes.test.js`, exit 0, 4/4 aprobadas.
+- Regresión completa: `npm test`, exit 0, 142/142 pruebas aprobadas (0 fallos).

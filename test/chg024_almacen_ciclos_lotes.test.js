@@ -3,6 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-for-chg024-32-chars-minimum!!';
+process.env.NODE_ENV = 'test';
+
 const { normalizeMovementItems, aggregateProductLotsStock } = require('../utils/almacen');
 
 test('TDD-TC-107: normalizeMovementItems extrae y normaliza el campo manual ciclo/ciclo_agricola', () => {
@@ -102,4 +105,100 @@ test('TDD-TC-109: exportKardexToCSV y frontend incorporan Ciclo en Entradas excl
 
   // 3. Renderizado de desglose de lotes en la tabla de inventario
   assert.match(appJsContent, /lot-breakdown-row|lotes-breakdown/, 'app.js debe renderizar el desglose de lotes');
+});
+
+test('TDD-TC-110: db.js y server.js garantizan migracion de almacen_movimientos.ciclo_agricola y autorrecuperacion ante error 42703', async () => {
+  const dbJsPath = path.join(__dirname, '..', 'db.js');
+  const dbJsContent = fs.readFileSync(dbJsPath, 'utf8');
+  const serverJsPath = path.join(__dirname, '..', 'server.js');
+  const serverJsContent = fs.readFileSync(serverJsPath, 'utf8');
+
+  // 1. db.js debe exponer ensureWarehouseMovementsSchema y no bloquear la migración de almacen_movimientos por exigir cnt < 7 con metas_ventas preexistente
+  assert.match(dbJsContent, /ensureWarehouseMovementsSchema/, 'db.js debe definir y exportar ensureWarehouseMovementsSchema');
+  assert.equal(/parseInt\(tableCheck\.rows\[0\]\?\.cnt\s*\|\|\s*'0',\s*10\)\s*<\s*7/.test(dbJsContent), false, 'db.js no debe abortar todas las migraciones cuando falta una tabla secundaria como metas_ventas (cnt < 7)');
+
+  // 2. server.js debe contar con autorrecuperación ante columna faltante en POST /api/almacen/movimientos
+  assert.match(serverJsContent, /ensureWarehouseMovementsSchema/, 'server.js debe invocar ensureWarehouseMovementsSchema para autorrecuperar esquema de almacén');
+
+  // 3. Prueba funcional HTTP de autorrecuperación ante error PostgreSQL 42703 ("column ciclo_agricola of relation almacen_movimientos does not exist")
+  const jwt = require('jsonwebtoken');
+  const db = require('../db');
+  const { JWT_SECRET } = require('../middleware/auth');
+  const { app } = require('../server');
+
+  const origGet = db.get;
+  const origTransaction = db.transaction;
+  const origEnsureWarehouse = db.ensureWarehouseMovementsSchema;
+
+  let txAttempts = 0;
+  let schemaRepaired = false;
+
+  db.get = async (sql) => {
+    if (/FROM asesores/i.test(sql)) {
+      return { id: 1, usuario: 'admin', nombre: 'Admin', nivel_rol: 'Administrador', activo: 1, session_version: 1 };
+    }
+    return null;
+  };
+
+  db.ensureWarehouseMovementsSchema = async () => {
+    schemaRepaired = true;
+  };
+
+  db.transaction = async (cb) => {
+    txAttempts += 1;
+    if (txAttempts === 1 && !schemaRepaired) {
+      const err = new Error('column "ciclo_agricola" of relation "almacen_movimientos" does not exist');
+      err.code = '42703';
+      throw err;
+    }
+    const mockTx = {
+      get: async (sql) => {
+        if (/FROM productos WHERE id/i.test(sql)) {
+          return { id: 10, producto: 'Faena Fuerte Garrafa 10L', tipo_categoria: 'Agroquímicos', activo: 1 };
+        }
+        if (/SELECT existencias_resultantes FROM almacen_movimientos/i.test(sql)) {
+          return { existencias_resultantes: 5120 };
+        }
+        if (/SUM\(COALESCE\(cantidad_entrante/i.test(sql)) {
+          return { existencias: 5120 };
+        }
+        return null;
+      },
+      run: async () => ({ id: 99, changes: 1 })
+    };
+    return cb(mockTx);
+  };
+
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise(resolve => server.once('listening', resolve));
+    const { port } = server.address();
+    const token = jwt.sign({ id: 1, usuario: 'admin', nivel_rol: 'Administrador', session_version: 1 }, JWT_SECRET);
+    const res = await fetch(`http://127.0.0.1:${port}/api/almacen/movimientos`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        tipo: 'Salida',
+        opcion_operacion: 'Contado',
+        numero_remision: 'A3467',
+        cliente_id: 1,
+        items: [
+          { producto_id: 10, lote: 'CHFF0421', cantidad: 10, precio_venta: 219, categoria: 'Agroquímicos' }
+        ]
+      })
+    });
+    const body = await res.json();
+    assert.equal(res.status, 201);
+    assert.equal(body.success, true);
+    assert.equal(schemaRepaired, true, 'Debe haber ejecutado ensureWarehouseMovementsSchema al detectar 42703');
+    assert.equal(txAttempts, 2, 'Debe haber reintentado la transacción tras reparar el esquema');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    db.get = origGet;
+    db.transaction = origTransaction;
+    db.ensureWarehouseMovementsSchema = origEnsureWarehouse;
+  }
 });

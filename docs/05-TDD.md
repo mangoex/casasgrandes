@@ -660,5 +660,11 @@
   4. La tabla de existencias genera la fila secundaria con `.lot-breakdown-row` para productos con saldo positivo.
 - Estado: passed-local
 
+## TDD-TC-110 — Migración garantizada y autorrecuperación de columna `ciclo_agricola` en `almacen_movimientos`
 
+- Cubre: BDD-SC-096, PRD-FR-052
+- Aserciones:
+  1. `initSchema` en `db.js` no aborta las migraciones de `almacen_movimientos` por requerir que las 7 tablas existan simultáneamente (`cnt < 7`), sino que asegura la tabla `metas_ventas` (`CREATE TABLE IF NOT EXISTS metas_ventas`) y valida solo las tablas núcleo mínimas o aplica las columnas sobre `almacen_movimientos` siempre que exista.
+  2. Se expone una función auxiliar de aseguramiento de columnas de almacén (`ensureWarehouseMovementsSchema`) y autorrecuperación en `POST /api/almacen/movimientos` que ante un error `column "ciclo_agricola" of relation "almacen_movimientos" does not exist` ejecuta `ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS ciclo_agricola TEXT` y reintenta la operación exitosamente.
+- Estado: passed-local
 

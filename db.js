@@ -28,17 +28,51 @@ const pool = connectionString
       ssl: (process.env.PGHOST === 'localhost' || !process.env.PGHOST || isSslExplicitlyDisabled) ? false : { rejectUnauthorized: false }
     });
 
+// Helper to guarantee all required columns and indexes on almacen_movimientos
+async function ensureWarehouseMovementsSchema() {
+  await pool.query("ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS categoria TEXT DEFAULT 'Agroquímicos'");
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS lote TEXT');
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS tamano TEXT');
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS opcion_operacion TEXT');
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_remision TEXT');
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_movimiento TEXT');
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS precio_venta REAL DEFAULT 0.0');
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS proveedor_cliente TEXT');
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id)');
+  await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS ciclo_agricola TEXT');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_almacen_mov_prod ON almacen_movimientos (producto_id, id DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_almacen_mov_cli ON almacen_movimientos (cliente_id) WHERE cliente_id IS NOT NULL');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_almacen_mov_cot ON almacen_movimientos (cotizacion_id) WHERE cotizacion_id IS NOT NULL');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_almacen_mov_ciclo ON almacen_movimientos (ciclo_agricola) WHERE ciclo_agricola IS NOT NULL');
+}
+
 // Database auto-migration / schema updates
 async function initSchema() {
   try {
     const tableCheck = await pool.query(`
       SELECT count(*) as cnt FROM information_schema.tables 
-      WHERE table_schema = 'public' AND table_name IN ('clientes', 'asesores', 'metas_ventas', 'productos', 'cotizaciones', 'cotizacion_detalles', 'almacen_movimientos')
+      WHERE table_schema = current_schema() AND table_name IN ('clientes', 'asesores', 'productos', 'cotizaciones', 'cotizacion_detalles', 'almacen_movimientos')
     `);
-    if (parseInt(tableCheck.rows[0]?.cnt || '0', 10) < 7) {
+    if (parseInt(tableCheck.rows[0]?.cnt || '0', 10) < 6) {
       initSchemaPromise = null;
       return;
     }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS metas_ventas (
+        id SERIAL PRIMARY KEY,
+        asesor_id INTEGER REFERENCES asesores(id),
+        ciclo_agricola VARCHAR(30) NOT NULL,
+        monto_objetivo_mxn REAL DEFAULT 0.0,
+        bolsas_objetivo INTEGER DEFAULT 0,
+        meta_faena REAL DEFAULT 0.0,
+        meta_clavis REAL DEFAULT 0.0,
+        meta_cropprotection REAL DEFAULT 0.0,
+        meta_cosecha REAL DEFAULT 0.0,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        activo INTEGER DEFAULT 1
+      )
+    `);
 
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS disponible_para_puja INTEGER DEFAULT 0');
     await pool.query('ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cliente_principal_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL');
@@ -52,9 +86,7 @@ async function initSchema() {
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS descripcion TEXT');
     await pool.query('ALTER TABLE productos ADD COLUMN IF NOT EXISTS tamanos TEXT');
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS tamano TEXT');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS categoria TEXT DEFAULT \'Agroquímicos\'');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS lote TEXT');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS tamano TEXT');
+    await ensureWarehouseMovementsSchema();
 
     // Reclassify agrochemicals miscategorized as hybrid seed
     await pool.query(`
@@ -78,13 +110,6 @@ async function initSchema() {
           OR UPPER(producto) LIKE '%RINOCERONTE%'
         )
     `, [standardSeedSizes]);
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS opcion_operacion TEXT');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_remision TEXT');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS numero_movimiento TEXT');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS precio_venta REAL DEFAULT 0.0');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS proveedor_cliente TEXT');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id)');
-    await pool.query('ALTER TABLE almacen_movimientos ADD COLUMN IF NOT EXISTS ciclo_agricola TEXT');
     await pool.query(`
       UPDATE almacen_movimientos 
       SET categoria = 'Semilla' 
@@ -122,10 +147,6 @@ async function initSchema() {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_planificacion_asesor_realizada ON planificacion_semanal (asesor_id, realizada)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_planificacion_estado_fecha ON planificacion_semanal (realizada, fecha_programada)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_cotizaciones_prospecto ON cotizaciones (prospecto_id) WHERE prospecto_id IS NOT NULL');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_almacen_mov_prod ON almacen_movimientos (producto_id, id DESC)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_almacen_mov_cli ON almacen_movimientos (cliente_id) WHERE cliente_id IS NOT NULL');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_almacen_mov_cot ON almacen_movimientos (cotizacion_id) WHERE cotizacion_id IS NOT NULL');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_almacen_mov_ciclo ON almacen_movimientos (ciclo_agricola) WHERE ciclo_agricola IS NOT NULL');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS cotizacion_adjuntos (
         id SERIAL PRIMARY KEY,
@@ -642,6 +663,7 @@ module.exports = {
   initSchemaPromise,
   pool, // Expose raw pool in case direct operations are needed
   initSchema: ensureSchema,
+  ensureWarehouseMovementsSchema,
   checkReadiness,
   close
 };

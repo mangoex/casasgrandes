@@ -1930,94 +1930,45 @@ app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
   const fullTipoMovimiento = tipo_movimiento || (isSalida ? `Salida (${opcion_operacion || 'Venta'})` : 'Entrada');
   const dateVal = fecha_movimiento || new Date().toISOString();
 
-  try {
-    const result = await db.transaction(async (tx) => {
-      // 1. Validaciones previas de todas las partidas
-      const productRunningStock = new Map();
-      const lotRunningStock = new Map();
-      const lockedProducts = new Map();
-      const productIdsToLock = [...new Set(items.map(item => Number(item.producto_id)))]
-        .filter(productId => Number.isInteger(productId) && productId > 0)
-        .sort((left, right) => left - right);
-      for (const productId of productIdsToLock) {
-        const product = await tx.get('SELECT * FROM productos WHERE id = ? FOR UPDATE', [productId]);
-        if (product) lockedProducts.set(productId, product);
+  const executeMovementTransaction = () => db.transaction(async (tx) => {
+    // 1. Validaciones previas de todas las partidas
+    const productRunningStock = new Map();
+    const lotRunningStock = new Map();
+    const lockedProducts = new Map();
+    const productIdsToLock = [...new Set(items.map(item => Number(item.producto_id)))]
+      .filter(productId => Number.isInteger(productId) && productId > 0)
+      .sort((left, right) => left - right);
+    for (const productId of productIdsToLock) {
+      const product = await tx.get('SELECT * FROM productos WHERE id = ? FOR UPDATE', [productId]);
+      if (product) lockedProducts.set(productId, product);
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const indexLabel = items.length > 1 ? ` (Partida #${i + 1})` : '';
+
+      if (!item.producto_id || item.producto_id <= 0) {
+        throw new Error(`El producto es requerido${indexLabel}`);
+      }
+      if (item.cantidad <= 0) {
+        throw new Error(`La cantidad debe ser mayor a cero${indexLabel}`);
+      }
+      if (!item.lote) {
+        throw new Error(`El lote es obligatorio${indexLabel}`);
       }
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const indexLabel = items.length > 1 ? ` (Partida #${i + 1})` : '';
-
-        if (!item.producto_id || item.producto_id <= 0) {
-          throw new Error(`El producto es requerido${indexLabel}`);
-        }
-        if (item.cantidad <= 0) {
-          throw new Error(`La cantidad debe ser mayor a cero${indexLabel}`);
-        }
-        if (!item.lote) {
-          throw new Error(`El lote es obligatorio${indexLabel}`);
-        }
-
-        const prod = lockedProducts.get(Number(item.producto_id));
-        if (!prod) {
-          throw new Error(`Producto #${item.producto_id} no encontrado${indexLabel}`);
-        }
-
-        const isSeed = item.categoria === 'Semilla' || prod.tipo_categoria === 'Híbrido' || prod.tipo_categoria === 'Semilla';
-        if (isSeed && !item.tamano) {
-          throw new Error(`El tamaño es obligatorio para el producto "${prod.producto}"${indexLabel}`);
-        }
-
-        if (isSalida) {
-          // Validar existencias globales del producto
-          if (!productRunningStock.has(item.producto_id)) {
-            const lastMove = await tx.get(
-              'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
-              [item.producto_id]
-            );
-            productRunningStock.set(item.producto_id, lastMove ? Number(lastMove.existencias_resultantes || 0) : 0.0);
-          }
-
-          const currentProdStock = productRunningStock.get(item.producto_id);
-          if (currentProdStock < item.cantidad) {
-            throw new Error(
-              `Existencias insuficientes para el producto "${prod.producto}"${indexLabel}. Disponibles: ${currentProdStock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
-            );
-          }
-          productRunningStock.set(item.producto_id, currentProdStock - item.cantidad);
-
-          // Validar existencias específicas por lote
-          const lotKey = `${item.producto_id}__${item.lote.toUpperCase()}__${(item.tamano || '').toUpperCase()}`;
-          if (!lotRunningStock.has(lotKey)) {
-            let lotQuery = `
-              SELECT (SUM(COALESCE(cantidad_entrante, 0)) - SUM(COALESCE(cantidad_saliente, 0))) AS existencias
-              FROM almacen_movimientos
-              WHERE producto_id = ? AND lote = ?
-            `;
-            const lotParams = [item.producto_id, item.lote];
-            if (item.tamano) {
-              lotQuery += ' AND tamano = ?';
-              lotParams.push(item.tamano);
-            }
-            const lotRes = await tx.get(lotQuery, lotParams);
-            lotRunningStock.set(lotKey, lotRes ? (Number(lotRes.existencias) || 0.0) : 0.0);
-          }
-
-          const currentLotStock = lotRunningStock.get(lotKey);
-          if (currentLotStock < item.cantidad) {
-            throw new Error(
-              `Existencias insuficientes para el lote "${item.lote}" del producto "${prod.producto}"${indexLabel}. Disponibles: ${currentLotStock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}, Requeridas: ${item.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
-            );
-          }
-          lotRunningStock.set(lotKey, currentLotStock - item.cantidad);
-        }
+      const prod = lockedProducts.get(Number(item.producto_id));
+      if (!prod) {
+        throw new Error(`Producto #${item.producto_id} no encontrado${indexLabel}`);
       }
 
-      // 2. Inserción atómica de todos los renglones
-      productRunningStock.clear();
-      let lastResultingStock = 0.0;
+      const isSeed = item.categoria === 'Semilla' || prod.tipo_categoria === 'Híbrido' || prod.tipo_categoria === 'Semilla';
+      if (isSeed && !item.tamano) {
+        throw new Error(`El tamaño es obligatorio para el producto "${prod.producto}"${indexLabel}`);
+      }
 
-      for (const item of items) {
+      if (isSalida) {
+        // Validar existencias globales del producto
         if (!productRunningStock.has(item.producto_id)) {
           const lastMove = await tx.get(
             'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
@@ -2026,61 +1977,126 @@ app.post('/api/almacen/movimientos', authenticateToken, async (req, res) => {
           productRunningStock.set(item.producto_id, lastMove ? Number(lastMove.existencias_resultantes || 0) : 0.0);
         }
 
-        const currentStock = productRunningStock.get(item.producto_id);
-        const ent = isSalida ? 0.0 : item.cantidad;
-        const sal = isSalida ? item.cantidad : 0.0;
-        const newStock = currentStock + ent - sal;
-        productRunningStock.set(item.producto_id, newStock);
-        lastResultingStock = newStock;
+        const currentProdStock = productRunningStock.get(item.producto_id);
+        if (currentProdStock < item.cantidad) {
+          throw new Error(
+            `Existencias insuficientes para el producto "${prod.producto}"${indexLabel}. Disponibles: ${currentProdStock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
+          );
+        }
+        productRunningStock.set(item.producto_id, currentProdStock - item.cantidad);
 
-        await tx.run(`
-          INSERT INTO almacen_movimientos (
-            fecha_movimiento, 
-            tipo_movimiento, 
-            categoria,
-            producto_id, 
-            lote,
-            tamano,
-            opcion_operacion,
-            numero_remision,
-            numero_movimiento,
-            precio_venta,
-            proveedor_cliente,
-            cantidad_entrante, 
-            cantidad_saliente, 
-            existencias_resultantes, 
-            referencia_factura, 
-            asesor_id,
-            cliente_id,
-            notas,
-            ciclo_agricola
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          dateVal,
-          fullTipoMovimiento,
-          (item.categoria === 'Semilla' || item.categoria === 'Híbrido') ? 'Semilla' : (item.categoria || categoria || 'Agroquímicos'),
-          item.producto_id,
-          item.lote || null,
-          item.tamano || null,
-          opcion_operacion || null,
-          numero_remision || null,
-          numero_movimiento || referencia_factura || null,
-          Number(item.precio_venta) || 0.0,
-          proveedor_cliente || null,
-          ent,
-          sal,
-          newStock,
-          referencia_factura || numero_movimiento || null,
-          asesor_id || req.user.id,
-          cliente_id || null,
-          notas || null,
-          item.ciclo_agricola || null
-        ]);
+        // Validar existencias específicas por lote
+        const lotKey = `${item.producto_id}__${item.lote.toUpperCase()}__${(item.tamano || '').toUpperCase()}`;
+        if (!lotRunningStock.has(lotKey)) {
+          let lotQuery = `
+            SELECT (SUM(COALESCE(cantidad_entrante, 0)) - SUM(COALESCE(cantidad_saliente, 0))) AS existencias
+            FROM almacen_movimientos
+            WHERE producto_id = ? AND lote = ?
+          `;
+          const lotParams = [item.producto_id, item.lote];
+          if (item.tamano) {
+            lotQuery += ' AND tamano = ?';
+            lotParams.push(item.tamano);
+          }
+          const lotRes = await tx.get(lotQuery, lotParams);
+          lotRunningStock.set(lotKey, lotRes ? (Number(lotRes.existencias) || 0.0) : 0.0);
+        }
+
+        const currentLotStock = lotRunningStock.get(lotKey);
+        if (currentLotStock < item.cantidad) {
+          throw new Error(
+            `Existencias insuficientes para el lote "${item.lote}" del producto "${prod.producto}"${indexLabel}. Disponibles: ${currentLotStock.toLocaleString('es-MX', { minimumFractionDigits: 3 })}, Requeridas: ${item.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 3 })}`
+          );
+        }
+        lotRunningStock.set(lotKey, currentLotStock - item.cantidad);
+      }
+    }
+
+    // 2. Inserción atómica de todos los renglones
+    productRunningStock.clear();
+    let lastResultingStock = 0.0;
+
+    for (const item of items) {
+      if (!productRunningStock.has(item.producto_id)) {
+        const lastMove = await tx.get(
+          'SELECT existencias_resultantes FROM almacen_movimientos WHERE producto_id = ? ORDER BY id DESC LIMIT 1',
+          [item.producto_id]
+        );
+        productRunningStock.set(item.producto_id, lastMove ? Number(lastMove.existencias_resultantes || 0) : 0.0);
       }
 
-      return { count: items.length, existencias: lastResultingStock };
-    });
+      const currentStock = productRunningStock.get(item.producto_id);
+      const ent = isSalida ? 0.0 : item.cantidad;
+      const sal = isSalida ? item.cantidad : 0.0;
+      const newStock = currentStock + ent - sal;
+      productRunningStock.set(item.producto_id, newStock);
+      lastResultingStock = newStock;
+
+      await tx.run(`
+        INSERT INTO almacen_movimientos (
+          fecha_movimiento,
+          tipo_movimiento,
+          categoria,
+          producto_id,
+          lote,
+          tamano,
+          opcion_operacion,
+          numero_remision,
+          numero_movimiento,
+          precio_venta,
+          proveedor_cliente,
+          cantidad_entrante,
+          cantidad_saliente,
+          existencias_resultantes,
+          referencia_factura,
+          asesor_id,
+          cliente_id,
+          notas,
+          ciclo_agricola
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        dateVal,
+        fullTipoMovimiento,
+        (item.categoria === 'Semilla' || item.categoria === 'Híbrido') ? 'Semilla' : (item.categoria || categoria || 'Agroquímicos'),
+        item.producto_id,
+        item.lote || null,
+        item.tamano || null,
+        opcion_operacion || null,
+        numero_remision || null,
+        numero_movimiento || referencia_factura || null,
+        Number(item.precio_venta) || 0.0,
+        proveedor_cliente || null,
+        ent,
+        sal,
+        newStock,
+        referencia_factura || numero_movimiento || null,
+        asesor_id || req.user.id,
+        cliente_id || null,
+        notas || null,
+        item.ciclo_agricola || null
+      ]);
+    }
+
+    return { count: items.length, existencias: lastResultingStock };
+  });
+
+  try {
+    let result;
+    try {
+      result = await executeMovementTransaction();
+    } catch (txErr) {
+      const isMissingColumnError = txErr && (
+        txErr.code === '42703' ||
+        /column .* of relation "almacen_movimientos" does not exist/i.test(String(txErr.message || ''))
+      );
+      if (isMissingColumnError && typeof db.ensureWarehouseMovementsSchema === 'function') {
+        await db.ensureWarehouseMovementsSchema();
+        result = await executeMovementTransaction();
+      } else {
+        throw txErr;
+      }
+    }
 
     const msg = result.count > 1
       ? `Se registraron ${result.count} partidas de producto exitosamente en la remisión ${numero_remision || numero_movimiento || ''}`.trim()

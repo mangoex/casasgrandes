@@ -492,13 +492,14 @@ Criterio de aceptación:
   - La cabecera general de Entrada no contiene un campo redundante de `Ciclo`, ubicándose de forma limpia únicamente dentro de cada partida.
   - El campo `Ciclo` es de entrada manual por partida (no restringido a un catálogo cerrado).
   - Si el usuario no captura nada o deja espacios en blanco, se almacena como `NULL` o cadena vacía sin bloquear el guardado.
-  - La tabla `almacen_movimientos` persiste el valor en la columna `ciclo_agricola` para cada partida registrada.
+  - La tabla `almacen_movimientos` persiste el valor en la columna `ciclo_agricola` para cada partida registrada, garantizando la existencia de la columna mediante migración automática y autorrecuperación ante esquemas desfasados.
   - La exportación a Excel (CSV) y PDF debe contener el encabezado `Ciclo` y su valor correspondiente para cada movimiento.
   - Tras un registro exitoso, el formulario se reinicia pero preserva la selección de operación activa (si era Entrada permanece en Entrada).
 - **Criterios de Aceptación**:
   - Al seleccionar "Entrada", la interfaz expone el campo de texto manual `Ciclo` exclusivamente dentro de cada partida (`.move-item-ciclo`), sin campo en la cabecera general.
   - Al seleccionar "Salida", el campo `Ciclo` permanece oculto y no se solicita.
   - Al registrar una entrada con `Ciclo: "O-I 2026"`, el movimiento persiste `ciclo_agricola = "O-I 2026"`.
+  - Si la base de datos no tenía aún la columna `ciclo_agricola` en `almacen_movimientos`, el sistema asegura su creación sin fallar con error `column "ciclo_agricola" of relation "almacen_movimientos" does not exist` tanto en Entradas como en Salidas.
   - El archivo CSV de descarga incluye la columna `Ciclo` con el valor capturado.
   - Al completar el registro de una Entrada, la interfaz permanece en modo "Entrada".
 
