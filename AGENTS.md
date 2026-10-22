@@ -20,9 +20,9 @@
 
 ## Entorno de Cloud Agent
 
-El arranque local usa Node.js, PostgreSQL 16 y `python` apuntando a Python 3. La instalación ejecuta `npm ci`. Al iniciar, el entorno levanta PostgreSQL, asegura la base `casas_grandes` con el rol local `casasgrandes` (autenticación trust solo en localhost), crea `/workspace/.env` si falta y deja la API en el puerto 3000, sesión tmux `web`.
+El arranque local usa Node.js, PostgreSQL 16 y `python` apuntando a Python 3. La instalación ejecuta `npm ci`. Al iniciar, el entorno levanta PostgreSQL, asegura la base `casas_grandes` con el rol local `casasgrandes` (autenticación trust solo en localhost), conserva el entorno en `/var/lib/casasgrandes/dev.env`, lo copia a `/workspace/.env` y deja la API en el puerto 3000, sesión tmux `web`.
 
-`.env` está en `.gitignore`. Guarda `JWT_SECRET`, `DATABASE_URL` y el acceso local `LOCAL_DEV_LOGIN_USERNAME` / `LOCAL_DEV_LOGIN_PASSWORD` (usuario `agente.local`). No lo copies a commits ni a la documentación.
+`.env` está en `.gitignore`. Guarda `JWT_SECRET`, `DATABASE_URL` y el acceso local `LOCAL_DEV_LOGIN_USERNAME` / `LOCAL_DEV_LOGIN_PASSWORD` (usuario `agente.local`). El arranque alinea la contraseña de ese usuario con el archivo durable. No lo copies a commits ni a la documentación.
 
 Comandos:
 
