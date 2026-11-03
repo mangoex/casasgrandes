@@ -735,9 +735,9 @@ No cubren una regla comercial nueva. El detalle está en `docs/cambios/CHG-026/c
 
 ### TDD-TC-121 — Contrato OpenAPI 3.1 del API de bots
 
-- Cubre: HARNESS-REQ-001, ADR-017.
+- Cubre: HARNESS-REQ-001, ADR-017, y desde CHG-027 también ADR-018 y ADR-019.
 - Archivo: `test/contract/bot_v1_openapi.test.js`.
-- Estado: implementado en la rama. La ruta placeholder responde 404.
+- Estado: el documento ya describe la lectura de inventario y las claves. Express sigue respondiendo 404 en esas rutas. Los ejemplos válidos pasan y un campo de más, un lote con reservado o una clave dentro del listado no pasan.
 
 ### TDD-TC-122 — Muestra Gherkin por HTTP
 
@@ -750,3 +750,42 @@ No cubren una regla comercial nueva. El detalle está en `docs/cambios/CHG-026/c
 - Cubre: BDD-SC-104.
 - Archivo: `test/integration/postgres_fake_seed.test.js`.
 - Estado: implementado. Se omite sin URL y se ejecuta en CI.
+
+## Casos TDD de CHG-027
+
+Propuesta. El detalle y el rojo esperado están en `docs/cambios/CHG-027/casos-tdd.md`. Ningún caso de comportamiento está escrito todavía.
+
+### TDD-TC-124 — Hash, alta y revocación
+
+- Cubre: BDD-SC-111, BDD-SC-112, BDD-SC-118, PRD-FR-060.
+- Estado: pendiente.
+
+### TDD-TC-125 — Alcance y rol
+
+- Cubre: BDD-SC-113, BDD-SC-114, BDD-SC-115, PRD-FR-062.
+- Estado: pendiente.
+
+### TDD-TC-126 — Disponible, tamaños y lotes
+
+- Cubre: BDD-SC-108, BDD-SC-109, PRD-FR-061.
+- Estado: pendiente.
+
+### TDD-TC-127 — Movimientos sin datos de personas
+
+- Cubre: BDD-SC-110, PRD-NFR-013.
+- Estado: pendiente.
+
+### TDD-TC-128 — Límite por clave
+
+- Cubre: BDD-SC-116, PRD-NFR-013.
+- Estado: pendiente.
+
+### TDD-TC-129 — Auditoría
+
+- Cubre: BDD-SC-117, PRD-NFR-013.
+- Estado: pendiente.
+
+### TDD-TC-130 — Gherkin de aceptación
+
+- Cubre: BDD-SC-107..118.
+- Estado: pendiente. Hoy el archivo se omite con `@no-implementado`.

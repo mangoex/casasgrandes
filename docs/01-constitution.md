@@ -108,6 +108,8 @@ Las asignaciones de tamaño crean reservas que reducen la disponibilidad para co
 | `docs/adr/ADR-014.md` | Catálogo y beneficio Nucle | Responsable de producto y técnico |
 | `docs/adr/ADR-015.md` | Descuento de Cuenta Clave exclusivo para semillas | Responsable de producto y técnico |
 | `docs/adr/ADR-017.md` | Arnés de ingeniería para agentes | Responsable técnico, pendiente de aceptación del PR |
+| `docs/adr/ADR-018.md` | Claves de bot, alcances, límite y auditoría | Responsable técnico, propuesta de CHG-027 |
+| `docs/adr/ADR-019.md` | Lectura de inventario para el bot | Responsable de producto y técnico, propuesta de CHG-027 |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites

@@ -890,6 +890,81 @@ And la interfaz despliega el selector con la lista completa de asesores
 - **Entonces** entrega consume reserva y descuenta físico, cancelación previa libera reserva y reversión repone físico
 - **Y** repetir cualquier transición no duplica el efecto.
 
+## Feature: PRD-FR-060 — Clave de bot y lectura de inventario
+
+Estado: propuesta de CHG-027. El texto ejecutable está en `features/chg027_bot_inventario.feature` con la etiqueta `@no-implementado`. Cucumber omite esos escenarios. La omisión mantiene la suite en verde y no cuenta como aceptación.
+
+### BDD-SC-107 — Salud sin clave
+
+- **Dado** el proceso del API de bots
+- **Cuando** se consulta la salud sin clave
+- **Entonces** responde 200 con estado `ok` y sin cifras de inventario
+
+### BDD-SC-108 — Disponible de producto
+
+- **Dado** un bot de Almacén y un híbrido de demostración con saldo 140 y reserva activa 40
+- **Cuando** lista el inventario
+- **Entonces** el disponible es 100
+
+### BDD-SC-109 — Detalle de Almacén
+
+- **Dado** el mismo híbrido con lote `LOTE-DEMO-1` y tamaño `BT1`
+- **Cuando** Almacén pide el detalle
+- **Entonces** el detalle incluye ese lote y ese tamaño
+
+### BDD-SC-110 — Movimientos sin datos de personas
+
+- **Dado** un movimiento de demostración ligado a un cliente ficticio
+- **Cuando** Almacén consulta los movimientos
+- **Entonces** la respuesta no trae nombre, correo, teléfono ni precio
+
+### BDD-SC-111 — Clave ausente
+
+- **Cuando** se consulta el inventario sin clave
+- **Entonces** responde 401 y la auditoría no guarda el valor presentado
+
+### BDD-SC-112 — Clave revocada
+
+- **Dado** una clave revocada
+- **Cuando** consulta el inventario
+- **Entonces** responde 401 con el mismo código `NO_AUTENTICADO` de una clave desconocida
+
+### BDD-SC-113 — Alcance denegado
+
+- **Dado** una clave vigente sin `inventario:leer`
+- **Cuando** consulta el inventario
+- **Entonces** responde 403 `ALCANCE_DENEGADO`
+
+### BDD-SC-114 — Vista de Asesor
+
+- **Dado** una clave de Asesor con el alcance
+- **Cuando** pide el detalle y luego los movimientos
+- **Entonces** el detalle no trae lote, tamaño, existencia física ni reservado, y los movimientos responden 403
+
+### BDD-SC-115 — Rol sin inventario
+
+- **Dado** una clave de Observador con el alcance
+- **Cuando** consulta el inventario
+- **Entonces** responde 403 `ROL_SIN_VISIBILIDAD`
+
+### BDD-SC-116 — Límite
+
+- **Dado** una clave con límite de 2 por minuto
+- **Cuando** consulta tres veces en la misma ventana
+- **Entonces** la tercera responde 429 `LIMITE_EXCEDIDO`
+
+### BDD-SC-117 — Auditoría
+
+- **Dado** una clave vigente de Almacén
+- **Cuando** consulta el inventario
+- **Entonces** queda una fila sin cuerpo, sin clave y sin datos de cliente
+
+### BDD-SC-118 — Alta y revocación
+
+- **Dado** un administrador ficticio con sesión
+- **Cuando** crea una clave, lista las claves y la revoca
+- **Entonces** la clave en claro aparece solo en el alta y la clave revocada recibe 401
+
 ## Ejecución
 
 CHG-026 deja ejecutable una muestra, no el archivo completo. Los escenarios vivos están en `features/` y se corren con `npm run test:bdd`:
@@ -899,3 +974,5 @@ CHG-026 deja ejecutable una muestra, no el archivo completo. Los escenarios vivo
 - la suma inválida de BDD-SC-105 en `features/chg025_reservas.feature`
 
 BDD-SC-104 se ejercita contra PostgreSQL aislado con `npm run test:integration` cuando existe `TEST_POSTGRES_URL`. El resto de este documento sigue siendo la especificación.
+
+BDD-SC-107..118 se cargan desde `features/chg027_bot_inventario.feature` y quedan omitidos por `@no-implementado`. La corrida verde de ese archivo no implementa CHG-027.

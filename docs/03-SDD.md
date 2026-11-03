@@ -480,3 +480,39 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 - `GET /api/productos` y las respuestas de propuestas eliminan `tamanos`/`tamano` para todo rol distinto de Almacén; Administración conserva el catálogo comercial sin controles de calibre.
 - Las lecturas heredadas de existencias, Kardex y lotes también omiten `tamano` para cualquier rol distinto de Almacén; los filtros por tamaño y los movimientos manuales de semilla se rechazan fuera de ese rol.
 - Descarga del PDF requiere sesión y rol comercial explícito; carga requiere Administrador.
+
+## Diseño CHG-027
+
+Estado: propuesta. No hay código de aplicación en el paquete de especificación. Los ADR canónicos son ADR-018 y ADR-019.
+
+### SDD-CMP-052 — Fundación de claves de bot
+
+- Cubre: PRD-FR-060, PRD-NFR-013, ADR-018.
+- Middleware nuevo, separado de la cookie de personas. Lee `X-Api-Key`, busca por prefijo y compara el hash con pimienta.
+- Resuelve el rol desde `asesores` cuando hay `asesor_id`. Si hay `rol_visibilidad`, usa ese literal.
+- Aplica alcance, límite en memoria y el sobre de error. Inserta `bot_llamadas` al terminar la llamada reconocida.
+- Las rutas `/api/admin/bot/claves` reutilizan `authenticateToken` y `requireAdmin`.
+
+### SDD-CMP-053 — Lectura de inventario
+
+- Cubre: PRD-FR-061, PRD-FR-062, ADR-019.
+- Calcula el disponible de producto con el último `existencias_resultantes` y la suma de reservas `ACTIVA`.
+- El detalle de Almacén reutiliza el físico por tamaño de CHG-025 y el físico por lote. No reparte reservas sobre el lote.
+- Proyecta la vista `asesor`, `operativo` o `almacen` y omite cualquier columna de persona, precio o nota.
+- Rechaza parámetros de consulta que el contrato no declara.
+
+### SDD-DB-020 — Tablas aditivas de bots
+
+- `bot_claves`: nombre, prefijo, hash, alcances, un vínculo (`asesor_id` o `rol_visibilidad`), límite, autor, alta y revocación.
+- `bot_llamadas`: clave, método, ruta plantilla, código HTTP, código de error, duración y `X-Request-ID`.
+- Migración aditiva. No se ejecuta en el pull request de especificación.
+
+### SDD-SEC-014 — Matriz de la lectura
+
+- Sin clave válida: 401 idéntico para valor desconocido y clave revocada.
+- Sin `inventario:leer`: 403 y sin consulta de stock.
+- Asesor: una cifra, `disponible`.
+- Almacén: tres cifras, tamaños, lotes físicos y movimientos con lote y tamaño.
+- Administrador, Coordinador, Director y Acopio: tres cifras y movimientos sin lote ni tamaño.
+- Observador: 403.
+- La salud pública no entra en esta matriz.

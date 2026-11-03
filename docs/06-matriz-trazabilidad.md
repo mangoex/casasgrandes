@@ -333,6 +333,14 @@
 - Gate 4, implementación verificada: `CONDITIONAL`; 153 pruebas aprobaron y la aceptación visual pasó, pero TDD-TC-118 aún no tiene resultado PostgreSQL.
 - Gate 5, producción: `NOT READY`; falta PostgreSQL aislado para TDD-TC-118, ejecutar la migración en un entorno autorizado, ensayar rollback y obtener aprobación operativa.
 
+## Trazabilidad CHG-027
+
+CHG-027 es propuesta de especificación. La matriz completa está en `docs/cambios/CHG-027/trazabilidad.md`. No hay implementación.
+
+| Objetivo | Requisito | Diseño | Escenario | Prueba | Implementación | Evidencia | Estado |
+|---|---|---|---|---|---|---|---|
+| OBJ-023 | PRD-FR-060..062, PRD-NFR-013 | ADR-018, ADR-019 | BDD-SC-107..118 | TDD-TC-121, TDD-TC-124..130 | `docs/api/bot-v1.yaml`; rutas sin montar | contrato OpenAPI; Gherkin omitido | propuesta, sin implementación |
+
 ## Trazabilidad CHG-026
 
 CHG-026 no agrega objetivo de producto. La matriz completa está en `docs/cambios/CHG-026/trazabilidad.md`.

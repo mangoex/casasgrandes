@@ -10,6 +10,7 @@ Modelo vigente para CHG-001 y CHG-002. Activos principales: sesiones, PII de agr
 - Express ↔ PostgreSQL: PostgreSQL es autoridad de identidad, propiedad y datos operativos.
 - Express ↔ proveedores IA: frontera externa pendiente de gobierno de privacidad.
 - Scripts internos ↔ Express: Bearer explícito, sujeto a la misma identidad vigente y políticas.
+- Bot externo ↔ `/api/v1/bot`: frontera propuesta en CHG-027. La clave de bot no es una sesión de persona. Todavía no está montada.
 
 ## Amenazas y controles
 
@@ -30,6 +31,7 @@ Modelo vigente para CHG-001 y CHG-002. Activos principales: sesiones, PII de agr
 | THR-013 | Repudio / disponibilidad | Solicitudes no correlacionables, logs inyectados o terminación abrupta ocultan fallos | CHG-008: IDs validados, logs mínimos, sondas y cierre ordenado | retención central y orquestador real pendientes |
 | THR-014 | Manipulación / concurrencia | Dos autorizaciones o asignaciones comprometen el mismo tamaño o duplican una salida | CHG-025: locks, ledger de reservas, transiciones e idempotencia | prueba concurrente requiere PostgreSQL aislado |
 | THR-015 | Divulgación / elevación | Asesor consulta tamaños o reemplaza el documento institucional de Crédito | CHG-025: endpoints separados y roles explícitos | prueba visual y revisión de rutas antes de producción |
+| THR-016 | Suplantación / divulgación | Un bot reutiliza una clave filtrada, lee tamaños con rol de asesor o llena la auditoría con claves inválidas | CHG-027, todavía sin implementar: hash con pimienta, revocación, alcance, vista por rol y tope de claves desconocidas | el control no existe hasta el corte de implementación; el límite en memoria no cruza réplicas |
 
 ## Casos de abuso obligatorios
 

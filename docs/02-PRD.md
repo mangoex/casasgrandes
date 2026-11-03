@@ -553,3 +553,27 @@ Solo el rol Almacén consulta tamaños disponibles y confirma asignaciones. Una 
 ### PRD-NFR-012 — Seguridad, concurrencia y auditoría de compromisos
 
 Autorizaciones, doble confirmación, asignación, entrega, cancelación y reversión se ejecutan en transacciones idempotentes con autorización en servidor, locks estables, actor y fecha auditables. PDF máximo 8 MiB, exclusivamente `application/pdf`, sin nombres o contenido en logs. Las cotizaciones históricas conservan el flujo legado.
+
+## Incremento CHG-027 — Lectura de inventario para bots
+
+Estado: propuesta. No está implementado. El paquete completo está en `docs/cambios/CHG-027/`.
+
+### OBJ-023 — Consultar inventario disponible desde un bot sin ampliar lo que el rol ya puede ver
+
+Un bot externo pregunta el disponible de los productos activos con su propia clave. La respuesta usa el inventario que ya existe y la misma frontera de rol. No crea sucursales, no mueve stock y no abre cotizaciones, clientes ni precios.
+
+### PRD-FR-060 — Clave de bot hasheada y revocable
+
+Cada bot tiene una clave propia. El servidor guarda el prefijo y el hash con pimienta de entorno, muestra la clave una sola vez y permite al Administrador revocarla. El único alcance de este corte es `inventario:leer`. La clave se ata a una persona, cuyo rol se lee en vivo, o a un rol de servicio. Los dos vínculos a la vez, o ninguno, se rechazan.
+
+### PRD-FR-061 — Lectura de disponible, detalle y movimientos
+
+`GET /api/v1/bot/inventario/productos` lista productos activos. El disponible de producto es el último saldo físico menos las reservas activas. `GET /api/v1/bot/inventario/productos/{productoId}` agrega tamaños y lotes físicos solo para Almacén. `GET /api/v1/bot/inventario/movimientos` devuelve movimientos recientes sin datos de personas ni precios. `GET /api/v1/bot/health` sigue público y sin inventario.
+
+### PRD-FR-062 — La vista del bot es la del rol vigente
+
+Asesor recibe solo `disponible` y no consulta movimientos. Almacén recibe tamaños y lotes. Administrador, Coordinador, Director y Acopio reciben las tres cifras de producto y movimientos sin lote ni tamaño. Observador recibe 403 aunque la clave tenga el alcance.
+
+### PRD-NFR-013 — Límite, auditoría y respuesta sin datos de personas
+
+Cada clave tiene un límite por minuto. Clave ausente, desconocida y revocada comparten el mismo cuerpo 401. Cada llamada con clave reconocida escribe una fila de auditoría sin cuerpo, sin clave y sin datos de personas. El sobre de error es `{ "error": { "codigo", "mensaje" } }`.

@@ -110,4 +110,6 @@ Sin `TEST_POSTGRES_URL` ni `CHG025_TEST_POSTGRES_URL`, la integración y `TDD-TC
 
 ## API de bots
 
-`docs/api/bot-v1.yaml` reserva el estilo del contrato: OpenAPI 3.1, clave por bot en el encabezado `X-Api-Key`, sin inventario, ventas, cotizaciones, asesores, clientes, catálogo ni alertas. `GET /api/v1/bot/health` es un placeholder para el validador de respuestas y no está montado en Express. El diseño previsto, todavía sin implementar, es clave hasheada por bot, alcances, límite de uso por clave y tabla de auditoría.
+`docs/api/bot-v1.yaml` es el contrato OpenAPI 3.1. CHG-027 propone la primera lectura de inventario y la fundación de claves; el paquete está en `docs/cambios/CHG-027/`. La clave viaja en `X-Api-Key` y el servidor guardará solo el hash. El alcance de este corte es `inventario:leer`. La visibilidad sigue al rol vigente. Hay límite por clave y una auditoría sin datos de personas.
+
+Ninguna de esas rutas está montada. La prueba de contrato sigue exigiendo 404. `GET /api/v1/bot/health` permanece público y sin inventario. El Gherkin de CHG-027 está en `features/chg027_bot_inventario.feature` con la etiqueta `@no-implementado`: Cucumber lo omite y eso no cuenta como aceptación. No implementar las rutas dentro de un cambio que solo actualice la especificación.

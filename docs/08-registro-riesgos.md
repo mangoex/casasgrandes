@@ -26,6 +26,9 @@
 | RSK-014 | Documento de crédito o tamaños se exponen a roles no autorizados | media | alto | RBAC explícito, PDF autenticado, redacción de catálogo/detalles y pruebas HTTP/visuales por rol | responsable técnico | mitigated-local |
 | RSK-015 | El repositorio público conserva CSV con datos personales reales | alta | crítico | Hacer el repositorio privado, purgar el historial y sustituir las semillas por datos ficticios. CHG-026 no edita esos archivos | propietario | open |
 | RSK-016 | `middleware/auth.js` conserva un secreto JWT de respaldo | alta | crítico | Rotar el secreto, exigir `JWT_SECRET` sin respaldo y mantener gitleaks en modo que falle ante un secreto nuevo | propietario | open |
+| RSK-017 | Una clave de bot queda en un log, en un chat o en la base en claro | alta | crítico | CHG-027 propone hash con pimienta, muestra única y prohibición de loguear la clave. Todavía no está implementado | propietario | open |
+| RSK-018 | El bot entrega tamaños, reservas o datos de clientes a un asesor | alta | alto | Vistas separadas en el contrato: el asesor solo recibe `disponible`. La prueba de redacción queda en TDD-TC-125 y TDD-TC-127 | responsable técnico | open |
+| RSK-019 | El límite en memoria no frena varias réplicas, o las claves inválidas llenan la auditoría | media | alto | Tope aparte para claves desconocidas y el mismo residual de RSK-009. Un almacén compartido queda fuera de CHG-027 | responsable técnico | open |
 
 ## Riesgo residual
 
@@ -38,6 +41,12 @@
 - Gate 4 local: aprobado.
 - Gate 5 producción: `NOT READY`.
 - Motivos: sin PostgreSQL aislado, prueba visual, auditoría durable, drenado del orquestador, rollback productivo ni resolución completa de RSK-003, RSK-006, RSK-009 y RSK-010.
+
+## Readiness CHG-027
+
+- Gate de producto: propuesta de especificación. No hay comportamiento nuevo en este pull request.
+- Implementación: bloqueada hasta las confirmaciones C-01..C-12.
+- Producción: `NOT READY`.
 
 ## Readiness CHG-026
 

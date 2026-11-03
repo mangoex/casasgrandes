@@ -1,50 +1,942 @@
 openapi: 3.1.0
 info:
   title: AgriSales Pro Bot API
-  version: 0.0.0
-  summary: Contrato inicial de /api/v1/bot, sin operaciones de negocio.
+  version: "0.1.0"
+  summary: Propuesta CHG-027. Lectura de inventario y claves de bot. Rutas sin montar.
   description: >
-    Reserva el formato del API de bots. No define inventario, ventas,
-    cotizaciones, asesores, clientes, catálogo ni alertas. Cada bot futuro
-    enviará su clave en X-Api-Key; el servidor guardará solo el hash, los
-    alcances y el límite de esa clave. GET /api/v1/bot/health es un
-    placeholder para el validador de respuestas y no está montado.
+    Contrato propuesto para que un bot consulte inventario en solo lectura.
+    La fundación de claves, alcances, límite y auditoría vive en este mismo
+    cambio porque la lectura no puede publicarse sin ella. Ninguna ruta de
+    este documento está montada en Express. No incluye precios, cotizaciones,
+    clientes, asesores, sucursales ni alertas. Los ejemplos usan datos
+    ficticios y no son claves utilizables.
 jsonSchemaDialect: https://spec.openapis.org/oas/3.1/dialect/base
 servers:
   - url: /
+tags:
+  - name: salud
+    description: Sonda pública del proceso. No consulta inventario.
+  - name: inventario
+    description: Lectura de disponible, detalle y movimientos.
+  - name: administracion
+    description: Alta y revocación de claves con la sesión de un Administrador.
 paths:
   /api/v1/bot/health:
     get:
       operationId: getBotHealth
-      summary: Placeholder de salud del API de bots
+      tags: [salud]
+      summary: Salud del proceso del API de bots
       description: >
-        No está implementado. Existe para comprobar que una respuesta JSON
-        puede validarse contra este documento. No reemplaza GET /health/live.
+        No exige clave, no consulta la base y no escribe auditoría. No
+        reemplaza GET /health/live. Sigue sin estar montado.
       security: []
       responses:
         "200":
-          description: El proceso del API de bots responde.
+          description: El proceso responde.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/BotHealth"
+              example:
+                status: ok
+  /api/v1/bot/inventario/productos:
+    get:
+      operationId: listBotInventoryProducts
+      tags: [inventario]
+      summary: Listar productos activos con disponible
+      description: >
+        Exige alcance inventario:leer. Devuelve productos con activo = 1.
+        La búsqueda q compara nombre y clave, sin distinguir mayúsculas.
+        categoria compara tipo_categoria de forma exacta. Un parámetro de
+        consulta distinto de q, categoria, limite o cursor responde 400.
+        El listado no incluye lotes, tamaños, precios ni personas.
+      security:
+        - botApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/Busqueda"
+        - $ref: "#/components/parameters/Categoria"
+        - $ref: "#/components/parameters/Limite"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Página de productos según la vista del rol.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginaProductos"
+              example:
+                vista: operativo
+                datos:
+                  - id: 7
+                    nombre: Híbrido Demostración
+                    clave: HIB-DEMO
+                    categoria: Híbrido
+                    existencia_fisica: 140
+                    reservado: 40
+                    disponible: 100
+                paginacion:
+                  limite: 50
+                  siguiente: null
+        "400":
+          $ref: "#/components/responses/Validacion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "429":
+          $ref: "#/components/responses/LimiteExcedido"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+        "503":
+          $ref: "#/components/responses/ServicioNoDisponible"
+  /api/v1/bot/inventario/productos/{productoId}:
+    get:
+      operationId: getBotInventoryProduct
+      tags: [inventario]
+      summary: Detalle de disponible de un producto
+      description: >
+        La vista almacen agrega tamaños y lotes físicos. La vista operativa
+        trae las tres cifras de producto. La vista asesor trae solo el
+        disponible. Un producto inactivo o inexistente responde 404.
+      security:
+        - botApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/ProductoId"
+      responses:
+        "200":
+          description: Detalle según la vista del rol.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DetalleProducto"
+              example:
+                vista: almacen
+                id: 7
+                nombre: Híbrido Demostración
+                clave: HIB-DEMO
+                categoria: Híbrido
+                existencia_fisica: 140
+                reservado: 40
+                disponible: 100
+                tamanos:
+                  - tamano: BT1
+                    existencia_fisica: 90
+                    reservado: 30
+                    disponible: 60
+                lotes:
+                  - lote: LOTE-DEMO-1
+                    tamano: BT1
+                    existencia_fisica: 90
+        "400":
+          $ref: "#/components/responses/Validacion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "429":
+          $ref: "#/components/responses/LimiteExcedido"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+        "503":
+          $ref: "#/components/responses/ServicioNoDisponible"
+  /api/v1/bot/inventario/movimientos:
+    get:
+      operationId: listBotInventoryMovements
+      tags: [inventario]
+      summary: Movimientos recientes de almacén
+      description: >
+        Roles de inventario. El Asesor recibe 403. La vista almacen incluye
+        lote y tamaño. Ninguna vista incluye cliente, asesor, precio, nota,
+        factura ni folio. Un parámetro distinto de producto_id, limite o
+        cursor responde 400.
+      security:
+        - botApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/ProductoIdConsulta"
+        - $ref: "#/components/parameters/Limite"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Página de movimientos ya redactada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginaMovimientos"
+              example:
+                vista: almacen
+                datos:
+                  - id: 501
+                    fecha: "2026-11-03T15:00:00Z"
+                    tipo: Entrada de demostración
+                    producto_id: 7
+                    producto_nombre: Híbrido Demostración
+                    cantidad_entrante: 90
+                    cantidad_saliente: 0
+                    existencias_resultantes: 140
+                    ciclo_agricola: OI-DEMO
+                    lote: LOTE-DEMO-1
+                    tamano: BT1
+                paginacion:
+                  limite: 50
+                  siguiente: null
+        "400":
+          $ref: "#/components/responses/Validacion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "429":
+          $ref: "#/components/responses/LimiteExcedido"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+        "503":
+          $ref: "#/components/responses/ServicioNoDisponible"
+  /api/admin/bot/claves:
+    post:
+      operationId: createBotApiKey
+      tags: [administracion]
+      summary: Crear una clave de bot
+      description: >
+        Solo un Administrador con su sesión vigente. La respuesta es el
+        único momento en que viaja la clave en claro. El servidor no la
+        escribe en logs. Hace falta exactamente un vínculo: asesor_id o
+        rol_visibilidad.
+      security:
+        - adminSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NuevaClaveBot"
+            example:
+              nombre: Bot inventario demostración
+              alcances: [inventario:leer]
+              limite_por_minuto: 60
+              asesor_id: null
+              rol_visibilidad: Almacen
+      responses:
+        "201":
+          description: Clave creada. El campo clave no se vuelve a mostrar.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaveCreada"
+              example:
+                id: 1
+                nombre: Bot inventario demostración
+                prefijo: cgbot_demo
+                clave: EJEMPLO-NO-ES-SECRETO
+                alcances: [inventario:leer]
+                asesor_id: null
+                rol_visibilidad: Almacen
+                limite_por_minuto: 60
+                activa: true
+                creada_en: "2026-11-03T15:00:00Z"
+                revocada_en: null
+        "400":
+          $ref: "#/components/responses/Validacion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "503":
+          $ref: "#/components/responses/ServicioNoDisponible"
+    get:
+      operationId: listBotApiKeys
+      tags: [administracion]
+      summary: Listar claves sin el secreto
+      description: >
+        Solo un Administrador. El listado nunca incluye la clave ni el hash.
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: "#/components/parameters/Limite"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Página de metadatos de claves.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginaClaves"
+              example:
+                datos:
+                  - id: 1
+                    nombre: Bot inventario demostración
+                    prefijo: cgbot_demo
+                    alcances: [inventario:leer]
+                    asesor_id: null
+                    rol_visibilidad: Almacen
+                    limite_por_minuto: 60
+                    activa: true
+                    creada_en: "2026-11-03T15:00:00Z"
+                    revocada_en: null
+                paginacion:
+                  limite: 50
+                  siguiente: null
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+  /api/admin/bot/claves/{claveId}/revocacion:
+    post:
+      operationId: revokeBotApiKey
+      tags: [administracion]
+      summary: Revocar una clave
+      description: >
+        Solo un Administrador. Repetir la revocación conserva la primera
+        fecha y responde 200. La clave deja de autorizar llamadas.
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: "#/components/parameters/ClaveId"
+      responses:
+        "200":
+          description: Clave revocada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaveRevocada"
+              example:
+                id: 1
+                activa: false
+                revocada_en: "2026-11-03T15:05:00Z"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
 components:
+  parameters:
+    Busqueda:
+      name: q
+      in: query
+      required: false
+      description: Texto ficticio de búsqueda por nombre o clave de producto.
+      schema:
+        type: string
+        maxLength: 80
+    Categoria:
+      name: categoria
+      in: query
+      required: false
+      description: Comparación exacta con tipo_categoria.
+      schema:
+        type: string
+        maxLength: 40
+    Limite:
+      name: limite
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Cursor opaco. El cliente no lo interpreta.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    ProductoId:
+      name: productoId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ProductoIdConsulta:
+      name: producto_id
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+    ClaveId:
+      name: claveId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
   securitySchemes:
     botApiKey:
       type: apiKey
       in: header
       name: X-Api-Key
       description: >
-        Clave propia del bot. No documentar ni ejemplificar claves reales.
+        Clave propia del bot. Se envía en claro solo en este encabezado.
+        El servidor guarda el hash y un prefijo, nunca la clave completa.
+    adminSession:
+      type: apiKey
+      in: cookie
+      name: auth_token
+      description: >
+        Sesión HttpOnly ya usada por la aplicación. Estas rutas también
+        aceptan el Bearer vigente de esa misma sesión. No es una clave de bot.
+  responses:
+    Validacion:
+      description: Parámetro o cuerpo fuera del contrato.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBot"
+          example:
+            error:
+              codigo: VALIDACION
+              mensaje: El parámetro no forma parte del contrato.
+    NoAutenticado:
+      description: >
+        Clave ausente, desconocida o revocada. Los tres casos comparten
+        este cuerpo. La revocación se distingue en la auditoría, no aquí.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBot"
+          example:
+            error:
+              codigo: NO_AUTENTICADO
+              mensaje: La clave no es válida.
+    Prohibido:
+      description: Alcance ausente o rol sin visibilidad para esta lectura.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBot"
+          example:
+            error:
+              codigo: ALCANCE_DENEGADO
+              mensaje: La clave no incluye el alcance inventario:leer.
+    NoEncontrado:
+      description: El recurso no existe o no está activo.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBot"
+          example:
+            error:
+              codigo: NO_ENCONTRADO
+              mensaje: El producto no está disponible.
+    LimiteExcedido:
+      description: La clave superó su límite de la ventana actual.
+      headers:
+        Retry-After:
+          description: Segundos hasta poder reintentar.
+          schema:
+            type: integer
+            minimum: 1
+        RateLimit-Remaining:
+          description: Solicitudes restantes de la ventana. En este caso es cero.
+          schema:
+            type: integer
+            minimum: 0
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBot"
+          example:
+            error:
+              codigo: LIMITE_EXCEDIDO
+              mensaje: La clave superó su límite por minuto.
+    ErrorInterno:
+      description: Fallo genérico, sin detalle de base ni de pila.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBot"
+          example:
+            error:
+              codigo: ERROR_INTERNO
+              mensaje: No fue posible completar la consulta.
+    ServicioNoDisponible:
+      description: Falta la pimienta de claves o no se pudo verificar la identidad.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBot"
+          example:
+            error:
+              codigo: SERVICIO_NO_DISPONIBLE
+              mensaje: El API de bots no está configurado.
   schemas:
     BotHealth:
       type: object
       additionalProperties: false
-      required:
-        - status
+      required: [status]
       properties:
         status:
           type: string
           const: ok
+    ErrorBot:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [codigo, mensaje]
+          properties:
+            codigo:
+              type: string
+              enum:
+                - NO_AUTENTICADO
+                - ALCANCE_DENEGADO
+                - ROL_SIN_VISIBILIDAD
+                - LIMITE_EXCEDIDO
+                - VALIDACION
+                - NO_ENCONTRADO
+                - ERROR_INTERNO
+                - SERVICIO_NO_DISPONIBLE
+            mensaje:
+              type: string
+              minLength: 1
+              maxLength: 200
+    Paginacion:
+      type: object
+      additionalProperties: false
+      required: [limite, siguiente]
+      properties:
+        limite:
+          type: integer
+          minimum: 1
+          maximum: 100
+        siguiente:
+          type: [string, "null"]
+          maxLength: 128
+    ProductoAsesor:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, clave, categoria, disponible]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+        clave:
+          type: [string, "null"]
+          maxLength: 40
+        categoria:
+          type: string
+          maxLength: 40
+        disponible:
+          type: number
+    ProductoOperativo:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, clave, categoria, existencia_fisica, reservado, disponible]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+        clave:
+          type: [string, "null"]
+          maxLength: 40
+        categoria:
+          type: string
+          maxLength: 40
+        existencia_fisica:
+          type: number
+        reservado:
+          type: number
+          minimum: 0
+        disponible:
+          type: number
+    PaginaProductosAsesor:
+      type: object
+      additionalProperties: false
+      required: [vista, datos, paginacion]
+      properties:
+        vista:
+          const: asesor
+        datos:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ProductoAsesor"
+        paginacion:
+          $ref: "#/components/schemas/Paginacion"
+    PaginaProductosOperativa:
+      type: object
+      additionalProperties: false
+      required: [vista, datos, paginacion]
+      properties:
+        vista:
+          const: operativo
+        datos:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ProductoOperativo"
+        paginacion:
+          $ref: "#/components/schemas/Paginacion"
+    PaginaProductos:
+      oneOf:
+        - $ref: "#/components/schemas/PaginaProductosAsesor"
+        - $ref: "#/components/schemas/PaginaProductosOperativa"
+    ExistenciaTamano:
+      type: object
+      additionalProperties: false
+      required: [tamano, existencia_fisica, reservado, disponible]
+      properties:
+        tamano:
+          type: string
+          minLength: 1
+          maxLength: 16
+        existencia_fisica:
+          type: number
+        reservado:
+          type: number
+          minimum: 0
+        disponible:
+          type: number
+    LoteFisico:
+      type: object
+      additionalProperties: false
+      required: [lote, tamano, existencia_fisica]
+      properties:
+        lote:
+          type: string
+          minLength: 1
+          maxLength: 80
+        tamano:
+          type: [string, "null"]
+          maxLength: 16
+        existencia_fisica:
+          type: number
+    DetalleAsesor:
+      type: object
+      additionalProperties: false
+      required: [vista, id, nombre, clave, categoria, disponible]
+      properties:
+        vista:
+          const: asesor
+        id:
+          type: integer
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+        clave:
+          type: [string, "null"]
+          maxLength: 40
+        categoria:
+          type: string
+          maxLength: 40
+        disponible:
+          type: number
+    DetalleOperativo:
+      type: object
+      additionalProperties: false
+      required: [vista, id, nombre, clave, categoria, existencia_fisica, reservado, disponible]
+      properties:
+        vista:
+          const: operativo
+        id:
+          type: integer
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+        clave:
+          type: [string, "null"]
+          maxLength: 40
+        categoria:
+          type: string
+          maxLength: 40
+        existencia_fisica:
+          type: number
+        reservado:
+          type: number
+          minimum: 0
+        disponible:
+          type: number
+    DetalleAlmacen:
+      type: object
+      additionalProperties: false
+      required: [vista, id, nombre, clave, categoria, existencia_fisica, reservado, disponible, tamanos, lotes]
+      properties:
+        vista:
+          const: almacen
+        id:
+          type: integer
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+        clave:
+          type: [string, "null"]
+          maxLength: 40
+        categoria:
+          type: string
+          maxLength: 40
+        existencia_fisica:
+          type: number
+        reservado:
+          type: number
+          minimum: 0
+        disponible:
+          type: number
+        tamanos:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExistenciaTamano"
+        lotes:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoteFisico"
+    DetalleProducto:
+      oneOf:
+        - $ref: "#/components/schemas/DetalleAsesor"
+        - $ref: "#/components/schemas/DetalleOperativo"
+        - $ref: "#/components/schemas/DetalleAlmacen"
+    MovimientoOperativo:
+      type: object
+      additionalProperties: false
+      required: [id, fecha, tipo, producto_id, producto_nombre, cantidad_entrante, cantidad_saliente, existencias_resultantes, ciclo_agricola]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        fecha:
+          type: string
+          format: date-time
+        tipo:
+          type: string
+          minLength: 1
+          maxLength: 80
+        producto_id:
+          type: integer
+          minimum: 1
+        producto_nombre:
+          type: string
+          maxLength: 120
+        cantidad_entrante:
+          type: number
+        cantidad_saliente:
+          type: number
+        existencias_resultantes:
+          type: number
+        ciclo_agricola:
+          type: [string, "null"]
+          maxLength: 40
+    MovimientoAlmacen:
+      type: object
+      additionalProperties: false
+      required: [id, fecha, tipo, producto_id, producto_nombre, cantidad_entrante, cantidad_saliente, existencias_resultantes, ciclo_agricola, lote, tamano]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        fecha:
+          type: string
+          format: date-time
+        tipo:
+          type: string
+          minLength: 1
+          maxLength: 80
+        producto_id:
+          type: integer
+          minimum: 1
+        producto_nombre:
+          type: string
+          maxLength: 120
+        cantidad_entrante:
+          type: number
+        cantidad_saliente:
+          type: number
+        existencias_resultantes:
+          type: number
+        ciclo_agricola:
+          type: [string, "null"]
+          maxLength: 40
+        lote:
+          type: [string, "null"]
+          maxLength: 80
+        tamano:
+          type: [string, "null"]
+          maxLength: 16
+    PaginaMovimientosOperativa:
+      type: object
+      additionalProperties: false
+      required: [vista, datos, paginacion]
+      properties:
+        vista:
+          const: operativo
+        datos:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/MovimientoOperativo"
+        paginacion:
+          $ref: "#/components/schemas/Paginacion"
+    PaginaMovimientosAlmacen:
+      type: object
+      additionalProperties: false
+      required: [vista, datos, paginacion]
+      properties:
+        vista:
+          const: almacen
+        datos:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/MovimientoAlmacen"
+        paginacion:
+          $ref: "#/components/schemas/Paginacion"
+    PaginaMovimientos:
+      oneOf:
+        - $ref: "#/components/schemas/PaginaMovimientosOperativa"
+        - $ref: "#/components/schemas/PaginaMovimientosAlmacen"
+    NuevaClaveBot:
+      type: object
+      additionalProperties: false
+      required: [nombre, alcances, limite_por_minuto, asesor_id, rol_visibilidad]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 80
+        alcances:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: string
+            const: inventario:leer
+        limite_por_minuto:
+          type: integer
+          minimum: 1
+          maximum: 600
+        asesor_id:
+          type: [integer, "null"]
+          minimum: 1
+        rol_visibilidad:
+          anyOf:
+            - type: string
+              enum: [Administrador, Coordinador, Director, Asesor, Almacen, Acopio]
+            - type: "null"
+    ClaveCreada:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, prefijo, clave, alcances, asesor_id, rol_visibilidad, limite_por_minuto, activa, creada_en, revocada_en]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        nombre:
+          type: string
+          maxLength: 80
+        prefijo:
+          type: string
+          minLength: 8
+          maxLength: 24
+        clave:
+          type: string
+          minLength: 8
+          maxLength: 80
+        alcances:
+          type: array
+          items:
+            type: string
+            const: inventario:leer
+        asesor_id:
+          type: [integer, "null"]
+        rol_visibilidad:
+          anyOf:
+            - type: string
+              enum: [Administrador, Coordinador, Director, Asesor, Almacen, Acopio]
+            - type: "null"
+        limite_por_minuto:
+          type: integer
+          minimum: 1
+          maximum: 600
+        activa:
+          type: boolean
+          const: true
+        creada_en:
+          type: string
+          format: date-time
+        revocada_en:
+          type: "null"
+    ClaveResumen:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, prefijo, alcances, asesor_id, rol_visibilidad, limite_por_minuto, activa, creada_en, revocada_en]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        nombre:
+          type: string
+          maxLength: 80
+        prefijo:
+          type: string
+          maxLength: 24
+        alcances:
+          type: array
+          items:
+            type: string
+        asesor_id:
+          type: [integer, "null"]
+        rol_visibilidad:
+          anyOf:
+            - type: string
+              enum: [Administrador, Coordinador, Director, Asesor, Almacen, Acopio]
+            - type: "null"
+        limite_por_minuto:
+          type: integer
+        activa:
+          type: boolean
+        creada_en:
+          type: string
+          format: date-time
+        revocada_en:
+          type: [string, "null"]
+          format: date-time
+    PaginaClaves:
+      type: object
+      additionalProperties: false
+      required: [datos, paginacion]
+      properties:
+        datos:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ClaveResumen"
+        paginacion:
+          $ref: "#/components/schemas/Paginacion"
+    ClaveRevocada:
+      type: object
+      additionalProperties: false
+      required: [id, activa, revocada_en]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        activa:
+          type: boolean
+          const: false
+        revocada_en:
+          type: string
+          format: date-time
 security:
   - botApiKey: []
