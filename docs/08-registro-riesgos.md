@@ -24,6 +24,8 @@
 | RSK-012 | Flotantes o motores divergentes producen diferencias de centavos | media | alto | centavos en runtime, oráculo Python Decimal y fixtures compartidos; falta PostgreSQL real | responsable técnico | partially-mitigated |
 | RSK-013 | Reservas concurrentes sobreasignan un tamaño o una repetición duplica salida/reposición | media | crítico | ledger separado, locks estables, idempotencia, suma exacta y pruebas de concurrencia/reversión CHG-025 | responsable técnico | in-progress |
 | RSK-014 | Documento de crédito o tamaños se exponen a roles no autorizados | media | alto | RBAC explícito, PDF autenticado, redacción de catálogo/detalles y pruebas HTTP/visuales por rol | responsable técnico | mitigated-local |
+| RSK-015 | El repositorio público conserva CSV con datos personales reales | alta | crítico | Hacer el repositorio privado, purgar el historial y sustituir las semillas por datos ficticios. CHG-026 no edita esos archivos | propietario | open |
+| RSK-016 | `middleware/auth.js` conserva un secreto JWT de respaldo | alta | crítico | Rotar el secreto, exigir `JWT_SECRET` sin respaldo y mantener gitleaks en modo que falle ante un secreto nuevo | propietario | open |
 
 ## Riesgo residual
 
@@ -36,6 +38,12 @@
 - Gate 4 local: aprobado.
 - Gate 5 producción: `NOT READY`.
 - Motivos: sin PostgreSQL aislado, prueba visual, auditoría durable, drenado del orquestador, rollback productivo ni resolución completa de RSK-003, RSK-006, RSK-009 y RSK-010.
+
+## Readiness CHG-026
+
+- Gate de producto: no aplica. No hay comportamiento comercial nuevo.
+- CI: propuesto en `.github/workflows/ci.yml`.
+- Producción: `NOT READY` y fuera de alcance. RSK-015 y RSK-016 siguen abiertos.
 
 ## Readiness CHG-025
 

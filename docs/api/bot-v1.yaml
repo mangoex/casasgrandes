@@ -1,0 +1,50 @@
+openapi: 3.1.0
+info:
+  title: AgriSales Pro Bot API
+  version: 0.0.0
+  summary: Contrato inicial de /api/v1/bot, sin operaciones de negocio.
+  description: >
+    Reserva el formato del API de bots. No define inventario, ventas,
+    cotizaciones, asesores, clientes, catálogo ni alertas. Cada bot futuro
+    enviará su clave en X-Api-Key; el servidor guardará solo el hash, los
+    alcances y el límite de esa clave. GET /api/v1/bot/health es un
+    placeholder para el validador de respuestas y no está montado.
+jsonSchemaDialect: https://spec.openapis.org/oas/3.1/dialect/base
+servers:
+  - url: /
+paths:
+  /api/v1/bot/health:
+    get:
+      operationId: getBotHealth
+      summary: Placeholder de salud del API de bots
+      description: >
+        No está implementado. Existe para comprobar que una respuesta JSON
+        puede validarse contra este documento. No reemplaza GET /health/live.
+      security: []
+      responses:
+        "200":
+          description: El proceso del API de bots responde.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotHealth"
+components:
+  securitySchemes:
+    botApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: >
+        Clave propia del bot. No documentar ni ejemplificar claves reales.
+  schemas:
+    BotHealth:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          const: ok
+security:
+  - botApiKey: []

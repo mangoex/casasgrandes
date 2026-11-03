@@ -728,3 +728,25 @@
 - Verifica DOM condicionado, etiquetas, filtros, ausencia de tamaños/resumen y acciones por rol.
 - Verifica además que Administración no reciba ni edite calibres, que el backend redacte tamaños en catálogo, propuestas y Kardex para cualquier rol distinto de Almacén, y que solo Almacén pueda filtrar por tamaño o registrar movimientos manuales de semilla con tamaño.
 - Estado: passed-local
+
+## Casos TDD del arnés CHG-026
+
+No cubren una regla comercial nueva. El detalle está en `docs/cambios/CHG-026/casos-tdd.md`.
+
+### TDD-TC-121 — Contrato OpenAPI 3.1 del API de bots
+
+- Cubre: HARNESS-REQ-001, ADR-017.
+- Archivo: `test/contract/bot_v1_openapi.test.js`.
+- Estado: implementado en la rama. La ruta placeholder responde 404.
+
+### TDD-TC-122 — Muestra Gherkin por HTTP
+
+- Cubre: BDD-SC-034, BDD-SC-036, BDD-SC-100, BDD-SC-103 y la suma inválida de BDD-SC-105.
+- Comando: `npm run test:bdd`.
+- Estado: implementado en la rama.
+
+### TDD-TC-123 — Reserva ficticia en PostgreSQL 16
+
+- Cubre: BDD-SC-104.
+- Archivo: `test/integration/postgres_fake_seed.test.js`.
+- Estado: implementado. Se omite sin URL y se ejecuta en CI.

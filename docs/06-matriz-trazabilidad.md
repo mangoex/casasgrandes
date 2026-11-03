@@ -332,3 +332,11 @@
 - Gate 3, pruebas definidas: aprobado; TDD-TC-118 ya tiene arnés ejecutable y CI.
 - Gate 4, implementación verificada: `CONDITIONAL`; 153 pruebas aprobaron y la aceptación visual pasó, pero TDD-TC-118 aún no tiene resultado PostgreSQL.
 - Gate 5, producción: `NOT READY`; falta PostgreSQL aislado para TDD-TC-118, ejecutar la migración en un entorno autorizado, ensayar rollback y obtener aprobación operativa.
+
+## Trazabilidad CHG-026
+
+CHG-026 no agrega objetivo de producto. La matriz completa está en `docs/cambios/CHG-026/trazabilidad.md`.
+
+| Objetivo | Requisito | Diseño | Escenario | Prueba | Implementación | Evidencia | Estado |
+|---|---|---|---|---|---|---|---|
+| Arnés de agentes | HARNESS-REQ-001 | ADR-017 | BDD-SC-034, BDD-SC-036, BDD-SC-100, BDD-SC-103, BDD-SC-104, BDD-SC-105 | TDD-TC-121..123 | `features/`, `test/integration/`, `test/contract/`, `.github/workflows/ci.yml` | CI del PR | propuesta, sin merge |

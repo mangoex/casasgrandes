@@ -1,0 +1,33 @@
+openapi: 3.1.0
+info:
+  title: "{{nombre del contrato}}"
+  version: "0.0.0"
+  description: >
+    Fragmento de {{CHG-###}}. Sustituir por la ruta real bajo docs/api/.
+    No incluir ejemplos con datos personales ni claves reales.
+paths:
+  /api/v1/{{recurso}}:
+    get:
+      operationId: {{operationId}}
+      summary: {{resumen}}
+      security:
+        - botApiKey: []
+      responses:
+        "200":
+          description: {{respuesta}}
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/{{Esquema}}"
+components:
+  securitySchemes:
+    botApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+  schemas:
+    {{Esquema}}:
+      type: object
+      additionalProperties: false
+      required: []
+      properties: {}

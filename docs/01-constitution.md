@@ -107,6 +107,7 @@ Las asignaciones de tamaño crean reservas que reducen la disponibilidad para co
 | `docs/adr/ADR-013.md` | Precio base, precio mensual y saldo Asesor | Responsable de producto y técnico |
 | `docs/adr/ADR-014.md` | Catálogo y beneficio Nucle | Responsable de producto y técnico |
 | `docs/adr/ADR-015.md` | Descuento de Cuenta Clave exclusivo para semillas | Responsable de producto y técnico |
+| `docs/adr/ADR-017.md` | Arnés de ingeniería para agentes | Responsable técnico, pendiente de aceptación del PR |
 | PostgreSQL | Datos operativos productivos | Responsable de operación |
 
 ## Límites

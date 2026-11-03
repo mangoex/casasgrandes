@@ -1,0 +1,16 @@
+title = "AgriSales Pro"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "agrisales-hardcoded-jwt-fallback"
+description = "Secreto JWT de respaldo embebido en código"
+regex = '''casas_grandes_jwt_secret_key_[0-9]{4}_production'''
+tags = ["secret", "jwt"]
+
+[allowlist]
+description = "Esta configuración no se vuelve a escanear como si fuera código de producto."
+paths = [
+  '''(^|/)\.gitleaks\.toml$'''
+]

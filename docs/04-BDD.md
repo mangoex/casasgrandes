@@ -889,3 +889,13 @@ And la interfaz despliega el selector con la lista completa de asesores
 - **Cuando** se entrega, cancela o revierte
 - **Entonces** entrega consume reserva y descuenta físico, cancelación previa libera reserva y reversión repone físico
 - **Y** repetir cualquier transición no duplica el efecto.
+
+## Ejecución
+
+CHG-026 deja ejecutable una muestra, no el archivo completo. Los escenarios vivos están en `features/` y se corren con `npm run test:bdd`:
+
+- BDD-SC-034 y BDD-SC-036 en `features/chg008_salud.feature`
+- BDD-SC-100 y BDD-SC-103 en `features/chg025_contratos.feature`
+- la suma inválida de BDD-SC-105 en `features/chg025_reservas.feature`
+
+BDD-SC-104 se ejercita contra PostgreSQL aislado con `npm run test:integration` cuando existe `TEST_POSTGRES_URL`. El resto de este documento sigue siendo la especificación.

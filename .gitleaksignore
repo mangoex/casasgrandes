@@ -1,0 +1,6 @@
+# Hallazgos ya presentes antes de CHG-026.
+# No agregar líneas para ocultar un secreto introducido por un cambio nuevo.
+# Cada entrada es huella archivo:regla:línea. Si la línea se mueve, CI vuelve a fallar
+# hasta que el propietario acepte actualizar esta lista.
+middleware/auth.js:agrisales-hardcoded-jwt-fallback:5
+test/authSession.test.js:generic-api-key:17

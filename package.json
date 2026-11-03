@@ -5,8 +5,16 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js",
-    "test:chg025:postgres": "node --test test/chg025_postgres_reservations.test.js"
+    "lint": "eslint . && node scripts/check-syntax.js",
+    "lint:openapi": "node --test test/contract/*.test.js",
+    "test": "node --test test/*.test.js test/integration/*.test.js test/contract/*.test.js",
+    "test:unit": "node --test test/*.test.js",
+    "test:integration": "node --test test/integration/*.test.js",
+    "test:bdd": "cucumber-js",
+    "test:contract": "node --test test/contract/*.test.js",
+    "test:coverage": "c8 node --test test/*.test.js test/integration/*.test.js test/contract/*.test.js",
+    "test:chg025:postgres": "node --test test/chg025_postgres_reservations.test.js",
+    "audit:deps": "npm audit --audit-level=high"
   },
   "keywords": [],
   "author": "",
@@ -22,5 +30,15 @@
     "pg": "^8.21.0",
     "picomatch": "^4.0.4",
     "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
+    "@cucumber/cucumber": "^11.3.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "c8": "^12.0.0",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "supertest": "^7.3.1"
   }
 }

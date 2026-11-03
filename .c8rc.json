@@ -1,0 +1,16 @@
+{
+  "all": false,
+  "exclude": [
+    "coverage/**",
+    "test/**",
+    "features/**",
+    "scripts/**",
+    "node_modules/**"
+  ],
+  "reporter": ["text-summary", "text"],
+  "check-coverage": true,
+  "statements": 35,
+  "lines": 35,
+  "branches": 55,
+  "functions": 70
+}

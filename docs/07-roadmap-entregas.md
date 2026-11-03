@@ -156,3 +156,18 @@
 | 3 | Añadir migración aditiva y servicios transaccionales | SDD-DB-019, SDD-CMP-048..051 | Pruebas focalizadas verdes | completed-local |
 | 4 | Adaptar Cotizador, Canal de Ventas y bandeja de Almacén | PRD-FR-054..059 | Contrato visual y rutas verdes | completed-local |
 | 5 | Ejecutar regresión, trazabilidad y simulación de fallos | EVD-023 | Gate 4 local documentado; TDD-TC-118 automatizado en CI | partial-awaiting-postgresql-execution |
+
+## Incremento 26 — CHG-026
+
+- Objetivo: arnés de ingeniería, sin funcionalidad de negocio
+- Requisito: HARNESS-REQ-001
+- Decisión: ADR-017
+- Escenarios ejecutables: BDD-SC-034, BDD-SC-036, BDD-SC-100, BDD-SC-103, BDD-SC-104, BDD-SC-105
+- Pruebas: TDD-TC-121..123
+- Gate de salida: CI verde. Merge y despliegue quedan fuera hasta aprobación explícita del propietario.
+
+| Orden | Tarea | IDs | Evidencia esperada | Estado |
+|---|---|---|---|---|
+| 1 | Publicar plantillas, ADR y contrato vacío | ADR-017 | `docs/plantillas/`, `docs/adr/ADR-017.md`, `docs/api/bot-v1.yaml` | hecho en la rama |
+| 2 | Ejecutar una muestra de Gherkin y la reserva ficticia | TDD-TC-122, TDD-TC-123 | `npm run test:bdd` y PostgreSQL 16 en CI | hecho en la rama |
+| 3 | Abrir PR sin merge | CHG-026 | URL del PR | pendiente de publicación |
