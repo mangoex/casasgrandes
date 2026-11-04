@@ -12,7 +12,6 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Entonces el bot CHG-027 recibe estado 200
     Y el cuerpo del bot CHG-027 solo indica salud
 
-  @no-implementado
   Escenario: BDD-SC-108 el disponible resta las reservas activas de la existencia física
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Almacen"
     Y un híbrido de demostración con existencia física 140 y reserva activa 40
@@ -20,7 +19,6 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Entonces el bot CHG-027 recibe estado 200
     Y el disponible del híbrido de demostración es 100
 
-  @no-implementado
   Escenario: BDD-SC-109 Almacén ve el detalle por lote y tamaño
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Almacen"
     Y un híbrido de demostración con lote "LOTE-DEMO-1" y tamaño "BT1"
@@ -28,7 +26,6 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Entonces el bot CHG-027 recibe estado 200
     Y el detalle incluye el lote "LOTE-DEMO-1" y el tamaño "BT1"
 
-  @no-implementado
   Escenario: BDD-SC-110 los movimientos recientes no llevan datos personales ni precios
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Almacen"
     Y un movimiento de demostración ligado a un cliente ficticio
@@ -53,7 +50,6 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Entonces el bot CHG-027 recibe estado 403
     Y el código de error del bot CHG-027 es "ALCANCE_DENEGADO"
 
-  @no-implementado
   Escenario: BDD-SC-114 un asesor no recibe lotes, tamaños ni movimientos
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Asesor"
     Y un híbrido de demostración con lote "LOTE-DEMO-1" y tamaño "BT1"
@@ -82,7 +78,6 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Cuando el bot CHG-027 consulta el inventario de productos
     Entonces existe una fila de auditoría CHG-027 sin cuerpo, sin clave y sin datos de cliente
 
-  @no-implementado
   Escenario: BDD-SC-122 el administrador ve los lotes del detalle y no el libro de tamaños
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Administrador"
     Y un híbrido de demostración con lote "LOTE-DEMO-1" y tamaño "BT1"
@@ -91,7 +86,6 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Y el detalle incluye el lote "LOTE-DEMO-1" y el tamaño "BT1"
     Y el cuerpo del bot CHG-027 no contiene el libro de tamaños
 
-  @no-implementado
   Escenario: BDD-SC-123 un movimiento manual aparece con su tipo y, para el administrador, con lote y sin tamaño
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Administrador"
     Y un movimiento manual de demostración de tipo "Entrada" con lote "LOTE-DEMO-1"
@@ -100,7 +94,6 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Y el movimiento de demostración tiene tipo "Entrada" y lote "LOTE-DEMO-1"
     Y el cuerpo del bot CHG-027 no contiene el campo tamano
 
-  @no-implementado
   Escenario: BDD-SC-124 la búsqueda no distingue los diacríticos de la semilla
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Almacen"
     Y un híbrido de demostración con existencia física 140 y reserva activa 40

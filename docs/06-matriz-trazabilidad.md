@@ -339,7 +339,7 @@ CHG-027 es propuesta de especificación. La matriz completa está en `docs/cambi
 
 | Objetivo | Requisito | Diseño | Escenario | Prueba | Implementación | Evidencia | Estado |
 |---|---|---|---|---|---|---|---|
-| OBJ-023 | PRD-FR-060..062, PRD-NFR-013 | ADR-018, ADR-019 | BDD-SC-107..118 | TDD-TC-121, TDD-TC-124..130 | `docs/api/bot-v1.yaml`; rutas sin montar | contrato OpenAPI; Gherkin omitido | propuesta, sin implementación |
+| OBJ-023 | PRD-FR-060..062, PRD-NFR-013 | ADR-018, ADR-019 | BDD-SC-107..118, BDD-SC-122..124 | TDD-TC-121, TDD-TC-124..130 | `routes/botApi.js`, `routes/botAdmin.js`, `migrations/027_bot_api.sql` | pruebas de la rama; sin merge | implementado, sin merge |
 
 ## Trazabilidad CHG-026
 

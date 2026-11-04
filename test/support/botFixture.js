@@ -161,10 +161,11 @@ function installBotFixture(initial = {}) {
 }
 
 function filterProducts(state, params) {
+  // Misma posición que utils/botInventory.js: id, id, texto, texto, texto, categoría, categoría, límite.
   const afterId = params[0] == null ? 0 : Number(params[0]);
-  const needle = String(params[1] || '');
-  const categoria = String(params[2] || '');
-  const limit = Number(params[3]);
+  const needle = String(params[2] || '');
+  const categoria = String(params[5] || '');
+  const limit = Number(params[7]);
   return state.products
     .filter(product => Number(product.id) > afterId)
     .filter(product => !needle || product._foldedNombre.includes(needle) || product._foldedClave.includes(needle))

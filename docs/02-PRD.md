@@ -556,7 +556,7 @@ Autorizaciones, doble confirmación, asignación, entrega, cancelación y revers
 
 ## Incremento CHG-027 — Lectura de inventario para bots
 
-Estado: propuesta. No está implementado. El paquete completo está en `docs/cambios/CHG-027/`.
+Estado: implementado en la rama, sin merge. El paquete está en `docs/cambios/CHG-027/`.
 
 ### OBJ-023 — Consultar inventario disponible desde un bot sin ampliar lo que el rol ya puede ver
 

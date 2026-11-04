@@ -13,7 +13,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Acción: crear una clave, leer el listado, revocarla y repetir la revocación.
 - Aserciones: la base guarda prefijo y hash, no la clave; el listado no trae el secreto; la segunda revocación conserva la primera fecha; sin pimienta el alta responde 503.
 - Rojo esperado antes de implementar: la ruta administrativa responde 404.
-- Estado: pendiente
+- Estado: implementado en la rama. Sin merge.
 
 ## TDD-TC-125 — Alcance y rol
 
@@ -24,7 +24,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Acción: llamar al listado y al detalle con alcance ajeno, con Asesor y con Observador.
 - Aserciones: 403 `ALCANCE_DENEGADO` o `ROL_SIN_VISIBILIDAD` según el caso; el Asesor no recibe `lote`, `tamano`, `existencia_fisica` ni `reservado`; sus movimientos responden 403.
 - Rojo esperado antes de implementar: 404.
-- Estado: pendiente
+- Estado: implementado en la rama. Sin merge.
 
 ## TDD-TC-126 — Disponible, tamaños y lotes
 
@@ -35,7 +35,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Acción: calcular el disponible y pedir el detalle con vista de almacén.
 - Aserciones: disponible 100; el tamaño resta su reserva; el lote trae físico y no trae reservado; un descuadre entre saldo y lotes no se reescribe; el Administrador recibe el lote y no el arreglo `tamanos`; buscar `Hibrido` encuentra `Híbrido`.
 - Rojo esperado antes de implementar: no existe la función de lectura.
-- Estado: pendiente
+- Estado: implementado en la rama. Sin merge.
 
 ## TDD-TC-127 — Movimientos sin datos de personas
 
@@ -46,7 +46,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Acción: consultar movimientos con rol Almacen y con rol Administrador.
 - Aserciones: la respuesta no contiene nombre, correo, teléfono, precio, nota, factura ni folio; Administrador recibe `lote` y no recibe `tamano`; un movimiento manual de tipo `Entrada` aparece con ese tipo; un parámetro `cliente_id` responde 400.
 - Rojo esperado antes de implementar: 404.
-- Estado: pendiente
+- Estado: implementado en la rama. Sin merge.
 
 ## TDD-TC-128 — Límite por clave
 
@@ -57,7 +57,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Acción: consumir tres lecturas dentro de la misma ventana.
 - Aserciones: la tercera responde 429 con `Retry-After`; un 403 también consume la ventana; la clave no reconocida se cuenta por otro cubo.
 - Rojo esperado antes de implementar: no existe el contador por clave.
-- Estado: pendiente
+- Estado: implementado en la rama. Sin merge.
 
 ## TDD-TC-129 — Auditoría
 
@@ -68,7 +68,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Acción: una lectura autenticada y una clave desconocida.
 - Aserciones: la fila reconocida guarda ruta plantilla, código y `X-Request-ID`; no guarda cuerpo, consulta ni clave; la clave desconocida no persiste el valor presentado; la salud no inserta fila.
 - Rojo esperado antes de implementar: no existe `bot_llamadas`.
-- Estado: pendiente
+- Estado: implementado en la rama. Sin merge.
 
 ## TDD-TC-130 — Gherkin de aceptación
 
@@ -79,7 +79,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Acción: `npm run test:bdd`
 - Aserciones: los doce escenarios pasan contra Express.
 - Rojo esperado antes de implementar: hoy están omitidos a propósito. Quitar la etiqueta antes de tiempo deja los pasos sin comportamiento y la suite falla.
-- Estado: pendiente
+- Estado: implementado en la rama. Sin merge.
 
 ## Ajuste ya hecho en este pull request
 

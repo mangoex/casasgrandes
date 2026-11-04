@@ -737,7 +737,7 @@ No cubren una regla comercial nueva. El detalle está en `docs/cambios/CHG-026/c
 
 - Cubre: HARNESS-REQ-001, ADR-017, y desde CHG-027 también ADR-018 y ADR-019.
 - Archivo: `test/contract/bot_v1_openapi.test.js`.
-- Estado: el documento ya describe la lectura de inventario y las claves. Express sigue respondiendo 404 en esas rutas. Los ejemplos válidos pasan y un campo de más, un lote con reservado o una clave dentro del listado no pasan.
+- Estado: el documento describe la lectura y las claves. La prueba valida la salud real, el 401 de una clave ausente y los ejemplos. Un campo de más, un lote con reservado o una clave dentro del listado no pasan.
 
 ### TDD-TC-122 — Muestra Gherkin por HTTP
 
@@ -753,42 +753,42 @@ No cubren una regla comercial nueva. El detalle está en `docs/cambios/CHG-026/c
 
 ## Casos TDD de CHG-027
 
-Propuesta. El detalle y el rojo esperado están en `docs/cambios/CHG-027/casos-tdd.md`. Ningún caso de comportamiento está escrito todavía.
+Implementados en la rama. El detalle está en `docs/cambios/CHG-027/casos-tdd.md`. Merge y despliegue siguen pendientes.
 
 ### TDD-TC-124 — Hash, alta y revocación
 
 - Cubre: BDD-SC-111, BDD-SC-112, BDD-SC-118, PRD-FR-060.
-- Estado: pendiente.
+- Estado: implementado en la rama. Sin merge.
 
 ### TDD-TC-125 — Alcance y rol
 
 - Cubre: BDD-SC-113, BDD-SC-114, BDD-SC-115, PRD-FR-062.
-- Estado: pendiente.
+- Estado: implementado en la rama. Sin merge.
 
 ### TDD-TC-126 — Disponible, tamaños y lotes
 
 - Cubre: BDD-SC-108, BDD-SC-109, PRD-FR-061.
-- Estado: pendiente.
+- Estado: implementado en la rama. Sin merge.
 
 ### TDD-TC-127 — Movimientos sin datos de personas
 
 - Cubre: BDD-SC-110, PRD-NFR-013.
-- Estado: pendiente.
+- Estado: implementado en la rama. Sin merge.
 
 ### TDD-TC-128 — Límite por clave
 
 - Cubre: BDD-SC-116, PRD-NFR-013.
-- Estado: pendiente.
+- Estado: implementado en la rama. Sin merge.
 
 ### TDD-TC-129 — Auditoría
 
 - Cubre: BDD-SC-117, PRD-NFR-013.
-- Estado: pendiente.
+- Estado: implementado en la rama. Sin merge.
 
 ### TDD-TC-130 — Gherkin de aceptación
 
 - Cubre: BDD-SC-107..118.
-- Estado: pendiente. Hoy el archivo se omite con `@no-implementado`.
+- Estado: implementado en la rama. Sin merge. Los escenarios de `features/chg027_bot_inventario.feature` se ejecutan.
 
 ## Casos TDD del Incremento CHG-028
 

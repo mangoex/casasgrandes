@@ -6,6 +6,7 @@ const { After, Before, Given, When, Then } = require('@cucumber/cucumber');
 const { installBotFixture } = require('../../test/support/botFixture');
 const { generateKey, hashKey } = require('../../utils/botKeys');
 const { resetBotRateLimit } = require('../../utils/botRateLimit');
+const { foldText } = require('../../utils/botHttp');
 const { TEST_JWT_SECRET } = require('../support/preload');
 
 const PEPPER = 'pimienta-de-prueba-chg027';
@@ -70,20 +71,67 @@ Given('un bot CHG-027 con clave revocada y alcance {string}', function (alcance)
   seedKey(this, { alcance, rol: 'Almacen', revoked: true });
 });
 
+function ensureDemoProduct(world, fisico = 140, reservado = 40) {
+  const state = world.bot.state;
+  const row = {
+    id: 7,
+    nombre: 'Híbrido Demostración',
+    clave: 'HIB-DEMO',
+    categoria: 'Híbrido',
+    existencia_fisica: fisico,
+    reservado,
+    _foldedNombre: foldText('Híbrido Demostración'),
+    _foldedClave: foldText('HIB-DEMO'),
+    _foldedCategoria: foldText('Híbrido')
+  };
+  const existing = state.products.find(product => product.id === 7);
+  if (existing) Object.assign(existing, row);
+  else state.products.push(row);
+  world.demoProductId = 7;
+}
+
 Given('un híbrido de demostración con existencia física {int} y reserva activa {int}', function (fisico, reservado) {
-  this.demoStock = { fisico, reservado };
+  ensureDemoProduct(this, fisico, reservado);
 });
 
 Given('un híbrido de demostración con lote {string} y tamaño {string}', function (lote, tamano) {
-  this.demoLot = { lote, tamano };
+  ensureDemoProduct(this);
+  this.bot.state.lots.push({ producto_id: 7, lote, tamano, existencia_fisica: 90 });
+  this.bot.state.sizesPhysical.push({ producto_id: 7, tamano, existencia_fisica: 90 });
+  this.bot.state.sizesReserved.push({ producto_id: 7, tamano, reservado: 30 });
+  this.demoProductId = 7;
 });
 
 Given('un movimiento de demostración ligado a un cliente ficticio', function () {
-  this.demoMovement = { personal: true };
+  this.bot.state.movements.push({
+    id: 501,
+    fecha_movimiento: '2026-11-03T15:00:00.000Z',
+    tipo_movimiento: 'Entrada de demostración',
+    producto_id: 7,
+    producto_nombre: 'Híbrido Demostración',
+    cantidad_entrante: 90,
+    cantidad_saliente: 0,
+    existencias_resultantes: 140,
+    ciclo_agricola: 'OI-DEMO',
+    lote: 'LOTE-DEMO-1',
+    tamano: 'BT1'
+  });
 });
 
 Given('un movimiento manual de demostración de tipo {string} con lote {string}', function (tipo, lote) {
-  this.demoMovement = { tipo, lote };
+  this.bot.state.movements.push({
+    id: 502,
+    fecha_movimiento: '2026-11-03T16:00:00.000Z',
+    tipo_movimiento: tipo,
+    producto_id: 7,
+    producto_nombre: 'Híbrido Demostración',
+    cantidad_entrante: 90,
+    cantidad_saliente: 0,
+    existencias_resultantes: 140,
+    ciclo_agricola: 'OI-DEMO',
+    lote,
+    tamano: 'BT1'
+  });
 });
 
 Given('un administrador ficticio autenticado en la sesión web', function () {

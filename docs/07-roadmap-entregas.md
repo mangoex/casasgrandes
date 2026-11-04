@@ -177,15 +177,15 @@
 - Objetivo: OBJ-023
 - Requisitos: PRD-FR-060, PRD-FR-061, PRD-FR-062, PRD-NFR-013
 - Decisión: ADR-018, ADR-019
-- Escenarios: BDD-SC-107..118, omitidos hasta la implementación
-- Pruebas: TDD-TC-121 ajustado; TDD-TC-124..130 pendientes
-- Gate de salida: especificación revisable. La implementación, el merge y el despliegue quedan fuera hasta confirmación explícita del propietario.
+- Escenarios: BDD-SC-107..118 y BDD-SC-122..124
+- Pruebas: TDD-TC-121 y TDD-TC-124..130
+- Gate de salida: implementación en la rama. El merge y el despliegue quedan fuera hasta confirmación explícita del propietario.
 
 | Orden | Tarea | IDs | Evidencia esperada | Estado |
 |---|---|---|---|---|
 | 1 | Publicar el paquete y el contrato | ADR-018, ADR-019 | `docs/cambios/CHG-027/`, `docs/api/bot-v1.yaml` | hecho en la rama |
 | 2 | Dejar el Gherkin cargado y omitido | BDD-SC-107..118 | `npm run test:bdd` con escenarios skipped | hecho en la rama |
-| 3 | Confirmar C-01..C-12 e implementar en dos cortes | PRD-FR-060..062 | Pruebas rojas y luego verdes | pendiente |
+| 3 | Confirmar C-01..C-12 e implementar en dos cortes | PRD-FR-060..062 | Pruebas rojas y luego verdes | hecho en la rama |
 | 4 | Abrir el PR de especificación sin merge | CHG-027 | URL del PR | pendiente de publicación |
 
 ## Incremento 28 — CHG-028

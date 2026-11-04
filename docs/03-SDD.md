@@ -483,7 +483,7 @@ Express sirve el frontend y las APIs; PostgreSQL conserva el estado. El incremen
 
 ## Diseño CHG-027
 
-Estado: propuesta. No hay código de aplicación en el paquete de especificación. Los ADR canónicos son ADR-018 y ADR-019.
+Estado: implementado en la rama, sin merge. Los ADR canónicos son ADR-018 y ADR-019.
 
 ### SDD-CMP-052 — Fundación de claves de bot
 

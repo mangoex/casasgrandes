@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: AgriSales Pro Bot API
-  version: "0.2.0"
-  summary: CHG-027 alineado con CHG-028/029. Lectura de inventario y claves de bot. Rutas sin montar.
+  version: "1.0.0"
+  summary: CHG-027. Lectura de inventario y claves de bot.
   description: >
     Contrato para que un bot consulte inventario en solo lectura. La fundación
-    de claves, alcances, límite y auditoría vive en este mismo cambio. Ninguna
-    ruta de este documento está montada en Express todavía. No incluye precios,
+    de claves, alcances, límite y auditoría vive en este mismo cambio. Las rutas
+    de este documento están montadas en Express. No incluye precios,
     cotizaciones, clientes, asesores, sucursales ni alertas. Los ejemplos usan
     datos ficticios y no son claves utilizables. La alineación con CHG-028/029
     deja los lotes del detalle al Administrador, el lote en los movimientos de
@@ -30,7 +30,7 @@ paths:
       summary: Salud del proceso del API de bots
       description: >
         No exige clave, no consulta la base y no escribe auditoría. No
-        reemplaza GET /health/live. Sigue sin estar montado.
+        reemplaza GET /health/live. Si falta BOT_API_KEY_PEPPER responde 503.
       security: []
       responses:
         "200":
@@ -41,6 +41,8 @@ paths:
                 $ref: "#/components/schemas/BotHealth"
               example:
                 status: ok
+        "503":
+          $ref: "#/components/responses/ServicioNoDisponible"
   /api/v1/bot/inventario/productos:
     get:
       operationId: listBotInventoryProducts
