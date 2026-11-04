@@ -790,6 +790,13 @@ Implementados en la rama. El detalle está en `docs/cambios/CHG-027/casos-tdd.md
 - Cubre: BDD-SC-107..118.
 - Estado: implementado en la rama. Sin merge. Los escenarios de `features/chg027_bot_inventario.feature` se ejecutan.
 
+### TDD-TC-134 — Cursor cuando hay más filas que `limite`
+
+- Cubre: BDD-SC-125, PRD-FR-061.
+- Archivo: `test/chg027_bot_paginacion.test.js`.
+- Verifica que `GET /api/v1/bot/inventario/productos` y `GET /api/v1/bot/inventario/movimientos` responden 200 con `paginacion.siguiente` no nulo cuando `limite` es menor que el número de filas, y que la consulta con ese cursor devuelve la página siguiente.
+- Estado: corrección en la rama. Sin merge. El fallo previo era 500 `ERROR_INTERNO` porque `utils/botInventory.js` usaba `encodeCursor` sin importarlo.
+
 ## Casos TDD del Incremento CHG-028
 
 ### TDD-TC-131 — Creación HTTP y autorrecuperación de esquema en `POST /api/cotizaciones` para `CREDITO` y `APARTADO`

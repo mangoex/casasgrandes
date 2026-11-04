@@ -177,8 +177,8 @@
 - Objetivo: OBJ-023
 - Requisitos: PRD-FR-060, PRD-FR-061, PRD-FR-062, PRD-NFR-013
 - Decisión: ADR-018, ADR-019
-- Escenarios: BDD-SC-107..118 y BDD-SC-122..124
-- Pruebas: TDD-TC-121 y TDD-TC-124..130
+- Escenarios: BDD-SC-107..118 y BDD-SC-122..125
+- Pruebas: TDD-TC-121, TDD-TC-124..130 y TDD-TC-134
 - Gate de salida: implementación en la rama. El merge y el despliegue quedan fuera hasta confirmación explícita del propietario.
 
 | Orden | Tarea | IDs | Evidencia esperada | Estado |

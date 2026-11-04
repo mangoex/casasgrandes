@@ -4,7 +4,7 @@
 |---|---|---|---|---|---|---|---|
 | OBJ-023 | PRD-FR-060 | ADR-018, SDD-CMP-052, SDD-DB-020 | BDD-SC-111, BDD-SC-112, BDD-SC-118 | TDD-TC-124 | `bot_claves` y rutas administrativas | pruebas de la rama | implementado, sin merge |
 | OBJ-023 | PRD-FR-060, PRD-FR-062 | ADR-018, ADR-019, SDD-SEC-014 | BDD-SC-113, BDD-SC-114, BDD-SC-115 | TDD-TC-125 | middleware de alcance y rol | pruebas de la rama | implementado, sin merge |
-| OBJ-023 | PRD-FR-061 | ADR-019, SDD-CMP-053 | BDD-SC-107, BDD-SC-108, BDD-SC-109, BDD-SC-122, BDD-SC-124 | TDD-TC-126 | lecturas de inventario | pruebas de la rama | implementado, sin merge |
+| OBJ-023 | PRD-FR-061 | ADR-019, SDD-CMP-053 | BDD-SC-107, BDD-SC-108, BDD-SC-109, BDD-SC-122, BDD-SC-124, BDD-SC-125 | TDD-TC-126, TDD-TC-134 | lecturas de inventario y cursor en `utils/botInventory.js` | pruebas de la rama | implementado, sin merge |
 | OBJ-023 | PRD-FR-061, PRD-NFR-013 | ADR-019, SDD-SEC-014 | BDD-SC-110, BDD-SC-123 | TDD-TC-127 | proyección de movimientos | pruebas de la rama | implementado, sin merge |
 | OBJ-023 | PRD-NFR-013 | ADR-018, ADR-006 | BDD-SC-116 | TDD-TC-128 | límite por clave | pruebas de la rama | implementado, sin merge |
 | OBJ-023 | PRD-NFR-013 | ADR-018, SDD-DB-020 | BDD-SC-117 | TDD-TC-129 | `bot_llamadas` | pruebas de la rama | implementado, sin merge |

@@ -31,4 +31,5 @@ Un bot con clave vigente y alcance `inventario:leer` consulta el disponible de l
 ## Criterios de aceptación
 
 - BDD-SC-107 a BDD-SC-118, más BDD-SC-122 a BDD-SC-124 de la alineación, en `docs/cambios/CHG-027/aceptacion.feature` y en `features/chg027_bot_inventario.feature`.
+- BDD-SC-125, la página siguiente de productos y movimientos, en `test/chg027_bot_paginacion.test.js`.
 - Esos escenarios están etiquetados `@no-implementado` y Cucumber los omite. No son evidencia de que el comportamiento exista.

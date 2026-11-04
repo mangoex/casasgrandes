@@ -3,8 +3,8 @@
 - Objetivo: OBJ-023
 - Requisitos: PRD-FR-060, PRD-FR-061, PRD-FR-062, PRD-NFR-013
 - Decisión: ADR-018, ADR-019
-- Escenarios: BDD-SC-107..118
-- Pruebas: TDD-TC-121 ajustado en este paquete; TDD-TC-124..130 pendientes
+- Escenarios: BDD-SC-107..118, BDD-SC-122..125
+- Pruebas: TDD-TC-121, TDD-TC-124..130 y TDD-TC-134
 - Gate de salida: CI verde de la implementación. Merge y despliegue esperan un sí explícito del propietario.
 
 | Orden | Tarea | IDs | Evidencia esperada | Estado |

@@ -7,7 +7,8 @@ const {
   foldText,
   round3,
   toIso,
-  clip
+  clip,
+  encodeCursor
 } = require('./botHttp');
 
 const PRODUCT_FIELDS = `

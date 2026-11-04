@@ -81,6 +81,17 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Rojo esperado antes de implementar: hoy están omitidos a propósito. Quitar la etiqueta antes de tiempo deja los pasos sin comportamiento y la suite falla.
 - Estado: implementado en la rama. Sin merge.
 
+## TDD-TC-134 — Cursor cuando hay más filas que `limite`
+
+- Cubre: BDD-SC-125, PRD-FR-061, ADR-019
+- Nivel: HTTP
+- Archivo: `test/chg027_bot_paginacion.test.js`
+- Fixture: cuatro productos y cuatro movimientos ficticios. Prohibido leer CSV de la raíz.
+- Acción: listar productos y movimientos con `limite=3` y repetir cada consulta con `paginacion.siguiente`.
+- Aserciones: la primera página responde 200 con `siguiente` no nulo; la segunda responde 200 con la fila restante y `siguiente` nulo.
+- Rojo esperado antes de implementar: 500 `ERROR_INTERNO`, porque `page()` llama a `encodeCursor` sin importarlo.
+- Estado: corrección del defecto en la rama. Sin merge.
+
 ## Ajuste ya hecho en este pull request
 
 `test/contract/bot_v1_openapi.test.js` acepta el documento CHG-027, valida los ejemplos y los contraejemplos, y comprueba que Express sigue respondiendo 404. No sustituye a TDD-TC-124..130.

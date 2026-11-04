@@ -13,6 +13,7 @@
 | 2026-11-04 | alineación con CHG-028/029 | `/inventario/movimientos` devuelve todos los renglones de `almacen_movimientos`, incluidos los manuales de CHG-029. `tipo` es `tipo_movimiento` tal como se guardó: `Entrada`, `Salida (Venta)` cuando no se envía otro texto, el texto enviado, o `Ajuste de Inventario`. | agente, alineación con la interfaz vigente | vigente |
 | 2026-11-04 | alineación con CHG-028/029 | `q` y `categoria` pliegan mayúsculas y diacríticos. La interfaz y `isSeedCategory` tratan `Hibrido` y `Híbrido` como la misma semilla, e `initSchema` reescribe `hibrido` a `Híbrido`. La respuesta devuelve el valor guardado. La autorrecuperación de cotizaciones de CHG-028 no cambia la identidad del producto ni agrega tablas de inventario. | agente, alineación con la interfaz vigente | vigente |
 | 2026-11-04 | alineación con CHG-028/029 | La migración de bots es aditiva, versionada e idempotente (`migrations/027_bot_api.sql`), y se aplica desde `initSchema` junto a `ensureQuotationsSchema` y `ensureWarehouseMovementsSchema`. No reescribe esas recuperaciones. | agente, alineación con la interfaz vigente | vigente |
+| 2026-11-04 | defecto de paginación | `page()` de productos y movimientos usa el `encodeCursor` ya exportado por `utils/botHttp.js`. Sin ese import, un `limite` menor al número de filas respondía 500. No abre un CHG nuevo: la paginación ya estaba en ADR-019 y en este paquete. | agente, corrección del defecto | vigente |
 
 ## Confirmaciones del propietario antes de implementar
 
@@ -44,3 +45,4 @@ Aprobar este pull request de especificación no autoriza a escribir el código. 
 
 - Comando: `npm run lint:openapi` y `npm run test:bdd`
 - Resultado: se completa en el cuerpo del pull request con la salida real.
+- 2026-11-04, TDD-TC-134: antes del import, `GET` con `limite` menor al total respondía 500 `ERROR_INTERNO`. Después, `node --test test/chg027_bot_paginacion.test.js` queda en verde. En esta máquina, sin PostgreSQL, `npm run lint`, `npm test` (173 en verde, 3 omitidas), `npm run test:bdd` (23 escenarios), `npm run test:coverage` y `npm run audit:deps` terminaron en cero.

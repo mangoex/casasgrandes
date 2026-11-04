@@ -977,6 +977,12 @@ Estado: implementado en la rama, sin merge. El texto ejecutable está en `featur
 - **Cuando** el bot busca `Hibrido`
 - **Entonces** el disponible es 100
 
+### BDD-SC-125 — Página siguiente de productos y movimientos
+
+- **Dado** un bot de Almacén con más productos y movimientos que el `limite` pedido
+- **Cuando** lista productos y movimientos con ese `limite`
+- **Entonces** responde 200, `paginacion.siguiente` no es nulo, y repetir la consulta con ese cursor responde 200 con la fila restante
+
 ### BDD-SC-118 — Alta y revocación
 
 - **Dado** un administrador ficticio con sesión
@@ -993,7 +999,7 @@ CHG-026 deja ejecutable una muestra, no el archivo completo. Los escenarios vivo
 
 BDD-SC-104 se ejercita contra PostgreSQL aislado con `npm run test:integration` cuando existe `TEST_POSTGRES_URL`. El resto de este documento sigue siendo la especificación.
 
-BDD-SC-107..118 y BDD-SC-122..124 se ejecutan desde `features/chg027_bot_inventario.feature`.
+BDD-SC-107..118 y BDD-SC-122..124 se ejecutan desde `features/chg027_bot_inventario.feature`. BDD-SC-125 se ejecuta en `test/chg027_bot_paginacion.test.js`.
 
 ## Escenarios BDD del Incremento CHG-028
 
