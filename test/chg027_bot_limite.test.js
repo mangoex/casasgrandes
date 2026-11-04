@@ -5,12 +5,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
+const { testBotPepper } = require('./support/botPepper');
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-only-chg027-secret-at-least-32-characters';
 process.env.NODE_ENV = 'test';
 process.env.SKIP_INIT_SCHEMA = 'true';
 process.env.PGSSL = 'false';
-process.env.BOT_API_KEY_PEPPER = 'pimienta-de-prueba-chg027';
+process.env.BOT_API_KEY_PEPPER = testBotPepper();
 
 const { app } = require('../server');
 const { installBotFixture } = require('./support/botFixture');

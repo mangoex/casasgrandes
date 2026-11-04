@@ -8,8 +8,9 @@ const { generateKey, hashKey } = require('../../utils/botKeys');
 const { resetBotRateLimit } = require('../../utils/botRateLimit');
 const { foldText } = require('../../utils/botHttp');
 const { TEST_JWT_SECRET } = require('../support/preload');
+const { testBotPepper } = require('../../test/support/botPepper');
 
-const PEPPER = 'pimienta-de-prueba-chg027';
+const PEPPER = testBotPepper();
 const ADMIN = {
   id: 4,
   nombre: 'Admin Ficticio',

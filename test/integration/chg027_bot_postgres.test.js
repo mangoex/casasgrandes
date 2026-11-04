@@ -5,6 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { resolvePostgresUrl, withIsolatedSchema } = require('../support/isolatedPostgres');
+const { testBotPepper } = require('../support/botPepper');
 
 const postgresUrl = resolvePostgresUrl();
 
@@ -84,7 +85,7 @@ test('TDD-TC-124: la migración de bots es idempotente y la base guarda el hash'
     process.env.NODE_ENV = 'test';
     process.env.PGSSL = 'false';
     process.env.SKIP_INIT_SCHEMA = 'true';
-    process.env.BOT_API_KEY_PEPPER = 'pimienta-de-prueba-chg027';
+    process.env.BOT_API_KEY_PEPPER = testBotPepper();
     process.env.DATABASE_URL = connectionString;
 
     const db = require('../../db');

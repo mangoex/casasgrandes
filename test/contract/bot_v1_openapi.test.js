@@ -1,6 +1,6 @@
 'use strict';
 
-// TDD-TC-121 — el contrato CHG-027 es válido y las rutas siguen sin montar.
+// TDD-TC-121 — el contrato CHG-027 es válido y las respuestas reales cumplen el esquema.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,6 +10,7 @@ process.env.NODE_ENV = 'test';
 process.env.SKIP_INIT_SCHEMA = 'true';
 
 const { loadOpenApi, validateResponse, defaultSpecPath } = require('../support/openapiResponse');
+const { testBotPepper } = require('../support/botPepper');
 
 const RUTAS = [
   ['GET', '/api/v1/bot/health'],
@@ -373,7 +374,7 @@ test('TDD-TC-121: cada ejemplo publicado cumple su esquema', async () => {
 });
 
 test('TDD-TC-121: las respuestas reales de salud y de clave ausente cumplen el contrato', async t => {
-  process.env.BOT_API_KEY_PEPPER = 'pimienta-de-prueba-chg027';
+  process.env.BOT_API_KEY_PEPPER = testBotPepper();
   const request = require('supertest');
   const { app } = require('../../server');
   const { installBotFixture } = require('../support/botFixture');
