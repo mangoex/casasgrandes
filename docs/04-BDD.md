@@ -959,6 +959,24 @@ Estado: propuesta de CHG-027. El texto ejecutable está en `features/chg027_bot_
 - **Cuando** consulta el inventario
 - **Entonces** queda una fila sin cuerpo, sin clave y sin datos de cliente
 
+### BDD-SC-122 — Lotes del Administrador
+
+- **Dado** un bot de Administrador y el híbrido con lote `LOTE-DEMO-1`
+- **Cuando** pide el detalle
+- **Entonces** ve el lote y el tamaño del lote, y no el libro de tamaños con reserva
+
+### BDD-SC-123 — Movimiento manual
+
+- **Dado** un movimiento manual de tipo `Entrada` con lote
+- **Cuando** el Administrador consulta los movimientos
+- **Entonces** el tipo y el lote aparecen, y el campo `tamano` no
+
+### BDD-SC-124 — Búsqueda sin diacríticos
+
+- **Dado** el híbrido de demostración
+- **Cuando** el bot busca `Hibrido`
+- **Entonces** el disponible es 100
+
 ### BDD-SC-118 — Alta y revocación
 
 - **Dado** un administrador ficticio con sesión

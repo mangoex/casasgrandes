@@ -5,7 +5,14 @@
 | 2026-11-03 | ADR-018 | Clave hasheada con pimienta, alcance `inventario:leer`, límite por clave y auditoría sin datos de personas | agente, como propuesta | propuesta |
 | 2026-11-03 | ADR-019 | Disponible = último saldo físico menos reservas activas; lotes solo para Almacén; sin sucursales | agente, como propuesta | propuesta |
 | 2026-11-03 | CHG-027 | La fundación de claves y la lectura van en el mismo cambio, en dos cortes de implementación | agente, como propuesta | propuesta |
-| 2026-11-03 | CHG-027 | Este pull request no implementa rutas, migraciones ni pruebas de comportamiento | encargo del propietario | vigente para este PR |
+| 2026-11-03 | CHG-027 | El pull request de especificación no implementó rutas, migraciones ni pruebas de comportamiento | encargo del propietario | cumplida en 6875ecd |
+| 2026-11-04 | C-01..C-12 | El propietario aprobó las recomendaciones tal como estaban escritas | propietario | vigente |
+| 2026-11-04 | alineación con CHG-028/029 | El detalle del Administrador incluye lotes físicos (`lote`, `tamano`, existencia). La pantalla de existencias y `GET /api/almacen/existencias` ya se los entregan. Coordinador, Director y Acopio siguen sin lotes en el detalle. | agente, alineación con la interfaz vigente | vigente |
+| 2026-11-04 | alineación con CHG-028/029 | El arreglo `tamanos` sigue exclusivo de Almacén. CHG-029 dejó la bandeja de solicitudes solo para ese rol y C-10 no se revoca. | agente, alineación con la interfaz vigente | vigente |
+| 2026-11-04 | alineación con CHG-028/029 | Los movimientos de Administrador, Coordinador, Director y Acopio incluyen `lote` y omiten `tamano`. `GET /api/almacen/movimientos` borra `tamano` para cualquier rol distinto de Almacén y el kardex pinta el lote cuando la fila lo trae. | agente, alineación con la interfaz vigente | vigente |
+| 2026-11-04 | alineación con CHG-028/029 | `/inventario/movimientos` devuelve todos los renglones de `almacen_movimientos`, incluidos los manuales de CHG-029. `tipo` es `tipo_movimiento` tal como se guardó: `Entrada`, `Salida (Venta)` cuando no se envía otro texto, el texto enviado, o `Ajuste de Inventario`. | agente, alineación con la interfaz vigente | vigente |
+| 2026-11-04 | alineación con CHG-028/029 | `q` y `categoria` pliegan mayúsculas y diacríticos. La interfaz y `isSeedCategory` tratan `Hibrido` y `Híbrido` como la misma semilla, e `initSchema` reescribe `hibrido` a `Híbrido`. La respuesta devuelve el valor guardado. La autorrecuperación de cotizaciones de CHG-028 no cambia la identidad del producto ni agrega tablas de inventario. | agente, alineación con la interfaz vigente | vigente |
+| 2026-11-04 | alineación con CHG-028/029 | La migración de bots es aditiva, versionada e idempotente (`migrations/027_bot_api.sql`), y se aplica desde `initSchema` junto a `ensureQuotationsSchema` y `ensureWarehouseMovementsSchema`. No reescribe esas recuperaciones. | agente, alineación con la interfaz vigente | vigente |
 
 ## Confirmaciones del propietario antes de implementar
 
@@ -28,8 +35,8 @@ Aprobar este pull request de especificación no autoriza a escribir el código. 
 
 ## Aprobaciones que siguen abiertas
 
-- Confirmaciones C-01..C-12: pendientes.
-- Implementación: pendiente. Este paquete no la autoriza.
+- Confirmaciones C-01..C-12: aprobadas como estaban recomendadas. No se toca el hash con pimienta, el alcance, el vínculo, el límite, los campos de auditoría, el 401 uniforme, la salud pública ni el 503 sin pimienta.
+- Implementación: encargada en este cambio, en dos cortes. No incluye merge ni despliegue.
 - Merge: pendiente. Hace falta un sí explícito del propietario.
 - Despliegue: pendiente. Este paquete no despliega.
 

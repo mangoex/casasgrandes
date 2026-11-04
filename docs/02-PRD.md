@@ -568,11 +568,11 @@ Cada bot tiene una clave propia. El servidor guarda el prefijo y el hash con pim
 
 ### PRD-FR-061 — Lectura de disponible, detalle y movimientos
 
-`GET /api/v1/bot/inventario/productos` lista productos activos. El disponible de producto es el último saldo físico menos las reservas activas. `GET /api/v1/bot/inventario/productos/{productoId}` agrega tamaños y lotes físicos solo para Almacén. `GET /api/v1/bot/inventario/movimientos` devuelve movimientos recientes sin datos de personas ni precios. `GET /api/v1/bot/health` sigue público y sin inventario.
+`GET /api/v1/bot/inventario/productos` lista productos activos. El disponible de producto es el último saldo físico menos las reservas activas. `GET /api/v1/bot/inventario/productos/{productoId}` agrega tamaños y lotes físicos para Almacén, y solo lotes físicos para Administrador. `GET /api/v1/bot/inventario/movimientos` devuelve movimientos recientes, incluidos los manuales, sin datos de personas ni precios. `GET /api/v1/bot/health` sigue público y sin inventario.
 
 ### PRD-FR-062 — La vista del bot es la del rol vigente
 
-Asesor recibe solo `disponible` y no consulta movimientos. Almacén recibe tamaños y lotes. Administrador, Coordinador, Director y Acopio reciben las tres cifras de producto y movimientos sin lote ni tamaño. Observador recibe 403 aunque la clave tenga el alcance.
+Asesor recibe solo `disponible` y no consulta movimientos. Almacén recibe tamaños y lotes. Administrador recibe las tres cifras, los lotes del detalle y movimientos con lote y sin tamaño. Coordinador, Director y Acopio reciben las tres cifras y movimientos con lote y sin tamaño. Observador recibe 403 aunque la clave tenga el alcance. La búsqueda no distingue diacríticos.
 
 ### PRD-NFR-013 — Límite, auditoría y respuesta sin datos de personas
 

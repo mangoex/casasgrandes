@@ -33,7 +33,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Archivo futuro: `test/chg027_bot_inventario.test.js`
 - Fixture: híbrido de demostración, último saldo 140, reserva activa 40, lote `LOTE-DEMO-1`, tamaño `BT1`.
 - Acción: calcular el disponible y pedir el detalle con vista de almacén.
-- Aserciones: disponible 100; el tamaño resta su reserva; el lote trae físico y no trae reservado; un descuadre entre saldo y lotes no se reescribe.
+- Aserciones: disponible 100; el tamaño resta su reserva; el lote trae físico y no trae reservado; un descuadre entre saldo y lotes no se reescribe; el Administrador recibe el lote y no el arreglo `tamanos`; buscar `Hibrido` encuentra `Híbrido`.
 - Rojo esperado antes de implementar: no existe la función de lectura.
 - Estado: pendiente
 
@@ -44,7 +44,7 @@ Los casos de comportamiento están pendientes. Este pull request no los implemen
 - Archivo futuro: `test/chg027_bot_inventario.test.js`
 - Fixture: movimiento de demostración con cliente y precio ficticios en la fila de origen.
 - Acción: consultar movimientos con rol Almacen y con rol Administrador.
-- Aserciones: la respuesta no contiene nombre, correo, teléfono, precio, nota, factura ni folio; Administrador no recibe `tamano` ni `lote`; un parámetro `cliente_id` responde 400.
+- Aserciones: la respuesta no contiene nombre, correo, teléfono, precio, nota, factura ni folio; Administrador recibe `lote` y no recibe `tamano`; un movimiento manual de tipo `Entrada` aparece con ese tipo; un parámetro `cliente_id` responde 400.
 - Rojo esperado antes de implementar: 404.
 - Estado: pendiente
 

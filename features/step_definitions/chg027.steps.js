@@ -50,6 +50,12 @@ Given('un movimiento de demostración ligado a un cliente ficticio', function ()
   return omitido();
 });
 
+Given('un movimiento manual de demostración de tipo {string} con lote {string}', function (tipo, lote) {
+  void tipo;
+  void lote;
+  return omitido();
+});
+
 Given('un administrador ficticio autenticado en la sesión web', function () {
   return omitido();
 });
@@ -75,6 +81,11 @@ When('el bot CHG-027 consulta los movimientos recientes', function () {
 });
 
 When('el bot CHG-027 consulta el inventario sin clave', function () {
+  return omitido();
+});
+
+When('el bot CHG-027 busca el inventario con {string}', function (texto) {
+  void texto;
   return omitido();
 });
 
@@ -109,6 +120,20 @@ Then('el disponible del híbrido de demostración es {int}', function (disponibl
 Then('el detalle incluye el lote {string} y el tamaño {string}', function (lote, tamano) {
   void lote;
   void tamano;
+  return omitido();
+});
+
+Then('el cuerpo del bot CHG-027 no contiene el libro de tamaños', function () {
+  return omitido();
+});
+
+Then('el movimiento de demostración tiene tipo {string} y lote {string}', function (tipo, lote) {
+  void tipo;
+  void lote;
+  return omitido();
+});
+
+Then('el cuerpo del bot CHG-027 no contiene el campo tamano', function () {
   return omitido();
 });
 

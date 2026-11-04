@@ -497,9 +497,9 @@ Estado: propuesta. No hay código de aplicación en el paquete de especificació
 
 - Cubre: PRD-FR-061, PRD-FR-062, ADR-019.
 - Calcula el disponible de producto con el último `existencias_resultantes` y la suma de reservas `ACTIVA`.
-- El detalle de Almacén reutiliza el físico por tamaño de CHG-025 y el físico por lote. No reparte reservas sobre el lote.
-- Proyecta la vista `asesor`, `operativo` o `almacen` y omite cualquier columna de persona, precio o nota.
-- Rechaza parámetros de consulta que el contrato no declara.
+- El detalle de Almacén reutiliza el físico por tamaño de CHG-025 y el físico por lote. El detalle de Administrador reutiliza solo el físico por lote. No reparte reservas sobre el lote.
+- Proyecta la vista `asesor`, `operativo`, `administrador` o `almacen` y omite cualquier columna de persona, precio o nota.
+- La búsqueda pliega mayúsculas y diacríticos. Rechaza parámetros de consulta que el contrato no declara.
 
 ### SDD-DB-020 — Tablas aditivas de bots
 
@@ -513,6 +513,7 @@ Estado: propuesta. No hay código de aplicación en el paquete de especificació
 - Sin `inventario:leer`: 403 y sin consulta de stock.
 - Asesor: una cifra, `disponible`.
 - Almacén: tres cifras, tamaños, lotes físicos y movimientos con lote y tamaño.
-- Administrador, Coordinador, Director y Acopio: tres cifras y movimientos sin lote ni tamaño.
+- Administrador: tres cifras, lotes físicos en el detalle y movimientos con lote y sin tamaño.
+- Coordinador, Director y Acopio: tres cifras y movimientos con lote y sin tamaño.
 - Observador: 403.
 - La salud pública no entra en esta matriz.

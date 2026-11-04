@@ -9,11 +9,12 @@ Las copias canónicas están en `docs/adr/ADR-018.md` y `docs/adr/ADR-019.md`. S
 - El alcance de este corte es `inventario:leer`.
 - El rol sale de la persona vinculada, o del literal `rol_visibilidad` si el bot no representa a una persona.
 - `disponible = último existencias_resultantes − reservas ACTIVA`.
-- Lotes y tamaños solo en el detalle de la vista `almacen`. El lote no tiene reservado.
+- Lotes físicos en el detalle de Almacén y de Administrador. El arreglo de tamaños solo en la vista `almacen`. El lote no tiene reservado.
 - El Asesor recibe una sola cifra, `disponible`, y no consulta movimientos.
+- Los movimientos operativos incluyen lote y omiten tamaño. El tipo es el texto guardado en `tipo_movimiento`, incluidos los movimientos manuales.
 - No hay sucursales en el modelo. No se agregan en este cambio.
 - La salud sigue pública y sin auditoría.
 
 ## Aprobación
 
-Pendiente del propietario. No incluye implementación, merge ni despliegue.
+C-01..C-12 quedaron aceptadas como estaban recomendadas. La visibilidad de lotes se alineó el 2026-11-04 con la interfaz vigente. No incluye merge ni despliegue.

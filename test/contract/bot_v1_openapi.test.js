@@ -142,6 +142,45 @@ test('TDD-TC-121: los ejemplos del contrato cumplen y un campo de más no cumple
   });
   assert.equal(detalle.valid, true, JSON.stringify(detalle.errors));
 
+  const detalleAdministrador = await validateResponse({
+    specPath: defaultSpecPath,
+    requestPath: '/api/v1/bot/inventario/productos/{productoId}',
+    method: 'GET',
+    status: 200,
+    body: {
+      vista: 'administrador',
+      id: 7,
+      nombre: 'Híbrido Demostración',
+      clave: 'HIB-DEMO',
+      categoria: 'Híbrido',
+      existencia_fisica: 140,
+      reservado: 40,
+      disponible: 100,
+      lotes: [{ lote: 'LOTE-DEMO-1', tamano: 'BT1', existencia_fisica: 90 }]
+    }
+  });
+  assert.equal(detalleAdministrador.valid, true, JSON.stringify(detalleAdministrador.errors));
+
+  const administradorConTamanos = await validateResponse({
+    specPath: defaultSpecPath,
+    requestPath: '/api/v1/bot/inventario/productos/{productoId}',
+    method: 'GET',
+    status: 200,
+    body: {
+      vista: 'administrador',
+      id: 7,
+      nombre: 'Híbrido Demostración',
+      clave: 'HIB-DEMO',
+      categoria: 'Híbrido',
+      existencia_fisica: 140,
+      reservado: 40,
+      disponible: 100,
+      tamanos: [{ tamano: 'BT1', existencia_fisica: 90, reservado: 30, disponible: 60 }],
+      lotes: [{ lote: 'LOTE-DEMO-1', tamano: 'BT1', existencia_fisica: 90 }]
+    }
+  });
+  assert.equal(administradorConTamanos.valid, false);
+
   const loteConReservado = await validateResponse({
     specPath: defaultSpecPath,
     requestPath: '/api/v1/bot/inventario/productos/{productoId}',
@@ -187,6 +226,55 @@ test('TDD-TC-121: los ejemplos del contrato cumplen y un campo de más no cumple
   });
   assert.equal(movimiento.valid, true, JSON.stringify(movimiento.errors));
 
+  const movimientoOperativo = await validateResponse({
+    specPath: defaultSpecPath,
+    requestPath: '/api/v1/bot/inventario/movimientos',
+    method: 'GET',
+    status: 200,
+    body: {
+      vista: 'operativo',
+      datos: [{
+        id: 501,
+        fecha: '2026-11-03T15:00:00Z',
+        tipo: 'Entrada',
+        producto_id: 7,
+        producto_nombre: 'Híbrido Demostración',
+        cantidad_entrante: 90,
+        cantidad_saliente: 0,
+        existencias_resultantes: 140,
+        ciclo_agricola: 'OI-DEMO',
+        lote: 'LOTE-DEMO-1'
+      }],
+      paginacion: { limite: 50, siguiente: null }
+    }
+  });
+  assert.equal(movimientoOperativo.valid, true, JSON.stringify(movimientoOperativo.errors));
+
+  const operativoConTamano = await validateResponse({
+    specPath: defaultSpecPath,
+    requestPath: '/api/v1/bot/inventario/movimientos',
+    method: 'GET',
+    status: 200,
+    body: {
+      vista: 'operativo',
+      datos: [{
+        id: 501,
+        fecha: '2026-11-03T15:00:00Z',
+        tipo: 'Entrada',
+        producto_id: 7,
+        producto_nombre: 'Híbrido Demostración',
+        cantidad_entrante: 90,
+        cantidad_saliente: 0,
+        existencias_resultantes: 140,
+        ciclo_agricola: null,
+        lote: 'LOTE-DEMO-1',
+        tamano: 'BT1'
+      }],
+      paginacion: { limite: 50, siguiente: null }
+    }
+  });
+  assert.equal(operativoConTamano.valid, false);
+
   const movimientoConCliente = await validateResponse({
     specPath: defaultSpecPath,
     requestPath: '/api/v1/bot/inventario/movimientos',
@@ -204,6 +292,7 @@ test('TDD-TC-121: los ejemplos del contrato cumplen y un campo de más no cumple
         cantidad_saliente: 0,
         existencias_resultantes: 140,
         ciclo_agricola: null,
+        lote: null,
         cliente_nombre: 'Persona Demostración'
       }],
       paginacion: { limite: 50, siguiente: null }

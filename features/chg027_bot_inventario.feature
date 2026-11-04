@@ -78,6 +78,32 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Cuando el bot CHG-027 consulta el inventario de productos
     Entonces existe una fila de auditoría CHG-027 sin cuerpo, sin clave y sin datos de cliente
 
+  @no-implementado
+  Escenario: BDD-SC-122 el administrador ve los lotes del detalle y no el libro de tamaños
+    Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Administrador"
+    Y un híbrido de demostración con lote "LOTE-DEMO-1" y tamaño "BT1"
+    Cuando el bot CHG-027 consulta el detalle del híbrido de demostración
+    Entonces el bot CHG-027 recibe estado 200
+    Y el detalle incluye el lote "LOTE-DEMO-1" y el tamaño "BT1"
+    Y el cuerpo del bot CHG-027 no contiene el libro de tamaños
+
+  @no-implementado
+  Escenario: BDD-SC-123 un movimiento manual aparece con su tipo y, para el administrador, con lote y sin tamaño
+    Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Administrador"
+    Y un movimiento manual de demostración de tipo "Entrada" con lote "LOTE-DEMO-1"
+    Cuando el bot CHG-027 consulta los movimientos recientes
+    Entonces el bot CHG-027 recibe estado 200
+    Y el movimiento de demostración tiene tipo "Entrada" y lote "LOTE-DEMO-1"
+    Y el cuerpo del bot CHG-027 no contiene el campo tamano
+
+  @no-implementado
+  Escenario: BDD-SC-124 la búsqueda no distingue los diacríticos de la semilla
+    Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Almacen"
+    Y un híbrido de demostración con existencia física 140 y reserva activa 40
+    Cuando el bot CHG-027 busca el inventario con "Hibrido"
+    Entonces el bot CHG-027 recibe estado 200
+    Y el disponible del híbrido de demostración es 100
+
   Escenario: BDD-SC-118 el administrador ve la clave una sola vez y puede revocarla
     Dado un administrador ficticio autenticado en la sesión web
     Cuando crea una clave CHG-027 de alcance "inventario:leer" ligada al rol "Almacen"
