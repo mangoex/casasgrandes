@@ -136,7 +136,7 @@ test('TDD-TC-073: frontend convierte la barra acumulada a descuento adicional', 
   const index = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8');
   assert.match(frontend, /data-discount-floor/);
   assert.match(frontend, /sliderTotal\s*-\s*discountFloor/);
-  assert.match(index, /app\.js\?v=2026(09(0[13]|18|21)-chg0(1[5789]|20)|1016-chg025|1103-chg02[89])/);
+  assert.match(index, /app\.js\?v=2026(09(0[13]|18|21)-chg0(1[5789]|20)|1016-chg025|1103-chg02[89]|1104-lotes)/);
   assert.match(index, /style\.css\?v=2026(09(0[13]|18|21)-chg0(1[5789]|20)|1016-chg025)/);
 });
 
