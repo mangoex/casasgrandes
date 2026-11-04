@@ -4,7 +4,7 @@
 # La etiqueta @no-implementado omite los escenarios. Un escenario omitido
 # no demuestra que el comportamiento exista.
 
-@no-implementado
+@chg027
 Característica: PRD-FR-060 — clave de bot y lectura de inventario
 
   Escenario: BDD-SC-107 la salud del bot no exige clave ni muestra inventario
@@ -12,6 +12,7 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Entonces el bot CHG-027 recibe estado 200
     Y el cuerpo del bot CHG-027 solo indica salud
 
+  @no-implementado
   Escenario: BDD-SC-108 el disponible resta las reservas activas de la existencia física
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Almacen"
     Y un híbrido de demostración con existencia física 140 y reserva activa 40
@@ -19,6 +20,7 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Entonces el bot CHG-027 recibe estado 200
     Y el disponible del híbrido de demostración es 100
 
+  @no-implementado
   Escenario: BDD-SC-109 Almacén ve el detalle por lote y tamaño
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Almacen"
     Y un híbrido de demostración con lote "LOTE-DEMO-1" y tamaño "BT1"
@@ -26,6 +28,7 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Entonces el bot CHG-027 recibe estado 200
     Y el detalle incluye el lote "LOTE-DEMO-1" y el tamaño "BT1"
 
+  @no-implementado
   Escenario: BDD-SC-110 los movimientos recientes no llevan datos personales ni precios
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Almacen"
     Y un movimiento de demostración ligado a un cliente ficticio
@@ -50,6 +53,7 @@ Característica: PRD-FR-060 — clave de bot y lectura de inventario
     Entonces el bot CHG-027 recibe estado 403
     Y el código de error del bot CHG-027 es "ALCANCE_DENEGADO"
 
+  @no-implementado
   Escenario: BDD-SC-114 un asesor no recibe lotes, tamaños ni movimientos
     Dado un bot CHG-027 con clave vigente, alcance "inventario:leer" y rol "Asesor"
     Y un híbrido de demostración con lote "LOTE-DEMO-1" y tamaño "BT1"

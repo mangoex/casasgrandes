@@ -49,6 +49,8 @@ const { createGracefulShutdown } = require('./utils/serverLifecycle');
 // Routers
 const authRouter = require('./routes/auth');
 const clientesRouter = require('./routes/clientes');
+const botApiRouter = require('./routes/botApi');
+const botAdminRouter = require('./routes/botAdmin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -108,6 +110,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Mount API Routers
 app.use('/api/auth', authRouter);
 app.use('/api/clientes', clientesRouter);
+app.use('/api/v1/bot', botApiRouter);
+app.use('/api/admin/bot', botAdminRouter);
 
 app.use(
   [

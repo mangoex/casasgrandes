@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const { Pool, types } = require('pg');
 const dotenv = require('dotenv');
 const { createTransactionRunner } = require('./utils/databaseTransaction');
@@ -74,6 +76,14 @@ async function ensureQuotationsSchema() {
   await pool.query('ALTER TABLE cotizacion_detalles ALTER COLUMN temporada_id DROP NOT NULL');
 }
 
+let botSchemaSql = null;
+async function ensureBotSchema() {
+  if (!botSchemaSql) {
+    botSchemaSql = fs.readFileSync(path.join(__dirname, 'migrations', '027_bot_api.sql'), 'utf8');
+  }
+  await pool.query(botSchemaSql);
+}
+
 // Database auto-migration / schema updates
 async function initSchema() {
   try {
@@ -116,6 +126,7 @@ async function initSchema() {
     await pool.query('ALTER TABLE cotizacion_detalles ADD COLUMN IF NOT EXISTS tamano TEXT');
     await ensureWarehouseMovementsSchema();
     await ensureQuotationsSchema();
+    await ensureBotSchema();
 
     // Reclassify agrochemicals miscategorized as hybrid seed
     await pool.query(`
@@ -741,6 +752,7 @@ module.exports = {
   initSchema: ensureSchema,
   ensureWarehouseMovementsSchema,
   ensureQuotationsSchema,
+  ensureBotSchema,
   checkReadiness,
   close
 };

@@ -372,13 +372,44 @@ test('TDD-TC-121: cada ejemplo publicado cumple su esquema', async () => {
   }
 });
 
-test('TDD-TC-121: Express todavía no publica las rutas del contrato', async () => {
+test('TDD-TC-121: las respuestas reales de salud y de clave ausente cumplen el contrato', async t => {
+  process.env.BOT_API_KEY_PEPPER = 'pimienta-de-prueba-chg027';
   const request = require('supertest');
   const { app } = require('../../server');
-  for (const [method, path] of RUTAS) {
-    const response = method === 'POST'
-      ? await request(app).post(path).send({})
-      : await request(app).get(path);
-    assert.equal(response.status, 404, `${method} ${path}`);
-  }
+  const { installBotFixture } = require('../support/botFixture');
+  const fixture = installBotFixture();
+  t.after(() => fixture.restore());
+  const health = await request(app).get('/api/v1/bot/health');
+  assert.equal(health.status, 200, JSON.stringify(health.body));
+  const healthSchema = await validateResponse({
+    specPath: defaultSpecPath,
+    requestPath: '/api/v1/bot/health',
+    method: 'GET',
+    status: 200,
+    body: health.body
+  });
+  assert.equal(healthSchema.valid, true, JSON.stringify(healthSchema.errors));
+  assert.deepEqual(Object.keys(health.body), ['status']);
+
+  const missing = await request(app).get('/api/v1/bot/inventario/productos');
+  assert.equal(missing.status, 401, JSON.stringify(missing.body));
+  const missingSchema = await validateResponse({
+    specPath: defaultSpecPath,
+    requestPath: '/api/v1/bot/inventario/productos',
+    method: 'GET',
+    status: 401,
+    body: missing.body
+  });
+  assert.equal(missingSchema.valid, true, JSON.stringify(missingSchema.errors));
+
+  const admin = await request(app).post('/api/admin/bot/claves').send({});
+  assert.equal(admin.status, 401, JSON.stringify(admin.body));
+  const adminSchema = await validateResponse({
+    specPath: defaultSpecPath,
+    requestPath: '/api/admin/bot/claves',
+    method: 'POST',
+    status: 401,
+    body: admin.body
+  });
+  assert.equal(adminSchema.valid, true, JSON.stringify(adminSchema.errors));
 });
